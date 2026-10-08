@@ -1,0 +1,40 @@
+@{
+    var controller = ViewContext.RouteData.Values["controller"] as string;
+    var onDashboard = string.Equals(controller, "Home", StringComparison.OrdinalIgnoreCase);
+
+    // Future sections, enabled milestone by milestone (SPEC §10).
+    var upcoming = new (string Label, string Icon)[]
+    {
+        ("People", "bi-people"),
+        ("Absences", "bi-calendar-x"),
+        ("Salaries", "bi-cash-stack"),
+        ("Exchange Rates", "bi-currency-exchange"),
+        ("Payroll", "bi-receipt"),
+        ("Invoices", "bi-file-earmark-text"),
+        ("Owner Income", "bi-graph-up-arrow"),
+        ("Reports", "bi-bar-chart-line"),
+        ("Managers", "bi-person-gear"),
+    };
+}
+<nav class="sidebar-nav" aria-label="Sections">
+    <ul class="nav-list">
+        <li>
+            <a class="nav-item-link @(onDashboard ? "active" : null)" asp-controller="Home" asp-action="Index"
+               aria-current="@(onDashboard ? "page" : null)" title="Dashboard">
+                <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+                <span class="nav-label">Dashboard</span>
+            </a>
+        </li>
+        @foreach (var item in upcoming)
+        {
+            <li>
+                <span class="nav-item-link disabled" aria-disabled="true" title="@item.Label (coming soon)">
+                    <i class="bi @item.Icon" aria-hidden="true"></i>
+                    <span class="nav-label">@item.Label</span>
+                    <span class="pill pill-neutral nav-soon">Soon</span>
+                    <span class="visually-hidden nav-soon-sr">(coming soon)</span>
+                </span>
+            </li>
+        }
+    </ul>
+</nav>

@@ -1,0 +1,146 @@
+/* Aurora Glass design tokens. Variables only: no selectors that style elements. */
+
+:root {
+    /* Type */
+    --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --fs-page-title: 1.5rem;
+    --fw-page-title: 700;
+    --fs-card-title: 1rem;
+    --fw-card-title: 600;
+    --fs-body: 0.9375rem;
+    --fs-small: 0.8125rem;
+
+    /* Shape */
+    --radius-card: 20px;
+    --radius-control: 12px;
+    --radius-pill: 999px;
+
+    /* Glass effects */
+    --glass-blur: blur(18px) saturate(160%);
+    --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .08);
+    --glass-shadow: 0 8px 32px rgba(2, 6, 23, .25);
+
+    /* Accents */
+    --accent-start: #6366F1;
+    --accent-end: #8B5CF6;
+    --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #F43F5E;
+    --info: #0EA5E9;
+
+    /* A slate shade laid over solid accent buttons so white labels reach 4.5:1 (see M1 report). */
+    --btn-label-shade: linear-gradient(rgba(15, 23, 42, .12), rgba(15, 23, 42, .12));
+    --btn-danger-shade: linear-gradient(rgba(15, 23, 42, .18), rgba(15, 23, 42, .18));
+
+    /* Aurora blobs */
+    --aurora-indigo: #6366F1;
+    --aurora-violet: #A855F7;
+    --aurora-teal: #14B8A6;
+    --aurora-drift: 72s;
+
+    /* Layout */
+    --sidebar-width: 260px;
+    --sidebar-rail-width: 76px;
+    --topbar-height: 72px;
+    --content-max-width: 1400px;
+    --gutter: 24px;
+    --gutter-mobile: 16px;
+    --touch-target: 40px;
+
+    /* Focus */
+    --focus-width: 2px;
+    --focus-offset: 2px;
+}
+
+[data-bs-theme="light"] {
+    --aurora-base: #EEF2FF;
+    --aurora-opacity: .30;
+    --aurora-veil: transparent;
+
+    --glass-bg: rgba(255, 255, 255, .62);
+    --glass-bg-strong: rgba(255, 255, 255, .80);
+    --glass-border: rgba(255, 255, 255, .70);
+    --glass-hover: rgba(99, 102, 241, .08);
+
+    --text: #0F172A;
+    --text-muted: #475569;
+    --link: #4338CA;
+    --focus-color: #4F46E5;
+
+    /* Form control boundary ≥ 3:1 against the surface (WCAG 1.4.11). */
+    --input-bg: rgba(255, 255, 255, .78);
+    --input-border: #6E7A91;
+    --divider: rgba(15, 23, 42, .10);
+
+    --tone-success-fg: #065F46;
+    --tone-warning-fg: #92400E;
+    --tone-danger-fg: #BE123C;
+    --tone-info-fg: #075985;
+    --tone-primary-fg: #4338CA;
+    --tone-neutral-fg: #475569;
+    --tone-alpha: .16;
+    --code-color: #9D174D;
+    --nav-active-bg: rgba(99, 102, 241, .14);
+
+    --bs-body-color: var(--text);
+    --bs-body-bg: transparent;
+    --bs-secondary-color: var(--text-muted);
+    --bs-emphasis-color: var(--text);
+    --bs-link-color: var(--link);
+    --bs-link-hover-color: var(--link);
+    --bs-link-color-rgb: 67, 56, 202;
+    --bs-link-hover-color-rgb: 67, 56, 202;
+    --bs-border-color: var(--divider);
+    --bs-form-valid-color: var(--tone-success-fg);
+    --bs-form-valid-border-color: var(--success);
+    --bs-form-invalid-color: var(--tone-danger-fg);
+    --bs-form-invalid-border-color: var(--danger);
+    --bs-code-color: var(--code-color);
+}
+
+[data-bs-theme="dark"] {
+    --aurora-base: #0B1020;
+    --aurora-opacity: .45;
+    /* Owner-approved (M1): a 50% base-colour veil over the blobs keeps muted text ≥ 4.5:1 on .06 glass. */
+    --aurora-veil: rgba(11, 16, 32, .50);
+
+    --glass-bg: rgba(255, 255, 255, .06);
+    --glass-bg-strong: rgba(17, 24, 39, .72);
+    --glass-border: rgba(255, 255, 255, .12);
+    --glass-hover: rgba(255, 255, 255, .06);
+
+    --text: #E6E8F2;
+    --text-muted: #A3A9C2;
+    --link: #A5B4FC;
+    --focus-color: #A5B4FC;
+
+    --input-bg: rgba(255, 255, 255, .05);
+    --input-border: #8A91AE;
+    --divider: rgba(255, 255, 255, .10);
+
+    --tone-success-fg: #6EE7B7;
+    --tone-warning-fg: #FCD34D;
+    --tone-danger-fg: #FDA4AF;
+    --tone-info-fg: #7DD3FC;
+    --tone-primary-fg: #C7D2FE;
+    --tone-neutral-fg: #C3C8DA;
+    --tone-alpha: .18;
+    --code-color: #F9A8D4;
+    --nav-active-bg: rgba(129, 140, 248, .20);
+
+    --bs-body-color: var(--text);
+    --bs-body-bg: transparent;
+    --bs-secondary-color: var(--text-muted);
+    --bs-emphasis-color: var(--text);
+    --bs-link-color: var(--link);
+    --bs-link-hover-color: var(--link);
+    --bs-link-color-rgb: 165, 180, 252;
+    --bs-link-hover-color-rgb: 165, 180, 252;
+    --bs-border-color: var(--divider);
+    --bs-form-valid-color: var(--tone-success-fg);
+    --bs-form-valid-border-color: var(--success);
+    --bs-form-invalid-color: var(--tone-danger-fg);
+    --bs-form-invalid-border-color: var(--danger);
+    --bs-code-color: var(--code-color);
+}

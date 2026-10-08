@@ -1,0 +1,16 @@
+@model StatTileViewModel
+<div class="stat-tile glass-card">
+    <span class="stat-icon tone-@Model.Tone" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
+    <div class="stat-body">
+        <p class="stat-label">@Model.Label</p>
+        <p class="stat-value">@Model.Value</p>
+        @if (!string.IsNullOrEmpty(Model.Caption))
+        {
+            <p class="stat-caption">@Model.Caption</p>
+        }
+        @if (!string.IsNullOrEmpty(Model.Delta))
+        {
+            <p class="stat-delta delta-@Model.DeltaTone">@Model.Delta</p>
+        }
+    </div>
+</div>

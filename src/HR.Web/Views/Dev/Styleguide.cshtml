@@ -1,0 +1,204 @@
+@model StyleguideViewModel
+@{
+    ViewData["Title"] = "Style guide";
+    ViewData["Section"] = "Developer";
+
+    var tiles = new[]
+    {
+        new StatTileViewModel("Active people", "24", "bi-people", "indigo", "18 employees · 6 internees", "+2 this month", "success"),
+        new StatTileViewModel("USD/PKR rate", "280.0000", "bi-currency-exchange", "teal", "Effective 01 Oct 2026"),
+        new StatTileViewModel("Payroll total", DisplayFormat.Pkr(1234567m), "bi-receipt", "violet", "Oct 1–15 draft", "-1.4% vs last period", "danger"),
+        new StatTileViewModel("Pending absences", "3", "bi-calendar-x", "warning", "Awaiting review"),
+    };
+    var swatches = new (string Css, string Name, string Hex)[]
+    {
+        ("swatch-primary", "Primary", "#6366F1 → #8B5CF6"),
+        ("swatch-success", "Success", "#10B981"),
+        ("swatch-warning", "Warning", "#F59E0B"),
+        ("swatch-danger", "Danger", "#F43F5E"),
+        ("swatch-info", "Info", "#0EA5E9"),
+        ("swatch-indigo", "Aurora indigo", "#6366F1"),
+        ("swatch-violet", "Aurora violet", "#A855F7"),
+        ("swatch-teal", "Aurora teal", "#14B8A6"),
+    };
+}
+
+<p class="page-lead">Every Aurora Glass component, in both themes. This page exists only in the Development environment.</p>
+
+<div class="styleguide">
+    <section class="glass-card sg-section" aria-labelledby="sgColours">
+        <h2 class="card-title" id="sgColours">Colours</h2>
+        <ul class="swatch-grid">
+            @foreach (var s in swatches)
+            {
+                <li class="swatch">
+                    <span class="swatch-chip @s.Css" aria-hidden="true"></span>
+                    <span class="swatch-name">@s.Name</span>
+                    <code class="swatch-hex">@s.Hex</code>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgType">
+        <h2 class="card-title" id="sgType">Typography</h2>
+        <p class="sg-type-page-title" aria-hidden="true">Page title · 1.5rem / 700</p>
+        <p class="sg-type-card-title">Card title · 1rem / 600</p>
+        <p>Body text · 0.9375rem. Plus Jakarta Sans, self-hosted. The quick brown fox jumps over the lazy dog.</p>
+        <p class="text-muted-glass">Muted text for secondary information and captions.</p>
+        <p class="num">Tabular numbers: 1,234,567 · 98,000 · 42,000 · 150.00</p>
+        <p class="mb-0">Inline <a href="#sgType">link style</a> and <code>code</code>.</p>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgButtons">
+        <h2 class="card-title" id="sgButtons">Buttons</h2>
+        <div class="sg-row">
+            <button type="button" class="btn btn-primary-gradient"><i class="bi bi-plus-lg" aria-hidden="true"></i> Primary</button>
+            <button type="button" class="btn btn-ghost">Ghost</button>
+            <button type="button" class="btn btn-danger-solid">Danger</button>
+            <button type="button" class="btn btn-primary-gradient" disabled>Disabled</button>
+            <button type="button" class="btn-icon" aria-label="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+            <button type="button" class="btn-icon" aria-label="Download"><i class="bi bi-download" aria-hidden="true"></i></button>
+        </div>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgPills">
+        <h2 class="card-title" id="sgPills">Status pills</h2>
+        <div class="sg-row">
+            <span class="pill pill-success">Active</span>
+            <span class="pill pill-warning">Draft</span>
+            <span class="pill pill-danger">Inactive</span>
+            <span class="pill pill-info">Finalized</span>
+            <span class="pill pill-primary">Employee</span>
+            <span class="pill pill-neutral">Soon</span>
+        </div>
+    </section>
+
+    <section class="sg-section-plain" aria-labelledby="sgTiles">
+        <h2 class="card-title sg-heading" id="sgTiles">Stat tiles</h2>
+        <div class="stat-grid">
+            @foreach (var tile in tiles)
+            {
+                <partial name="_StatTile" model="tile" />
+            }
+        </div>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgForms">
+        <h2 class="card-title" id="sgForms">Form controls</h2>
+        <form class="sg-form" method="post" asp-action="Toast" novalidate>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="sgName" name="name" placeholder="Full name" autocomplete="off" />
+                        <label for="sgName">Full name</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <select class="form-select" id="sgTypeSelect" name="type">
+                            <option value="Employee">Employee</option>
+                            <option value="Internee">Internee</option>
+                        </select>
+                        <label for="sgTypeSelect">Person type</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control is-valid" id="sgValid" value="Software Engineer" placeholder="Designation" aria-describedby="sgValidFeedback" />
+                        <label for="sgValid">Designation</label>
+                        <div class="valid-feedback" id="sgValidFeedback">Looks good.</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <input type="date" class="form-control is-invalid" id="sgInvalid" value="2026-10-10" placeholder="Joining date" aria-invalid="true" aria-describedby="sgInvalidFeedback" />
+                        <label for="sgInvalid">Joining date</label>
+                        <div class="invalid-feedback" id="sgInvalidFeedback">Joining date can't be a Saturday or Sunday.</div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-floating">
+                        <textarea class="form-control sg-textarea" id="sgNote" name="note" placeholder="Note"></textarea>
+                        <label for="sgNote">Note (optional)</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="sgBillable" checked />
+                        <label class="form-check-label" for="sgBillable">Billable to Company</label>
+                    </div>
+                </div>
+            </div>
+            <div class="sg-row mt-3">
+                <button type="submit" class="btn btn-primary-gradient" name="kind" value="success">Save (success toast)</button>
+                <button type="submit" class="btn btn-ghost" name="kind" value="error">Fail (error toast)</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="sg-section-plain" aria-labelledby="sgTable">
+        <h2 class="card-title sg-heading" id="sgTable">Money table</h2>
+        <p class="text-muted-glass">Below the md breakpoint each row becomes a stacked card, labelled from <code>data-label</code>.</p>
+        <div class="glass-table-wrap">
+            <table class="glass-table">
+                <caption class="visually-hidden">Sample payroll register, Oct 1–15 2026, rate 280</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Designation</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="money">Days</th>
+                        <th scope="col" class="money">Pay (USD)</th>
+                        <th scope="col" class="money">Pay (PKR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var pill = row.Status switch { "Active" => "pill-success", "On leave" => "pill-warning", _ => "pill-danger" };
+                        <tr>
+                            <td data-label="Name" class="cell-primary">@row.Name</td>
+                            <td data-label="Designation">@row.Designation</td>
+                            <td data-label="Status"><span class="pill @pill">@row.Status</span></td>
+                            <td data-label="Days" class="money">@row.Days</td>
+                            <td data-label="Pay (USD)" class="money">@DisplayFormat.Usd(row.PayUsd)</td>
+                            <td data-label="Pay (PKR)" class="money">@DisplayFormat.Pkr(row.PayPkr)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row" colspan="4">Total</th>
+                        <td data-label="Total (USD)" class="money">@DisplayFormat.Usd(Model.Rows.Sum(r => r.PayUsd))</td>
+                        <td data-label="Total (PKR)" class="money">@DisplayFormat.Pkr(Model.Rows.Sum(r => r.PayPkr))</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgEmpty">
+        <h2 class="card-title" id="sgEmpty">Empty state</h2>
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+            <p class="empty-state-text">No people yet. Add your first employee or internee to get started.</p>
+            <button type="button" class="btn btn-primary-gradient"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</button>
+        </div>
+    </section>
+
+    <section class="glass-card sg-section" aria-labelledby="sgFeedback">
+        <h2 class="card-title" id="sgFeedback">Feedback</h2>
+        <p class="text-muted-glass">Toasts come from TempData after a POST-redirect-GET; destructive actions ask for confirmation first.</p>
+        <form method="post" asp-action="Toast" class="sg-row">
+            <button type="submit" class="btn btn-ghost" name="kind" value="success">Show success toast</button>
+            <button type="submit" class="btn btn-ghost" name="kind" value="error">Show error toast</button>
+            <button type="submit" class="btn btn-danger-solid" name="kind" value="success"
+                    data-confirm="Deactivating Bilal Ahmed sets a leaving date and removes him from future payrolls."
+                    data-confirm-title="Deactivate this person?"
+                    data-confirm-action="Deactivate">
+                <i class="bi bi-person-dash" aria-hidden="true"></i> Deactivate (confirm modal)
+            </button>
+        </form>
+    </section>
+</div>

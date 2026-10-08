@@ -1,0 +1,102 @@
+@{
+    var title = ViewData["Title"] as string ?? "HR Payroll";
+    var sectionName = ViewData["Section"] as string;
+}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@title · HR Payroll</title>
+    <script src="~/js/theme-init.js"></script>
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/400.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/500.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/600.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/700.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/tokens.css" />
+    <link rel="stylesheet" href="~/css/glass.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <div class="aurora" aria-hidden="true">
+        <span class="aurora-blob aurora-blob-indigo"></span>
+        <span class="aurora-blob aurora-blob-violet"></span>
+        <span class="aurora-blob aurora-blob-teal"></span>
+    </div>
+
+    <div class="app-shell">
+        <aside class="app-sidebar offcanvas-lg offcanvas-start" id="appSidebar" tabindex="-1" aria-label="Main navigation">
+            <div class="sidebar-inner">
+                <div class="sidebar-header">
+                    <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
+                        <span class="brand-mark" aria-hidden="true"><i class="bi bi-stars"></i></span>
+                        <span class="brand-text nav-label">HR Payroll</span>
+                    </a>
+                    <button type="button" class="btn-icon d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Close navigation">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <partial name="_SidebarNav" />
+
+                <div class="sidebar-footer d-none d-lg-flex">
+                    <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseToggle" aria-controls="appSidebar" aria-expanded="true">
+                        <i class="bi bi-chevron-double-left" aria-hidden="true"></i>
+                        <span class="nav-label">Collapse sidebar</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <div class="app-main">
+            <header class="app-topbar">
+                <button type="button" class="btn-icon d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Open navigation">
+                    <i class="bi bi-list" aria-hidden="true"></i>
+                </button>
+
+                <div class="topbar-titles">
+                    <nav aria-label="Breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">HR Payroll</a></li>
+                            @if (!string.IsNullOrEmpty(sectionName))
+                            {
+                                <li class="breadcrumb-item">@sectionName</li>
+                            }
+                            <li class="breadcrumb-item active" aria-current="page">@title</li>
+                        </ol>
+                    </nav>
+                    <h1 class="page-title">@title</h1>
+                </div>
+
+                <div class="topbar-actions">
+                    <button type="button" class="btn-icon" id="themeToggle" aria-label="Switch theme">
+                        <i class="bi bi-moon-stars theme-icon-light" aria-hidden="true"></i>
+                        <i class="bi bi-sun theme-icon-dark" aria-hidden="true"></i>
+                    </button>
+                    <div class="user-chip">
+                        <span class="user-avatar" aria-hidden="true"><i class="bi bi-person"></i></span>
+                        <span class="user-name d-none d-sm-inline">Not signed in</span>
+                        <span class="visually-hidden d-sm-none">Not signed in</span>
+                    </div>
+                </div>
+            </header>
+
+            <main id="main" class="app-content" tabindex="-1">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <partial name="_Toasts" />
+    <partial name="_ConfirmModal" />
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

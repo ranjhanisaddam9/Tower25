@@ -1,0 +1,31 @@
+@using HR.Web.Infrastructure
+@{
+    var success = TempData[TempDataToastExtensions.SuccessKey] as string;
+    var error = TempData[TempDataToastExtensions.ErrorKey] as string;
+}
+<div class="toast-container glass-toast-container" aria-live="polite" aria-atomic="true">
+    @if (!string.IsNullOrEmpty(success))
+    {
+        <div class="toast glass-toast toast-success" role="status" data-bs-delay="5000">
+            <div class="toast-body">
+                <i class="bi bi-check-circle-fill toast-icon" aria-hidden="true"></i>
+                <span class="toast-message">@success</span>
+                <button type="button" class="btn-icon btn-icon-sm" data-bs-dismiss="toast" aria-label="Dismiss notification">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="toast glass-toast toast-error" role="alert" data-bs-delay="8000">
+            <div class="toast-body">
+                <i class="bi bi-exclamation-triangle-fill toast-icon" aria-hidden="true"></i>
+                <span class="toast-message">@error</span>
+                <button type="button" class="btn-icon btn-icon-sm" data-bs-dismiss="toast" aria-label="Dismiss notification">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    }
+</div>

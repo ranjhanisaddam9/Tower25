@@ -1,0 +1,117 @@
+/* Page-specific bits. Components live in glass.css. */
+
+/* ---------- Dashboard ---------- */
+.stat-tile-period .stat-value {
+    font-size: 1.25rem;
+    white-space: nowrap;
+}
+
+.stat-next {
+    margin-top: 8px !important;
+    padding-top: 8px;
+    border-top: 1px solid var(--divider);
+    font-size: var(--fs-small);
+    color: var(--text);
+}
+
+.stat-next-label {
+    font-weight: 600;
+}
+
+.stat-next-days {
+    color: var(--text-muted);
+}
+
+.dashboard-welcome {
+    max-width: 760px;
+}
+
+/* ---------- Error pages ---------- */
+.error-state {
+    max-width: 560px;
+    margin: 24px auto;
+}
+
+.error-code {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+/* ---------- Style guide ---------- */
+.styleguide {
+    display: grid;
+    gap: 20px;
+}
+
+.sg-heading {
+    margin-bottom: 12px;
+}
+
+.sg-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.sg-type-page-title {
+    font-size: var(--fs-page-title);
+    font-weight: var(--fw-page-title);
+}
+
+.sg-type-card-title {
+    font-size: var(--fs-card-title);
+    font-weight: var(--fw-card-title);
+}
+
+.sg-textarea {
+    min-height: 110px;
+}
+
+.swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.swatch {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 10px;
+    align-items: center;
+}
+
+.swatch-chip {
+    grid-row: span 2;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--glass-border);
+}
+
+.swatch-name {
+    font-weight: 600;
+    font-size: var(--fs-small);
+}
+
+.swatch-hex {
+    color: var(--text-muted);
+    font-size: .75rem;
+}
+
+.swatch-primary { background: var(--accent-gradient); }
+.swatch-success { background: var(--success); }
+.swatch-warning { background: var(--warning); }
+.swatch-danger { background: var(--danger); }
+.swatch-info { background: var(--info); }
+.swatch-indigo { background: var(--aurora-indigo); }
+.swatch-violet { background: var(--aurora-violet); }
+.swatch-teal { background: var(--aurora-teal); }

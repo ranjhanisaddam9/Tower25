@@ -1,0 +1,13 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+<section class="glass-card empty-state error-state" aria-labelledby="errorHeading">
+    <span class="empty-state-icon" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
+    <p class="error-code">Error @Model.StatusCode</p>
+    <h2 class="card-title" id="errorHeading">@Model.Title</h2>
+    <p class="empty-state-text">@Model.Message</p>
+    <a class="btn btn-primary-gradient" asp-controller="Home" asp-action="Index">
+        <i class="bi bi-house" aria-hidden="true"></i> Back to dashboard
+    </a>
+</section>

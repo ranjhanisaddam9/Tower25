@@ -1,0 +1,59 @@
+{
+    "version":  "1.0",
+    "defaultProvider":  "jsdelivr",
+    "libraries":  [
+                      {
+                          "library":  "@fontsource/plus-jakarta-sans@5.2.8",
+                          "destination":  "wwwroot/lib/plus-jakarta-sans/",
+                          "files":  [
+                                        "400.css",
+                                        "500.css",
+                                        "600.css",
+                                        "700.css",
+                                        "files/plus-jakarta-sans-cyrillic-ext-400-normal.woff2",
+                                        "files/plus-jakarta-sans-cyrillic-ext-400-normal.woff",
+                                        "files/plus-jakarta-sans-vietnamese-400-normal.woff2",
+                                        "files/plus-jakarta-sans-vietnamese-400-normal.woff",
+                                        "files/plus-jakarta-sans-latin-ext-400-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-ext-400-normal.woff",
+                                        "files/plus-jakarta-sans-latin-400-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-400-normal.woff",
+                                        "files/plus-jakarta-sans-cyrillic-ext-500-normal.woff2",
+                                        "files/plus-jakarta-sans-cyrillic-ext-500-normal.woff",
+                                        "files/plus-jakarta-sans-vietnamese-500-normal.woff2",
+                                        "files/plus-jakarta-sans-vietnamese-500-normal.woff",
+                                        "files/plus-jakarta-sans-latin-ext-500-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-ext-500-normal.woff",
+                                        "files/plus-jakarta-sans-latin-500-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-500-normal.woff",
+                                        "files/plus-jakarta-sans-cyrillic-ext-600-normal.woff2",
+                                        "files/plus-jakarta-sans-cyrillic-ext-600-normal.woff",
+                                        "files/plus-jakarta-sans-vietnamese-600-normal.woff2",
+                                        "files/plus-jakarta-sans-vietnamese-600-normal.woff",
+                                        "files/plus-jakarta-sans-latin-ext-600-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-ext-600-normal.woff",
+                                        "files/plus-jakarta-sans-latin-600-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-600-normal.woff",
+                                        "files/plus-jakarta-sans-cyrillic-ext-700-normal.woff2",
+                                        "files/plus-jakarta-sans-cyrillic-ext-700-normal.woff",
+                                        "files/plus-jakarta-sans-vietnamese-700-normal.woff2",
+                                        "files/plus-jakarta-sans-vietnamese-700-normal.woff",
+                                        "files/plus-jakarta-sans-latin-ext-700-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-ext-700-normal.woff",
+                                        "files/plus-jakarta-sans-latin-700-normal.woff2",
+                                        "files/plus-jakarta-sans-latin-700-normal.woff",
+                                        "LICENSE"
+                                    ]
+                      },
+                      {
+                          "library":  "bootstrap-icons@1.13.1",
+                          "destination":  "wwwroot/lib/bootstrap-icons/",
+                          "files":  [
+                                        "font/bootstrap-icons.min.css",
+                                        "font/fonts/bootstrap-icons.woff2",
+                                        "font/fonts/bootstrap-icons.woff",
+                                        "LICENSE"
+                                    ]
+                      }
+                  ]
+}

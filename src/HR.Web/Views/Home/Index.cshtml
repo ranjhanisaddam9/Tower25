@@ -1,0 +1,45 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    ViewData["Section"] = "Overview";
+
+    var current = Model.CurrentPeriod;
+    var next = Model.NextPeriod;
+    var tiles = new[]
+    {
+        new StatTileViewModel("Active people", "—", "bi-people", "indigo", "People records arrive in M3"),
+        new StatTileViewModel("USD/PKR rate", "—", "bi-currency-exchange", "teal", "Exchange rates arrive in M4"),
+        new StatTileViewModel("Pending absences", "—", "bi-calendar-x", "warning", "Absences arrive in M6"),
+    };
+}
+
+<p class="page-lead">Today is <time datetime="@Model.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@DisplayFormat.Date(Model.Today)</time> (Asia/Karachi).</p>
+
+<section class="stat-grid" aria-label="Key figures">
+    <partial name="_StatTile" model="tiles[0]" />
+    <partial name="_StatTile" model="tiles[1]" />
+
+    <div class="stat-tile glass-card stat-tile-period">
+        <span class="stat-icon tone-violet" aria-hidden="true"><i class="bi bi-calendar-range"></i></span>
+        <div class="stat-body">
+            <p class="stat-label">Current pay period</p>
+            <p class="stat-value" data-testid="current-period">@DisplayFormat.DateRange(current.Start, current.End)</p>
+            <p class="stat-caption">@current.WorkingDays working days</p>
+            <p class="stat-next">
+                <span class="stat-next-label">Next:</span>
+                <span data-testid="next-period">@DisplayFormat.DateRange(next.Start, next.End)</span>
+                <span class="stat-next-days">· @next.WorkingDays working days</span>
+            </p>
+        </div>
+    </div>
+
+    <partial name="_StatTile" model="tiles[2]" />
+</section>
+
+<section class="glass-card dashboard-welcome" aria-labelledby="welcomeTitle">
+    <h2 class="card-title" id="welcomeTitle">Welcome to HR Payroll</h2>
+    <p class="text-muted-glass mb-0">
+        Pay periods run from the 1st to the 15th and from the 16th to month-end. Working days are Monday to Friday.
+        The sections in the sidebar are switched on milestone by milestone.
+    </p>
+</section>
