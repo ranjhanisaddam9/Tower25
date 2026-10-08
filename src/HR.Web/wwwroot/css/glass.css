@@ -219,7 +219,7 @@ time {
     width: 40px;
     height: 40px;
     border-radius: var(--radius-control);
-    background: var(--btn-label-shade), var(--accent-gradient);
+    background: var(--accent-gradient);
     color: #fff;
     font-size: 1.125rem;
 }
@@ -512,7 +512,7 @@ a.nav-item-link:hover {
 .tone-teal { background: rgba(20, 184, 166, var(--tone-alpha)); color: var(--tone-success-fg); }
 .tone-success { background: rgba(16, 185, 129, var(--tone-alpha)); color: var(--tone-success-fg); }
 .tone-warning { background: rgba(245, 158, 11, var(--tone-alpha)); color: var(--tone-warning-fg); }
-.tone-danger { background: rgba(244, 63, 94, var(--tone-alpha)); color: var(--tone-danger-fg); }
+.tone-danger { background: rgba(225, 29, 72, var(--tone-alpha)); color: var(--tone-danger-fg); }
 .tone-info { background: rgba(14, 165, 233, var(--tone-alpha)); color: var(--tone-info-fg); }
 
 .stat-body {
@@ -566,10 +566,13 @@ a.nav-item-link:hover {
 
 .pill-success { background: rgba(16, 185, 129, var(--tone-alpha)); color: var(--tone-success-fg); }
 .pill-warning { background: rgba(245, 158, 11, var(--tone-alpha)); color: var(--tone-warning-fg); }
-.pill-danger { background: rgba(244, 63, 94, var(--tone-alpha)); color: var(--tone-danger-fg); }
+.pill-danger { background: rgba(225, 29, 72, var(--tone-alpha)); color: var(--tone-danger-fg); }
 .pill-info { background: rgba(14, 165, 233, var(--tone-alpha)); color: var(--tone-info-fg); }
 .pill-primary { background: rgba(99, 102, 241, var(--tone-alpha)); color: var(--tone-primary-fg); }
 .pill-neutral { background: var(--glass-hover); color: var(--tone-neutral-fg); border: 1px solid var(--divider); }
+.pill-solid-success { background: var(--success); color: var(--on-success); }
+.pill-solid-warning { background: var(--warning); color: var(--on-warning); }
+.pill-solid-danger { background: var(--danger); color: var(--on-danger); }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -586,17 +589,18 @@ a.nav-item-link:hover {
 }
 
 .btn-primary-gradient {
-    --bs-btn-color: #fff;
-    --bs-btn-hover-color: #fff;
-    --bs-btn-active-color: #fff;
-    --bs-btn-disabled-color: #fff;
+    --bs-btn-color: var(--on-accent);
+    --bs-btn-hover-color: var(--on-accent);
+    --bs-btn-active-color: var(--on-accent);
+    --bs-btn-disabled-color: var(--on-accent);
     --bs-btn-border-width: 0;
-    background-image: var(--btn-label-shade), var(--accent-gradient);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, .35);
+    background-image: var(--accent-gradient);
+    box-shadow: 0 6px 20px rgba(79, 70, 229, .35);
 }
 
-.btn-primary-gradient:hover {
-    background-image: linear-gradient(rgba(15, 23, 42, .22), rgba(15, 23, 42, .22)), var(--accent-gradient);
+.btn-primary-gradient:hover,
+.btn-primary-gradient:active {
+    background-image: var(--accent-gradient-hover);
 }
 
 .btn-ghost {
@@ -612,17 +616,26 @@ a.nav-item-link:hover {
 }
 
 .btn-danger-solid {
-    --bs-btn-color: #fff;
-    --bs-btn-hover-color: #fff;
-    --bs-btn-active-color: #fff;
+    --bs-btn-color: var(--on-danger);
+    --bs-btn-hover-color: var(--on-danger);
+    --bs-btn-active-color: var(--on-danger);
+    --bs-btn-disabled-color: var(--on-danger);
+    --bs-btn-bg: var(--danger);
+    --bs-btn-hover-bg: var(--danger-hover);
+    --bs-btn-active-bg: var(--danger-hover);
+    --bs-btn-disabled-bg: var(--danger);
     --bs-btn-border-width: 0;
-    background-color: var(--danger);
-    background-image: var(--btn-danger-shade);
 }
 
-.btn-danger-solid:hover {
-    background-color: var(--danger);
-    background-image: linear-gradient(rgba(15, 23, 42, .28), rgba(15, 23, 42, .28));
+/* Solid success/warning surfaces are light colours: they always carry dark text. */
+.btn-success-solid {
+    --bs-btn-color: var(--on-success);
+    --bs-btn-hover-color: var(--on-success);
+    --bs-btn-active-color: var(--on-success);
+    --bs-btn-bg: var(--success);
+    --bs-btn-hover-bg: #059669;
+    --bs-btn-active-bg: #059669;
+    --bs-btn-border-width: 0;
 }
 
 .btn-icon {
@@ -938,4 +951,166 @@ a.nav-item-link:hover {
 
 .glass-modal .modal-title {
     margin: 0;
+}
+
+/* ---------- User menu ---------- */
+button.user-chip,
+a.user-chip {
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-small);
+    text-decoration: none;
+}
+
+.user-chip:hover {
+    background: var(--glass-hover);
+    color: var(--text);
+}
+
+.user-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+}
+
+.user-name {
+    font-weight: 600;
+}
+
+.user-role {
+    color: var(--text-muted);
+    font-size: .75rem;
+}
+
+.user-avatar {
+    font-size: .8125rem;
+    font-weight: 700;
+}
+
+.user-caret {
+    font-size: .75rem;
+    color: var(--text-muted);
+}
+
+.glass-dropdown {
+    --bs-dropdown-bg: var(--glass-bg-strong);
+    --bs-dropdown-color: var(--text);
+    --bs-dropdown-border-color: var(--glass-border);
+    --bs-dropdown-border-radius: var(--radius-control);
+    --bs-dropdown-link-color: var(--text);
+    --bs-dropdown-link-hover-color: var(--text);
+    --bs-dropdown-link-hover-bg: var(--glass-hover);
+    --bs-dropdown-link-active-color: var(--text);
+    --bs-dropdown-link-active-bg: var(--nav-active-bg);
+    --bs-dropdown-divider-bg: var(--divider);
+    --bs-dropdown-header-color: var(--text-muted);
+    min-width: 240px;
+    padding: 8px;
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-highlight), var(--glass-shadow);
+}
+
+.glass-dropdown .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--touch-target);
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.glass-dropdown .dropdown-header {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 12px;
+}
+
+.dropdown-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.dropdown-email {
+    color: var(--text-muted);
+    font-size: .75rem;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- Alerts ---------- */
+.glass-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: var(--radius-control);
+    border: 1px solid transparent;
+    font-weight: 500;
+}
+
+.glass-alert > .bi {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.alert-danger-glass {
+    background: rgba(225, 29, 72, var(--tone-alpha));
+    border-color: rgba(225, 29, 72, .35);
+    color: var(--tone-danger-fg);
+}
+
+.alert-warning-glass {
+    background: rgba(245, 158, 11, var(--tone-alpha));
+    border-color: rgba(245, 158, 11, .40);
+    color: var(--tone-warning-fg);
+}
+
+.validation-summary-plain ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.validation-summary-valid {
+    display: none;
+}
+
+.field-error {
+    display: block;
+    color: var(--tone-danger-fg);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.field-error:empty {
+    display: none;
+}
+
+.form-hint {
+    margin: 4px 0 12px;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.btn-icon-danger {
+    color: var(--tone-danger-fg);
+}
+
+a.btn-icon {
+    text-decoration: none;
+}
+
+/* Server-side validation marks invalid inputs with .input-validation-error (not Bootstrap's .is-invalid). */
+.form-control.input-validation-error,
+.form-select.input-validation-error {
+    border-color: var(--danger);
+    border-width: 2px;
 }

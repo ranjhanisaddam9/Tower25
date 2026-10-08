@@ -1,0 +1,14 @@
+@model ManagerFormViewModel
+@* Shared by create and edit: posts FullName and Email only. *@
+<div class="form-floating mb-1">
+    <input asp-for="FullName" class="form-control" autocomplete="off" placeholder="Full name" aria-describedby="FullName-error" />
+    <label asp-for="FullName"></label>
+</div>
+<span asp-validation-for="FullName" class="field-error" id="FullName-error"></span>
+
+<div class="form-floating mt-3 mb-1">
+    <input asp-for="Email" class="form-control" type="email" autocomplete="off" placeholder="name@company.com" aria-describedby="Email-error Email-hint" />
+    <label asp-for="Email"></label>
+</div>
+<span asp-validation-for="Email" class="field-error" id="Email-error"></span>
+<p class="form-hint" id="Email-hint">The email is the Manager's sign-in name.</p>

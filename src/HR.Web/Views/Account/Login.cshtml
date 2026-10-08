@@ -1,0 +1,36 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = "_AuthLayout";
+    var hasError = !ViewData.ModelState.IsValid;
+}
+
+<p class="auth-lead">Sign in with your work email to continue.</p>
+
+@if (hasError)
+{
+    <div class="glass-alert alert-danger-glass" role="alert" data-testid="login-error">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div asp-validation-summary="All" class="validation-summary-plain"></div>
+    </div>
+}
+
+<form method="post" asp-controller="Account" asp-action="Login" novalidate class="auth-form">
+    <input type="hidden" asp-for="ReturnUrl" />
+
+    <div class="form-floating mb-3">
+        <input asp-for="Email" class="form-control" type="email" autocomplete="username" placeholder="name@company.com" autofocus />
+        <label asp-for="Email"></label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input asp-for="Password" class="form-control" autocomplete="current-password" placeholder="Password" />
+        <label asp-for="Password"></label>
+    </div>
+
+    <button type="submit" class="btn btn-primary-gradient w-100">
+        <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Sign in
+    </button>
+</form>
+
+<p class="auth-footnote">Forgot your password? Ask the administrator to reset it.</p>

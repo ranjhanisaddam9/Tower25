@@ -1,13 +1,28 @@
 @model ErrorViewModel
 @{
     ViewData["Title"] = Model.Title;
+    // Signed-out visitors (e.g. a 429 on the login form) get the centred auth layout, without app navigation.
+    Layout = User.Identity?.IsAuthenticated == true ? "_Layout" : "_AuthLayout";
+    var signedIn = User.Identity?.IsAuthenticated == true;
 }
-<section class="glass-card empty-state error-state" aria-labelledby="errorHeading">
+<section class="@(signedIn ? "glass-card empty-state error-state" : "empty-state error-state-plain")" aria-labelledby="@(signedIn ? "errorHeading" : null)">
     <span class="empty-state-icon" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
     <p class="error-code">Error @Model.StatusCode</p>
-    <h2 class="card-title" id="errorHeading">@Model.Title</h2>
+    @if (signedIn)
+    {
+        <h2 class="card-title" id="errorHeading">@Model.Title</h2>
+    }
     <p class="empty-state-text">@Model.Message</p>
-    <a class="btn btn-primary-gradient" asp-controller="Home" asp-action="Index">
-        <i class="bi bi-house" aria-hidden="true"></i> Back to dashboard
-    </a>
+    @if (signedIn)
+    {
+        <a class="btn btn-primary-gradient" asp-controller="Home" asp-action="Index">
+            <i class="bi bi-house" aria-hidden="true"></i> Back to dashboard
+        </a>
+    }
+    else
+    {
+        <a class="btn btn-primary-gradient" asp-controller="Account" asp-action="Login">
+            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Back to sign in
+        </a>
+    }
 </section>

@@ -115,3 +115,221 @@
 .swatch-indigo { background: var(--aurora-indigo); }
 .swatch-violet { background: var(--aurora-violet); }
 .swatch-teal { background: var(--aurora-teal); }
+
+/* ---------- Sign-in (auth layout) ---------- */
+.auth-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.auth-topbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px var(--gutter-mobile);
+}
+
+.auth-main {
+    flex: 1 0 auto;
+    display: grid;
+    place-items: center;
+    padding: 8px var(--gutter-mobile) 48px;
+}
+
+.auth-main:focus {
+    outline: none;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 28px;
+    background: var(--glass-bg-strong);
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-weight: 700;
+    font-size: 1.0625rem;
+}
+
+.auth-title {
+    margin: 0 0 4px;
+    font-size: var(--fs-page-title);
+    font-weight: var(--fw-page-title);
+}
+
+.auth-lead,
+.auth-footnote {
+    color: var(--text-muted);
+}
+
+.auth-footnote {
+    margin: 20px 0 0;
+    font-size: var(--fs-small);
+    text-align: center;
+}
+
+.error-state-plain {
+    padding: 8px 0 0;
+}
+
+@media (max-width: 575.98px) {
+    .auth-card {
+        padding: 24px 18px;
+    }
+}
+
+/* ---------- Forms and lists ---------- */
+.form-card {
+    max-width: 640px;
+}
+
+.card-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.page-actions .page-lead {
+    max-width: 70ch;
+}
+
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 14px;
+}
+
+.filter-search {
+    flex: 1 1 280px;
+}
+
+.filter-status {
+    flex: 0 1 180px;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.list-count {
+    margin-bottom: 8px;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.cell-wrap {
+    overflow-wrap: anywhere;
+}
+
+.cell-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.cell-actions .btn-icon,
+.cell-actions form {
+    vertical-align: middle;
+}
+
+.cell-actions form {
+    margin-left: 6px;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.pager-status {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 10px 20px;
+    align-items: center;
+    margin: 8px 0 20px;
+}
+
+.detail-list dt {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.detail-list dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.temp-password-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.temp-password {
+    padding: 8px 14px;
+    border: 1px dashed var(--input-border);
+    border-radius: var(--radius-control);
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    font-variant-numeric: tabular-nums;
+}
+
+.access-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+@media (max-width: 575.98px) {
+    .detail-list {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .detail-list dd {
+        margin-bottom: 10px;
+    }
+}
+
+/* Keeps related inline items (status pills, row actions) together, including in stacked table cards. */
+.cell-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.cell-actions form {
+    margin-left: 0;
+}

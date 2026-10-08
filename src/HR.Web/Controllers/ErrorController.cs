@@ -32,6 +32,7 @@ public class ErrorController : Controller
         403 => new(403, "Access denied", "You don't have permission to view this page.", "bi-shield-lock"),
         404 => new(404, "Page not found", "The page you're looking for doesn't exist or has moved.", "bi-signpost-split"),
         405 => new(405, "Not allowed", "That action isn't allowed here.", "bi-slash-circle"),
+        429 => new(429, "Too many attempts", "You've made too many requests in a short time. Please wait a minute and try again.", "bi-hourglass-split"),
         >= 500 => new(statusCode, "Something went wrong", "An unexpected error occurred. Please try again in a moment.", "bi-cloud-slash"),
         _ => new(statusCode, "Request failed", "The request could not be completed.", "bi-exclamation-circle"),
     };

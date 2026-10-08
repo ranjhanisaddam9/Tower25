@@ -1,0 +1,20 @@
+@model ManagerFormViewModel
+@{
+    ViewData["Title"] = "Add Manager";
+    ViewData["Section"] = "Managers";
+}
+
+<section class="glass-card form-card" aria-labelledby="createHeading">
+    <h2 class="card-title" id="createHeading">New Manager</h2>
+    <p class="text-muted-glass">A temporary password is generated for you and shown once. The Manager must change it at first sign-in.</p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert"></div>
+
+    <form method="post" asp-action="Create" novalidate>
+        <partial name="_ManagerFields" model="Model" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-person-plus" aria-hidden="true"></i> Create Manager</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancel</a>
+        </div>
+    </form>
+</section>

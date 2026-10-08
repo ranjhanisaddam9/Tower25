@@ -1,0 +1,147 @@
+@using HR.Infrastructure.Identity
+@model ManagerListViewModel
+@{
+    ViewData["Title"] = "Managers";
+    ViewData["Section"] = "Admin";
+    var statuses = new[] { ManagerStatusFilter.All, ManagerStatusFilter.Active, ManagerStatusFilter.Inactive };
+}
+
+<div class="page-actions">
+    <p class="page-lead mb-0">Managers can run people, absences, rates and payroll. They never see billing, commission, margins, invoices or owner income.</p>
+    <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add Manager</a>
+</div>
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter managers">
+    <div class="form-floating filter-search">
+        <input type="search" class="form-control" id="q" name="q" value="@Model.Search" placeholder="Search by name or email" maxlength="100" />
+        <label for="q">Search by name or email</label>
+    </div>
+    <div class="form-floating filter-status">
+        <select class="form-select" id="status" name="status">
+            @foreach (var s in statuses)
+            {
+                <option value="@s" selected="@(s == Model.Status)">@s</option>
+            }
+        </select>
+        <label for="status">Status</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.TotalCount == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-person-gear"></i></span>
+            @if (Model.HasFilter)
+            {
+                <p class="empty-state-text">No managers match these filters.</p>
+                <a class="btn btn-ghost" asp-action="Index">Clear filters</a>
+            }
+            else
+            {
+                <p class="empty-state-text">No managers yet. Add the first one to share the day-to-day work.</p>
+                <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add Manager</a>
+            }
+        </div>
+    </section>
+}
+else
+{
+    <p class="list-count" aria-live="polite">@Model.TotalCount @(Model.TotalCount == 1 ? "manager" : "managers")</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table">
+            <caption class="visually-hidden">Managers, page @Model.Page of @Model.TotalPages</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Last login</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Model.Managers)
+                {
+                    <tr>
+                        <td data-label="Name" class="cell-primary">@m.FullName</td>
+                        <td data-label="Email" class="cell-wrap">@m.Email</td>
+                        <td data-label="Status">
+                            <span class="cell-group">
+                            @if (m.IsActive)
+                            {
+                                <span class="pill pill-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="pill pill-danger">Inactive</span>
+                            }
+                            @if (m.MustChangePassword)
+                            {
+                                <span class="pill pill-warning">Temp password</span>
+                            }
+                            </span>
+                        </td>
+                        <td data-label="Last login" class="num">@(m.LastLoginAt is { } at ? DisplayFormat.DateTime(at) : "Never")</td>
+                        <td data-label="Actions" class="cell-actions">
+                            <span class="cell-group">
+                            <a class="btn-icon" asp-action="Edit" asp-route-id="@m.Id" aria-label="Edit @m.FullName" title="Edit">
+                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                            </a>
+                            @if (m.IsActive)
+                            {
+                                <form method="post" asp-action="Deactivate" asp-route-id="@m.Id" class="d-inline">
+                                    <button type="submit" class="btn-icon btn-icon-danger" aria-label="Deactivate @m.FullName" title="Deactivate"
+                                            data-confirm="@m.FullName will be signed out and can't sign in until reactivated."
+                                            data-confirm-title="Deactivate this manager?"
+                                            data-confirm-action="Deactivate">
+                                        <i class="bi bi-person-dash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
+                                <form method="post" asp-action="Activate" asp-route-id="@m.Id" class="d-inline">
+                                    <button type="submit" class="btn-icon" aria-label="Activate @m.FullName" title="Activate"
+                                            data-confirm="@m.FullName will be able to sign in again."
+                                            data-confirm-title="Activate this manager?"
+                                            data-confirm-action="Activate"
+                                            data-confirm-variant="primary">
+                                        <i class="bi bi-person-check" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            }
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="Managers pages">
+            @if (Model.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-route-q="@Model.Search" asp-route-status="@Model.Status" asp-route-page="@(Model.Page - 1)" rel="prev">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i> Previous
+                </a>
+            }
+            <span class="pager-status">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-route-q="@Model.Search" asp-route-status="@Model.Status" asp-route-page="@(Model.Page + 1)" rel="next">
+                    Next <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+        </nav>
+    }
+}

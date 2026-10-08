@@ -1,6 +1,8 @@
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
+using HR.Infrastructure.Identity;
 using HR.Infrastructure.Time;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +35,44 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IClock, SystemClock>();
 
+        services.AddAppIdentity();
+
         return services;
+    }
+
+    /// <summary>ASP.NET Core Identity with the M2 policy: email username, strong passwords, lockout, active-user checks.</summary>
+    private static void AddAppIdentity(this IServiceCollection services)
+    {
+        services
+            .AddIdentity<ApplicationUser, IdentityRole>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+
+                options.Password.RequiredLength = 10;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireDigit = true;
+                options.Password.RequireNonAlphanumeric = false;
+
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.AllowedForNewUsers = true;
+
+                options.SignIn.RequireConfirmedEmail = false;
+                options.SignIn.RequireConfirmedAccount = false;
+                options.SignIn.RequireConfirmedPhoneNumber = false;
+            })
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddSignInManager<AppSignInManager>()
+            .AddClaimsPrincipalFactory<AppUserClaimsPrincipalFactory>();
+
+        // Cookie validation re-checks the security stamp and IsActive at this interval.
+        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
+        services.AddScoped<ISecurityStampValidator, ActiveUserSecurityStampValidator>();
+
+        services.AddSingleton<ITemporaryPasswordGenerator, TemporaryPasswordGenerator>();
+        services.AddScoped<AdminSeeder>();
+        services.AddScoped<ManagerService>();
+        services.AddScoped<AccountService>();
     }
 }

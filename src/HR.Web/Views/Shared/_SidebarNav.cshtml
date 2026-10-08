@@ -1,9 +1,14 @@
+@using HR.Infrastructure.Identity
 @{
     var controller = ViewContext.RouteData.Values["controller"] as string;
-    var onDashboard = string.Equals(controller, "Home", StringComparison.OrdinalIgnoreCase);
+    var isAdmin = User.IsInRole(AppRoles.Admin);
 
-    // Future sections, enabled milestone by milestone (SPEC §10).
-    var upcoming = new (string Label, string Icon)[]
+    // Enabled sections: (label, icon, controller, action, adminOnly). The rest switch on milestone by milestone (SPEC §10).
+    var enabled = new List<(string Label, string Icon, string Controller, string Action)>
+    {
+        ("Dashboard", "bi-grid-1x2", "Home", "Index"),
+    };
+    var upcoming = new List<(string Label, string Icon)>
     {
         ("People", "bi-people"),
         ("Absences", "bi-calendar-x"),
@@ -13,18 +18,27 @@
         ("Invoices", "bi-file-earmark-text"),
         ("Owner Income", "bi-graph-up-arrow"),
         ("Reports", "bi-bar-chart-line"),
-        ("Managers", "bi-person-gear"),
     };
+
+    // Admin-only sections are not even listed for Managers.
+    if (isAdmin)
+    {
+        enabled.Add(("Managers", "bi-person-gear", "Managers", "Index"));
+    }
 }
 <nav class="sidebar-nav" aria-label="Sections">
     <ul class="nav-list">
-        <li>
-            <a class="nav-item-link @(onDashboard ? "active" : null)" asp-controller="Home" asp-action="Index"
-               aria-current="@(onDashboard ? "page" : null)" title="Dashboard">
-                <i class="bi bi-grid-1x2" aria-hidden="true"></i>
-                <span class="nav-label">Dashboard</span>
-            </a>
-        </li>
+        @foreach (var item in enabled)
+        {
+            var active = string.Equals(controller, item.Controller, StringComparison.OrdinalIgnoreCase);
+            <li>
+                <a class="nav-item-link @(active ? "active" : null)" asp-controller="@item.Controller" asp-action="@item.Action"
+                   aria-current="@(active ? "page" : null)" title="@item.Label">
+                    <i class="bi @item.Icon" aria-hidden="true"></i>
+                    <span class="nav-label">@item.Label</span>
+                </a>
+            </li>
+        }
         @foreach (var item in upcoming)
         {
             <li>

@@ -1,5 +1,7 @@
 using System.Net;
+using HR.Infrastructure.Identity;
 using HR.Tests.Integration.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,9 +13,9 @@ public class ErrorPageTests(TestDatabaseFixture fixture) : IntegrationTest(fixtu
     [Theory]
     [InlineData("Development")]
     [InlineData("Production")]
-    public async Task Unknown_url_returns_the_custom_404_page(string environment)
+    public async Task Unknown_url_returns_the_custom_404_page_when_signed_in(string environment)
     {
-        using var client = Factory(environment).CreateHttpsClient();
+        var (client, _) = await Factory(environment).SignInAsAsync(AppRoles.Manager);
 
         var response = await client.GetAsync("/this/route/does-not-exist");
         var html = await response.Content.ReadAsStringAsync();
@@ -22,6 +24,17 @@ public class ErrorPageTests(TestDatabaseFixture fixture) : IntegrationTest(fixtu
         Assert.Contains("Page not found", html);
         Assert.Contains("Error 404", html);
         Assert.Contains("id=\"appSidebar\"", html); // rendered inside the app layout
+    }
+
+    [Fact]
+    public async Task Unknown_url_sends_anonymous_visitors_to_sign_in()
+    {
+        using var client = Fixture.Production.CreateHttpsClient();
+
+        var response = await client.GetAsync("/this/route/does-not-exist");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/account/login", response.Headers.Location?.PathAndQueryOrOriginal());
     }
 
     [Fact]
@@ -48,12 +61,12 @@ public class ErrorPageTests(TestDatabaseFixture fixture) : IntegrationTest(fixtu
     {
         using var client = Fixture.Production.CreateHttpsClient();
 
-        var redirect = await client.GetAsync(new Uri("http://localhost/"));
+        var redirect = await client.GetAsync(new Uri("http://localhost/account/login"));
         Assert.Equal(HttpStatusCode.TemporaryRedirect, redirect.StatusCode);
-        Assert.Equal("https://localhost/", redirect.Headers.Location?.ToString());
+        Assert.Equal("https://localhost/account/login", redirect.Headers.Location?.ToString());
 
         // HSTS is never sent for localhost, so use a real-looking host name.
-        using var request = new HttpRequestMessage(HttpMethod.Get, "https://payroll.example.test/");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://payroll.example.test/account/login");
         var response = await client.SendAsync(request);
         Assert.True(response.Headers.Contains("Strict-Transport-Security"));
         Assert.Contains("max-age=31536000", response.Headers.GetValues("Strict-Transport-Security").Single());
@@ -64,6 +77,7 @@ public class ErrorPageTests(TestDatabaseFixture fixture) : IntegrationTest(fixtu
 }
 
 /// <summary>Test-only controller, added as an application part by one test.</summary>
+[AllowAnonymous]
 [Route("__test")]
 public class ThrowingController : Controller
 {

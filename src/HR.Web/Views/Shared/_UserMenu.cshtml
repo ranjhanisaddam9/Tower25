@@ -1,0 +1,46 @@
+@using System.Security.Claims
+@using HR.Infrastructure.Identity
+@if (User.Identity?.IsAuthenticated == true)
+{
+    var name = User.FindFirstValue(AppClaimTypes.FullName) ?? User.Identity.Name ?? "Signed in";
+    var role = User.IsInRole(AppRoles.Admin) ? "Admin" : User.IsInRole(AppRoles.Manager) ? "Manager" : "User";
+    var initials = string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    <div class="dropdown">
+        <button type="button" class="user-chip" id="userMenuButton" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu">
+            <span class="user-avatar" aria-hidden="true">@initials</span>
+            <span class="user-meta d-none d-sm-flex">
+                <span class="user-name" data-testid="user-name">@name</span>
+                <span class="user-role" data-testid="user-role">@role</span>
+            </span>
+            <span class="visually-hidden d-sm-none">@name, @role. Account menu</span>
+            <i class="bi bi-chevron-down user-caret d-none d-sm-inline" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end glass-dropdown" aria-labelledby="userMenuButton">
+            <li class="dropdown-header">
+                <span class="dropdown-name">@name</span>
+                <span class="dropdown-email">@User.Identity.Name</span>
+            </li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+                <a class="dropdown-item" asp-controller="Account" asp-action="ChangePassword">
+                    <i class="bi bi-key" aria-hidden="true"></i> Change password
+                </a>
+            </li>
+            <li>
+                <form method="post" asp-controller="Account" asp-action="Logout">
+                    <button type="submit" class="dropdown-item" data-testid="logout">
+                        <i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out
+                    </button>
+                </form>
+            </li>
+        </ul>
+    </div>
+}
+else
+{
+    <a class="user-chip" asp-controller="Account" asp-action="Login">
+        <span class="user-avatar" aria-hidden="true"><i class="bi bi-person"></i></span>
+        <span class="user-name">Sign in</span>
+    </a>
+}

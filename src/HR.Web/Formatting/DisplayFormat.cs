@@ -1,4 +1,5 @@
 using System.Globalization;
+using HR.Domain.Time;
 
 namespace HR.Web.Formatting;
 
@@ -17,6 +18,10 @@ public static class DisplayFormat
 
     public static string Date(DateOnly date) =>
         date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>A UTC timestamp shown in Asia/Karachi time: "08 Oct 2026, 14:05".</summary>
+    public static string DateTime(DateTimeOffset instant) =>
+        TimeZoneInfo.ConvertTime(instant, PakistanTime.Zone).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>A date range, compact when both ends share a month: "01–15 Oct 2026".</summary>
     public static string DateRange(DateOnly start, DateOnly end)

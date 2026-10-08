@@ -27,13 +27,15 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    /// <summary>Deletes all rows so every test starts from an empty, migrated database.</summary>
+    /// <summary>
+    /// Deletes all users so every test starts from an empty, migrated database. Roles are reference data
+    /// (created by the startup seeder) and stay.
+    /// </summary>
     public async Task ResetAsync()
     {
         await using var db = CreateDbContext();
-        // Identity's join and claim tables cascade from users and roles.
+        // Identity's user-role, claim, login and token rows cascade from users.
         await db.Users.ExecuteDeleteAsync();
-        await db.Roles.ExecuteDeleteAsync();
     }
 
     public async Task DisposeAsync()

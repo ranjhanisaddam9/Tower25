@@ -8,6 +8,7 @@ Work one milestone at a time. Never start the next milestone until the owner sen
 - Windows, the owner's machine. SQL Server **Express**, instance `.\SQLEXPRESS`, Windows authentication.
 - Dev connection string (in `appsettings.Development.json`):
   `Server=.\SQLEXPRESS;Database=HRPayroll;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true`
+  Machine-specific overrides go in the optional, git-ignored `appsettings.Development.local.json`, which loads right after `appsettings.Development.json`.
 - Integration tests use a separate database, `HRPayroll_Test`, on the same instance. Tests create and drop it; never touch `HRPayroll` from tests.
 - .NET: the newest LTS SDK installed (.NET 10 preferred, else .NET 8), pinned in `global.json`. EF Core and ASP.NET Core packages match that major version.
 - Never put production secrets in the repo. Production config comes from environment variables or user secrets.
@@ -49,7 +50,7 @@ Modern, responsive glassmorphism on Bootstrap 5.3 (bundled with the MVC template
 
 **Files**: `wwwroot/css/tokens.css` (variables only), `wwwroot/css/glass.css` (components), `wwwroot/css/site.css` (page bits), `wwwroot/js/theme-init.js` (loaded in `<head>`, sets theme before paint, no inline script), `wwwroot/js/site.js`. Fonts and icons via LibMan into `wwwroot/lib`: Plus Jakarta Sans (`@fontsource/plus-jakarta-sans`) and Bootstrap Icons.
 
-**Background**: a fixed "aurora" layer behind everything. Base `#0B1020` (dark) or `#EEF2FF` (light), with three large blurred radial blobs: indigo `#6366F1`, violet `#A855F7`, teal `#14B8A6`. Blob opacity 0.45 (dark) or 0.30 (light). They drift slowly (60s+ loop); the animation is off under `prefers-reduced-motion`.
+**Background**: a fixed "aurora" layer behind everything. Base `#0B1020` (dark) or `#EEF2FF` (light), with three large blurred radial blobs: indigo `#6366F1`, violet `#A855F7`, teal `#14B8A6`. Blob opacity 0.45 (dark) or 0.30 (light). In dark mode a veil `--aurora-veil: rgba(11,16,32,.50)` sits over the blobs (owner-approved in M1) so muted text on glass stays ≥ 4.5:1; light mode has no veil. They drift slowly (60s+ loop); the animation is off under `prefers-reduced-motion`.
 
 **Glass surface tokens**
 
@@ -62,7 +63,8 @@ Modern, responsive glassmorphism on Bootstrap 5.3 (bundled with the MVC template
 
 Blur: `backdrop-filter: blur(18px) saturate(160%)`. Highlight: `inset 0 1px 0 rgba(255,255,255,.08)`. Shadow: `0 8px 32px rgba(2,6,23,.25)`. Radius: 20px for cards, 12px for inputs and buttons, 999px for pills.
 - Fallbacks: `@supports not (backdrop-filter: blur(1px))` and `prefers-reduced-transparency` → use the opaque `--glass-bg-strong`.
-- Accents: primary is an indigo→violet gradient (`#6366F1`→`#8B5CF6`). Success `#10B981`, warning `#F59E0B`, danger `#F43F5E`, info `#0EA5E9`.
+- Accents (darkened in M2 so white labels pass 4.5:1): primary is an indigo→violet gradient (`#4F46E5`→`#7C3AED`, hover `#4338CA`→`#6D28D9`). Danger `#E11D48` (hover `#BE123C`). Success `#10B981`, warning `#F59E0B`, info `#0EA5E9`.
+- Text on solid surfaces: white on primary and danger; dark `#0F172A` on any solid success or warning surface (never white).
 - Type: Plus Jakarta Sans. Page title 1.5rem/700, card title 1rem/600, body 0.9375rem. `font-variant-numeric: tabular-nums` on numbers.
 
 **Layout**

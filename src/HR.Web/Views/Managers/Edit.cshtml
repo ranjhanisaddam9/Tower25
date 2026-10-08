@@ -1,0 +1,67 @@
+@model ManagerEditViewModel
+@{
+    ViewData["Title"] = "Edit Manager";
+    ViewData["Section"] = "Managers";
+}
+
+<section class="glass-card form-card" aria-labelledby="editHeading">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="editHeading">Details</h2>
+        @if (Model.IsActive)
+        {
+            <span class="pill pill-success">Active</span>
+        }
+        else
+        {
+            <span class="pill pill-danger">Inactive</span>
+        }
+    </div>
+    <p class="text-muted-glass">Changing the email also changes the sign-in name and signs the Manager out.</p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert"></div>
+
+    <form method="post" asp-action="Edit" asp-route-id="@Model.Id" novalidate>
+        <partial name="_ManagerFields" model="Model.Form" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancel</a>
+        </div>
+    </form>
+</section>
+
+<section class="glass-card form-card mt-4" aria-labelledby="accessHeading">
+    <h2 class="card-title" id="accessHeading">Access</h2>
+    <div class="access-actions">
+        <form method="post" asp-action="ResetPassword" asp-route-id="@Model.Id">
+            <button type="submit" class="btn btn-ghost"
+                    data-confirm="A new temporary password will be generated and shown once. @Model.Form.FullName will be signed out and must change it at next sign-in."
+                    data-confirm-title="Reset password?"
+                    data-confirm-action="Reset password">
+                <i class="bi bi-key" aria-hidden="true"></i> Reset password
+            </button>
+        </form>
+        @if (Model.IsActive)
+        {
+            <form method="post" asp-action="Deactivate" asp-route-id="@Model.Id">
+                <button type="submit" class="btn btn-danger-solid"
+                        data-confirm="@Model.Form.FullName will be signed out and can't sign in until reactivated."
+                        data-confirm-title="Deactivate this manager?"
+                        data-confirm-action="Deactivate">
+                    <i class="bi bi-person-dash" aria-hidden="true"></i> Deactivate
+                </button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-action="Activate" asp-route-id="@Model.Id">
+                <button type="submit" class="btn btn-ghost"
+                        data-confirm="@Model.Form.FullName will be able to sign in again."
+                        data-confirm-title="Activate this manager?"
+                        data-confirm-action="Activate"
+                        data-confirm-variant="primary">
+                    <i class="bi bi-person-check" aria-hidden="true"></i> Activate
+                </button>
+            </form>
+        }
+    </div>
+</section>

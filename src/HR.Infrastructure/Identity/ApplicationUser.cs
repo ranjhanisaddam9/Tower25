@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace HR.Infrastructure.Identity;
 
-/// <summary>An application login (Admin or Manager). Roles arrive in M2.</summary>
+/// <summary>An application login (Admin or Manager). The username is always the email.</summary>
 public class ApplicationUser : IdentityUser
 {
     public const int FullNameMaxLength = 200;
@@ -13,4 +13,10 @@ public class ApplicationUser : IdentityUser
 
     /// <summary>When the account was created, stored in UTC.</summary>
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>True after seeding, creation or an admin reset: the user must set a new password before doing anything else.</summary>
+    public bool MustChangePassword { get; set; }
+
+    /// <summary>Last successful sign-in, stored in UTC.</summary>
+    public DateTimeOffset? LastLoginAt { get; set; }
 }

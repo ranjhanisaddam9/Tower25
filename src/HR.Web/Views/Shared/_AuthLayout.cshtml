@@ -1,0 +1,55 @@
+@{
+    var title = ViewData["Title"] as string ?? "Sign in";
+}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@title · HR Payroll</title>
+    <script src="~/js/theme-init.js"></script>
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/400.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/500.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/600.css" />
+    <link rel="stylesheet" href="~/lib/plus-jakarta-sans/700.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/tokens.css" />
+    <link rel="stylesheet" href="~/css/glass.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body class="auth-body">
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <div class="aurora" aria-hidden="true">
+        <span class="aurora-blob aurora-blob-indigo"></span>
+        <span class="aurora-blob aurora-blob-violet"></span>
+        <span class="aurora-blob aurora-blob-teal"></span>
+    </div>
+
+    <div class="auth-topbar">
+        <button type="button" class="btn-icon" id="themeToggle" aria-label="Switch theme">
+            <i class="bi bi-moon-stars theme-icon-light" aria-hidden="true"></i>
+            <i class="bi bi-sun theme-icon-dark" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <main id="main" class="auth-main" tabindex="-1">
+        <div class="auth-card glass-card">
+            <div class="auth-brand">
+                <span class="brand-mark" aria-hidden="true"><i class="bi bi-stars"></i></span>
+                <span class="auth-brand-text">HR Payroll</span>
+            </div>
+            <h1 class="auth-title">@title</h1>
+            @RenderBody()
+        </div>
+    </main>
+
+    <partial name="_Toasts" />
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

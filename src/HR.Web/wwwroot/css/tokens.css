@@ -21,17 +21,22 @@
     --glass-shadow: 0 8px 32px rgba(2, 6, 23, .25);
 
     /* Accents */
-    --accent-start: #6366F1;
-    --accent-end: #8B5CF6;
+    /* Accents (M2: darkened so white labels reach ≥ 4.5:1: #4F46E5 6.3:1, #7C3AED 5.7:1, #E11D48 4.7:1). */
+    --accent-start: #4F46E5;
+    --accent-end: #7C3AED;
     --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+    --accent-gradient-hover: linear-gradient(135deg, #4338CA, #6D28D9);
     --success: #10B981;
     --warning: #F59E0B;
-    --danger: #F43F5E;
+    --danger: #E11D48;
+    --danger-hover: #BE123C;
     --info: #0EA5E9;
 
-    /* A slate shade laid over solid accent buttons so white labels reach 4.5:1 (see M1 report). */
-    --btn-label-shade: linear-gradient(rgba(15, 23, 42, .12), rgba(15, 23, 42, .12));
-    --btn-danger-shade: linear-gradient(rgba(15, 23, 42, .18), rgba(15, 23, 42, .18));
+    /* Text on solid accent surfaces. Success and warning are light colours, so they take dark text. */
+    --on-accent: #FFFFFF;
+    --on-danger: #FFFFFF;
+    --on-success: #0F172A;
+    --on-warning: #0F172A;
 
     /* Aurora blobs */
     --aurora-indigo: #6366F1;

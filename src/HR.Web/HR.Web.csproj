@@ -20,4 +20,9 @@
     <InternalsVisibleTo Include="HR.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Machine-specific overrides: git-ignored and never published. -->
+    <Content Update="appsettings.*.local.json" CopyToPublishDirectory="Never" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
 </Project>

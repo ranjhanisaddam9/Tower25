@@ -1,4 +1,5 @@
 using HR.Infrastructure.Identity;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HR.Web.Security;
 
@@ -10,11 +11,12 @@ public static class Policies
 
     public static IServiceCollection AddAppAuthorization(this IServiceCollection services)
     {
-        // The authenticated-by-default fallback policy is switched on in M2 together with login;
-        // until then there is no authentication scheme to challenge with.
         services.AddAuthorizationBuilder()
             .AddPolicy(AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole(AppRoles.Admin))
-            .AddPolicy(ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(AppRoles.Admin, AppRoles.Manager));
+            .AddPolicy(ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(AppRoles.Admin, AppRoles.Manager))
+            // Everything requires a signed-in user unless it opts out with [AllowAnonymous]
+            // (login, error pages and static files only).
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         return services;
     }

@@ -1,13 +1,18 @@
-using HR.Infrastructure;
-using HR.Infrastructure.Data;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
+using HR.Infrastructure;
+using HR.Infrastructure.Data;
+using HR.Infrastructure.Identity;
+using HR.Web.Configuration;
 using HR.Web.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.WebEncoders;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Optional, git-ignored machine overrides (e.g. this PC's SQL Server name), right after appsettings.{env}.json.
+builder.Configuration.AddLocalSettingsFile(builder.Environment);
 
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
@@ -23,8 +28,10 @@ builder.Services.AddControllersWithViews(options =>
 builder.Services.Configure<WebEncoderOptions>(options =>
     options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
 
+builder.Services.AddAppAuthCookie();
 builder.Services.AddAppAuthorization();
 builder.Services.AddSecureCookies();
+builder.Services.AddLoginRateLimit();
 
 builder.Services.AddHsts(options =>
 {
@@ -39,6 +46,9 @@ if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.MigrateOn
     await DatabaseMigrator.MigrateAsync(app.Services);
 }
 
+// Roles always; the first Admin only when none exists and Seed:Admin:* is configured.
+await AdminSeeder.RunAsync(app.Services);
+
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (!app.Environment.IsDevelopment())
@@ -52,9 +62,12 @@ app.UseStatusCodePagesWithReExecute("/error/{0}");
 app.UseHttpsRedirection();
 app.UseCookiePolicy();
 app.UseRouting();
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ForcePasswordChangeMiddleware>();
 
-app.MapStaticAssets();
+app.MapStaticAssets().AllowAnonymous();
 app.MapControllerRoute(
         name: "default",
         pattern: "{controller=Home}/{action=Index}/{id?}")

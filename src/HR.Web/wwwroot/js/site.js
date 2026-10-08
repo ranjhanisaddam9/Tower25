@@ -115,6 +115,9 @@
             titleElement.textContent = trigger.dataset.confirmTitle || 'Are you sure?';
             bodyElement.textContent = trigger.dataset.confirm;
             acceptButton.textContent = trigger.dataset.confirmAction || 'Confirm';
+            var primary = trigger.dataset.confirmVariant === 'primary';
+            acceptButton.classList.toggle('btn-primary-gradient', primary);
+            acceptButton.classList.toggle('btn-danger-solid', !primary);
             modal.show(trigger);
         });
 
@@ -133,4 +136,33 @@
             acceptButton.focus();
         });
     }
+
+    // ---------- Copy to clipboard ----------
+    // Usage: <button type="button" data-copy-target="elementId">, with an optional .copy-label inside.
+    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var source = document.getElementById(button.dataset.copyTarget);
+            var label = button.querySelector('.copy-label');
+            var status = document.getElementById(button.getAttribute('aria-describedby') || '');
+            if (!source || !navigator.clipboard) {
+                if (status) {
+                    status.textContent = 'Copy is not available; select the text and copy it manually.';
+                }
+                return;
+            }
+            navigator.clipboard.writeText(source.textContent.trim()).then(function () {
+                if (label) {
+                    label.textContent = 'Copied';
+                    window.setTimeout(function () { label.textContent = 'Copy'; }, 2000);
+                }
+                if (status) {
+                    status.textContent = 'Copied to the clipboard.';
+                }
+            }, function () {
+                if (status) {
+                    status.textContent = 'Copy failed; select the text and copy it manually.';
+                }
+            });
+        });
+    });
 })();
