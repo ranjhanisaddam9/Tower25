@@ -34,8 +34,10 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public async Task ResetAsync()
     {
         await using var db = CreateDbContext();
+        await db.People.ExecuteDeleteAsync();
         // Identity's user-role, claim, login and token rows cascade from users.
         await db.Users.ExecuteDeleteAsync();
+        // The person-code sequence is deliberately NOT reset: codes are never reused, even across tests.
     }
 
     public async Task DisposeAsync()

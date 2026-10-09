@@ -1,0 +1,164 @@
+@using HR.Domain.People
+@using HR.Infrastructure.People
+@model PeopleListViewModel
+@{
+    ViewData["Title"] = "People";
+    ViewData["Section"] = "Directory";
+    var statuses = new[] { PersonStatusFilter.Active, PersonStatusFilter.Inactive, PersonStatusFilter.All };
+}
+
+<div class="page-actions">
+    <p class="page-lead mb-0">Employees and internees placed at the Company.</p>
+    <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</a>
+</div>
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter people">
+    <div class="form-floating filter-search">
+        <input type="search" class="form-control" id="q" name="q" value="@Model.Search" placeholder="Search" maxlength="100" />
+        <label for="q">Search name, code, email or phone</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="type" name="type">
+            <option value="" selected="@(Model.Type is null)">All types</option>
+            <option value="Employee" selected="@(Model.Type == PersonType.Employee)">Employees</option>
+            <option value="Internee" selected="@(Model.Type == PersonType.Internee)">Internees</option>
+        </select>
+        <label for="type">Type</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="status" name="status">
+            @foreach (var s in statuses)
+            {
+                <option value="@s" selected="@(s == Model.Status)">@s</option>
+            }
+        </select>
+        <label for="status">Status</label>
+    </div>
+    @if (Model.Admin is { } adminFilter)
+    {
+        <div class="form-floating filter-select">
+            <select class="form-select" id="hireSource" name="hireSource">
+                <option value="All" selected="@(adminFilter.Filter == HireSourceFilter.All)">All sources</option>
+                <option value="NotAssigned" selected="@(adminFilter.Filter == HireSourceFilter.NotAssigned)">@HireSourceDisplay.NotAssigned</option>
+                @foreach (var source in HireSourceDisplay.All)
+                {
+                    <option value="@source" selected="@(adminFilter.Filter.ToString() == source.ToString())">@HireSourceDisplay.Label(source)</option>
+                }
+            </select>
+            <label for="hireSource">Hire source</label>
+        </div>
+    }
+    <div class="form-floating filter-select">
+        <select class="form-select" id="sort" name="sort">
+            @foreach (var (value, label) in PeopleSortOptions.All)
+            {
+                <option value="@value" selected="@(value == Model.Sort)">@label</option>
+            }
+        </select>
+        <label for="sort">Sort by</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.TotalCount == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+            @if (Model.HasFilter)
+            {
+                <p class="empty-state-text">No people match these filters.</p>
+                <a class="btn btn-ghost" asp-action="Index">Clear filters</a>
+            }
+            else
+            {
+                <p class="empty-state-text">No people yet. Add your first employee or internee to get started.</p>
+                <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</a>
+            }
+        </div>
+    </section>
+}
+else
+{
+    <p class="list-count" aria-live="polite" data-testid="people-count">@Model.TotalCount @(Model.TotalCount == 1 ? "person" : "people")</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table">
+            <caption class="visually-hidden">People, page @Model.Page of @Model.TotalPages</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Code</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    @if (Model.Admin is not null)
+                    {
+                        <th scope="col">Hire source</th>
+                    }
+                    <th scope="col">Joined</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Model.Rows)
+                {
+                    <tr data-testid="person-row">
+                        <td data-label="Code" class="num"><a asp-action="Details" asp-route-id="@p.Id" class="row-link">@p.Code</a></td>
+                        <td data-label="Name">
+                            <span class="cell-stack">
+                                <a asp-action="Details" asp-route-id="@p.Id" class="cell-primary row-link" data-testid="person-name">@p.FullName</a>
+                                <span class="cell-sub">@p.Designation</span>
+                            </span>
+                        </td>
+                        <td data-label="Type"><span class="pill @(p.Type == PersonType.Employee ? "pill-primary" : "pill-info")">@p.Type</span></td>
+                        @if (Model.Admin is { } admin)
+                        {
+                            var source = admin.HireSources.TryGetValue(p.Id, out var s) ? s : null;
+                            <td data-label="Hire source"><span class="pill @HireSourceDisplay.PillClass(source)">@HireSourceDisplay.Label(source)</span></td>
+                        }
+                        <td data-label="Joined" class="num">@DisplayFormat.Date(p.JoiningDate)</td>
+                        <td data-label="Status">
+                            @if (p.IsActive)
+                            {
+                                <span class="pill pill-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="cell-group">
+                                    <span class="pill pill-danger">Inactive</span>
+                                    @if (p.LeavingDate is { } left)
+                                    {
+                                        <span class="cell-sub">left @DisplayFormat.Date(left)</span>
+                                    }
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="People pages">
+            @if (Model.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Page - 1)" rel="prev">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i> Previous
+                </a>
+            }
+            <span class="pager-status">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Page + 1)" rel="next">
+                    Next <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+        </nav>
+    }
+}

@@ -246,6 +246,36 @@ public class AuthenticationTests(TestDatabaseFixture fixture) : IntegrationTest(
     }
 
     [Fact]
+    public async Task Sixth_change_password_post_within_a_minute_gets_429_and_is_logged()
+    {
+        var (client, user) = await App.SignInAsAsync(AppRoles.Manager);
+        var token = await client.GetAntiforgeryTokenAsync("/account/change-password");
+        var form = new Dictionary<string, string>
+        {
+            ["CurrentPassword"] = "Not-The-Password-1",
+            ["NewPassword"] = "Brand-New-Pass-77",
+            ["ConfirmPassword"] = "Brand-New-Pass-77",
+            ["__RequestVerificationToken"] = token,
+        };
+
+        for (var i = 1; i <= ChangePasswordRateLimit.PermitLimit; i++)
+        {
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/account/change-password", new FormUrlEncodedContent(form))).StatusCode);
+        }
+
+        var limited = await client.PostAsync("/account/change-password", new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Contains("Too many attempts", await limited.Content.ReadAsStringAsync());
+        Assert.Contains(App.Logs.Entries, e => e.EventId.Id == 1006 && e.AllText.Contains(user.Id, StringComparison.Ordinal));
+
+        // The limit is per user: another signed-in user is unaffected.
+        var other = await App.CreateUserAsync(AppRoles.Manager);
+        using var otherClient = App.CreateHttpsClient();
+        await otherClient.PostLoginAsync(other.Email, other.Password);
+        Assert.Equal(HttpStatusCode.OK, (await otherClient.PostFormAsync("/account/change-password", "/account/change-password", form)).StatusCode);
+    }
+
+    [Fact]
     public async Task Change_password_succeeds_keeps_the_session_and_logs_the_event()
     {
         var (client, user) = await App.SignInAsAsync(AppRoles.Manager);

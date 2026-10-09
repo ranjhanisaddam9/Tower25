@@ -5,9 +5,12 @@
 
     var current = Model.CurrentPeriod;
     var next = Model.NextPeriod;
+    var people = Model.People;
     var tiles = new[]
     {
-        new StatTileViewModel("Active people", "—", "bi-people", "indigo", "People records arrive in M3"),
+        new StatTileViewModel("Active people", people.Active.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), "bi-people", "indigo",
+            $"{people.Employees} {(people.Employees == 1 ? "employee" : "employees")} · {people.Internees} {(people.Internees == 1 ? "internee" : "internees")}",
+            Href: "/people", TestId: "active-people-tile"),
         new StatTileViewModel("USD/PKR rate", "—", "bi-currency-exchange", "teal", "Exchange rates arrive in M4"),
         new StatTileViewModel("Pending absences", "—", "bi-calendar-x", "warning", "Absences arrive in M6"),
     };
@@ -34,6 +37,11 @@
     </div>
 
     <partial name="_StatTile" model="tiles[2]" />
+
+    @if (Model.HireSourceNotAssigned is { } notAssigned)
+    {
+        <partial name="_StatTile" model="@(new StatTileViewModel("Hire source not assigned", notAssigned.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-question-diamond", "warning", notAssigned == 0 ? "Every active person has a source" : "Active people to review", Href: "/people?hireSource=NotAssigned", TestId: "hire-source-tile"))" />
+    }
 </section>
 
 <section class="glass-card dashboard-welcome" aria-labelledby="welcomeTitle">

@@ -1,0 +1,228 @@
+@using System.Globalization
+@using HR.Domain.People
+@model PersonDetailsViewModel
+@{
+    var p = Model.Person;
+    ViewData["Title"] = p.FullName;
+    ViewData["Section"] = "People";
+    var initials = string.Concat(p.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+    static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All people</a>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-action="Edit" asp-route-id="@p.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+        @if (p.IsActive)
+        {
+            <button type="button" class="btn btn-danger-solid" data-bs-toggle="modal" data-bs-target="#deactivateModal">
+                <i class="bi bi-person-dash" aria-hidden="true"></i> Deactivate
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn btn-primary-gradient" data-bs-toggle="modal" data-bs-target="#reactivateModal">
+                <i class="bi bi-person-check" aria-hidden="true"></i> Reactivate
+            </button>
+        }
+    </div>
+</div>
+
+<div class="details-grid">
+    <section class="glass-card profile-card" aria-labelledby="profileName">
+        <div class="profile-head">
+            <span class="profile-avatar" aria-hidden="true">@initials</span>
+            <div class="profile-title">
+                <h2 class="profile-name" id="profileName">@p.FullName</h2>
+                <p class="profile-designation">@p.Designation</p>
+                <div class="cell-group profile-pills">
+                    <span class="pill pill-neutral num" data-testid="person-code">@p.Code</span>
+                    <span class="pill @(p.Type == PersonType.Employee ? "pill-primary" : "pill-info")">@p.Type</span>
+                    @if (p.IsActive)
+                    {
+                        <span class="pill pill-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="pill pill-danger">Inactive</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <dl class="detail-list profile-facts">
+            <dt>Joined</dt>
+            <dd><time datetime="@Iso(p.JoiningDate)">@DisplayFormat.Date(p.JoiningDate)</time></dd>
+            @if (p.LeavingDate is { } left)
+            {
+                <dt>Left</dt>
+                <dd><time datetime="@Iso(left)">@DisplayFormat.Date(left)</time></dd>
+            }
+            <dt>Phone</dt>
+            <dd><a href="tel:@p.Phone" class="num">@PakistaniPhone.Format(p.Phone)</a></dd>
+            <dt>Email</dt>
+            <dd>
+                @if (p.Email is { } email)
+                {
+                    <a href="mailto:@email">@email</a>
+                }
+                else
+                {
+                    <span class="text-muted-glass">Not recorded</span>
+                }
+            </dd>
+            <dt>CNIC</dt>
+            <dd>
+                @if (p.Cnic is { } cnic)
+                {
+                    <span class="copy-row">
+                        <code class="id-value" id="cnicValue" data-testid="cnic-full">@cnic</code>
+                        <button type="button" class="btn-icon btn-icon-sm" data-copy-target="cnicValue" aria-label="Copy CNIC" aria-describedby="cnicCopyStatus" title="Copy CNIC">
+                            <i class="bi bi-clipboard" aria-hidden="true"></i>
+                        </button>
+                        <span class="visually-hidden" id="cnicCopyStatus" aria-live="polite"></span>
+                    </span>
+                }
+                else
+                {
+                    <span class="text-muted-glass">Not recorded</span>
+                }
+            </dd>
+            <dt>Bank</dt>
+            <dd>@(p.BankName ?? "Not recorded")</dd>
+            <dt>IBAN</dt>
+            <dd>
+                @if (p.Iban is { } iban)
+                {
+                    <span class="copy-row">
+                        <code class="id-value" id="ibanValue" data-testid="iban-full">@PakistaniIban.Format(iban)</code>
+                        <button type="button" class="btn-icon btn-icon-sm" data-copy-target="ibanValue" data-copy-compact="true" aria-label="Copy IBAN" aria-describedby="ibanCopyStatus" title="Copy IBAN">
+                            <i class="bi bi-clipboard" aria-hidden="true"></i>
+                        </button>
+                        <span class="visually-hidden" id="ibanCopyStatus" aria-live="polite"></span>
+                    </span>
+                }
+                else
+                {
+                    <span class="text-muted-glass">Not recorded</span>
+                }
+            </dd>
+            @if (!string.IsNullOrEmpty(p.Notes))
+            {
+                <dt>Notes</dt>
+                <dd class="notes">@p.Notes</dd>
+            }
+        </dl>
+        <p class="profile-meta">Added @DisplayFormat.DateTime(p.CreatedAt) · Updated @DisplayFormat.DateTime(p.UpdatedAt)</p>
+    </section>
+
+    @if (Model.AdminHireSource is { } hire)
+    {
+        <section class="glass-card hire-card" aria-labelledby="hireHeading" data-testid="hire-source-card">
+            <div class="card-heading-row">
+                <h2 class="card-title mb-0" id="hireHeading">Hire source</h2>
+                <span class="pill @HireSourceDisplay.PillClass(hire.Current)">@HireSourceDisplay.Label(hire.Current)</span>
+            </div>
+            <p class="text-muted-glass">Admin only. Managers never see this. It decides billing, commission and margin in later milestones.</p>
+            <form method="post" asp-action="SetHireSource" asp-route-id="@p.Id">
+                <div class="form-floating mb-3">
+                    <select class="form-select" id="hireSourceSelect" name="hireSource">
+                        <option value="" selected="@(hire.Current is null)">@HireSourceDisplay.NotAssigned</option>
+                        @foreach (var source in HireSourceDisplay.All)
+                        {
+                            <option value="@source" selected="@(hire.Current == source)">@HireSourceDisplay.Label(source)</option>
+                        }
+                    </select>
+                    <label for="hireSourceSelect">Hire source</label>
+                </div>
+                <ul class="hire-help">
+                    @foreach (var source in HireSourceDisplay.All)
+                    {
+                        <li><strong>@HireSourceDisplay.Label(source):</strong> @HireSourceDisplay.Description(source)</li>
+                    }
+                </ul>
+                <button type="submit" class="btn btn-primary-gradient"
+                        data-confirm="@p.FullName will become the Owner. Only one active person can have this hire source."
+                        data-confirm-title="Set as Owner?"
+                        data-confirm-action="Set as Owner"
+                        data-confirm-variant="primary"
+                        data-confirm-if-name="hireSource"
+                        data-confirm-if-value="Owner">
+                    <i class="bi bi-check2" aria-hidden="true"></i> Save hire source
+                </button>
+            </form>
+        </section>
+    }
+</div>
+
+<section class="glass-card mt-4" aria-labelledby="historyHeading">
+    <h2 class="card-title" id="historyHeading">History</h2>
+    <ul class="nav nav-tabs glass-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Salary &amp; increments (M5)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Absences (M6)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Payslips (M7)</button>
+        </li>
+    </ul>
+    <p class="text-muted-glass mt-3 mb-0">These tabs switch on in later milestones.</p>
+</section>
+
+@if (p.IsActive)
+{
+    <div class="modal fade glass-modal" id="deactivateModal" tabindex="-1" aria-labelledby="deactivateTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" method="post" asp-action="Deactivate" asp-route-id="@p.Id">
+                <div class="modal-header">
+                    <h2 class="modal-title card-title" id="deactivateTitle">Deactivate @p.FullName?</h2>
+                    <button type="button" class="btn-icon btn-icon-sm" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p>Set the last working day. They will be marked inactive and left out of future payrolls.</p>
+                    <div class="form-floating">
+                        <input type="date" class="form-control" id="leavingDate" name="leavingDate" required
+                               value="@Iso(Model.DefaultLeavingDate)" min="@Iso(p.JoiningDate)" aria-describedby="leavingHint" />
+                        <label for="leavingDate">Leaving date</label>
+                    </div>
+                    <p class="form-hint" id="leavingHint">On or after the joining date, @DisplayFormat.Date(p.JoiningDate).</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger-solid">Deactivate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+else
+{
+    <div class="modal fade glass-modal" id="reactivateModal" tabindex="-1" aria-labelledby="reactivateTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" method="post" asp-action="Reactivate" asp-route-id="@p.Id">
+                <div class="modal-header">
+                    <h2 class="modal-title card-title" id="reactivateTitle">Reactivate @p.FullName?</h2>
+                    <button type="button" class="btn-icon btn-icon-sm" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p>The rejoining date becomes the new joining date and the leaving date is cleared.</p>
+                    <div class="form-floating">
+                        <input type="date" class="form-control" id="rejoiningDate" name="rejoiningDate" required
+                               value="@Iso(Model.DefaultRejoiningDate)" min="@(Model.MinRejoiningDate is { } min ? Iso(min) : null)" aria-describedby="rejoinHint" />
+                        <label for="rejoiningDate">Rejoining date</label>
+                    </div>
+                    @if (p.LeavingDate is { } leftOn)
+                    {
+                        <p class="form-hint" id="rejoinHint">After the previous leaving date, @DisplayFormat.Date(leftOn).</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-gradient">Reactivate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

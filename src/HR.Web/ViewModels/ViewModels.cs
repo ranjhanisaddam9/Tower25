@@ -9,11 +9,19 @@ public sealed record StatTileViewModel(
     string Tone,
     string? Caption = null,
     string? Delta = null,
-    string DeltaTone = "neutral");
+    string DeltaTone = "neutral",
+    string? Href = null,
+    string? TestId = null);
 
 public sealed record PeriodSummaryViewModel(DateOnly Start, DateOnly End, int WorkingDays);
 
-public sealed record DashboardViewModel(DateOnly Today, PeriodSummaryViewModel CurrentPeriod, PeriodSummaryViewModel NextPeriod);
+/// <param name="HireSourceNotAssigned">Admin only; null for Managers (never loaded for them).</param>
+public sealed record DashboardViewModel(
+    DateOnly Today,
+    PeriodSummaryViewModel CurrentPeriod,
+    PeriodSummaryViewModel NextPeriod,
+    PeopleTileViewModel People,
+    int? HireSourceNotAssigned);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);
 

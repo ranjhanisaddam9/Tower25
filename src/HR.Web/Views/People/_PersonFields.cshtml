@@ -1,0 +1,128 @@
+@using HR.Domain.People
+@model PersonFormViewModel
+@{
+    // Edit pages pass the masked stored values; the full CNIC/IBAN never appear on this form.
+    var isEdit = ViewData["IsEdit"] as bool? == true;
+    var maskedCnic = ViewData["MaskedCnic"] as string;
+    var maskedIban = ViewData["MaskedIban"] as string;
+}
+<fieldset class="form-section">
+    <legend class="form-section-title">Person</legend>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="FullName" class="form-control" autocomplete="off" placeholder="Full name" aria-describedby="FullName-error" />
+                <label asp-for="FullName"></label>
+            </div>
+            <span asp-validation-for="FullName" class="field-error" id="FullName-error"></span>
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <select asp-for="Type" class="form-select" aria-describedby="Type-error">
+                    <option value="">Choose…</option>
+                    <option value="@PersonType.Employee">Employee</option>
+                    <option value="@PersonType.Internee">Internee</option>
+                </select>
+                <label asp-for="Type"></label>
+            </div>
+            <span asp-validation-for="Type" class="field-error" id="Type-error"></span>
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Designation" class="form-control" autocomplete="off" placeholder="Designation" aria-describedby="Designation-error" />
+                <label asp-for="Designation"></label>
+            </div>
+            <span asp-validation-for="Designation" class="field-error" id="Designation-error"></span>
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="JoiningDate" class="form-control" type="date" placeholder="Joining date" aria-describedby="JoiningDate-error" />
+                <label asp-for="JoiningDate"></label>
+            </div>
+            <span asp-validation-for="JoiningDate" class="field-error" id="JoiningDate-error"></span>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="form-section">
+    <legend class="form-section-title">Contact</legend>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Phone" class="form-control" type="tel" inputmode="tel" autocomplete="off" placeholder="0300-1234567" aria-describedby="Phone-error Phone-hint" />
+                <label asp-for="Phone"></label>
+            </div>
+            <span asp-validation-for="Phone" class="field-error" id="Phone-error"></span>
+            <p class="form-hint" id="Phone-hint">For example 0300-1234567 or +92 300 1234567. Saved as +923001234567.</p>
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Email" class="form-control" type="email" autocomplete="off" placeholder="name@example.com" aria-describedby="Email-error" />
+                <label asp-for="Email"></label>
+            </div>
+            <span asp-validation-for="Email" class="field-error" id="Email-error"></span>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="form-section">
+    <legend class="form-section-title">Identity and bank</legend>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Cnic" class="form-control" inputmode="numeric" autocomplete="off" placeholder="12345-1234567-1"
+                       aria-describedby="Cnic-error Cnic-hint" />
+                <label asp-for="Cnic">@(isEdit ? "New CNIC (optional)" : "CNIC (optional)")</label>
+            </div>
+            <span asp-validation-for="Cnic" class="field-error" id="Cnic-error"></span>
+            @if (isEdit && maskedCnic is not null)
+            {
+                <p class="form-hint" id="Cnic-hint">Saved: <span class="masked" data-testid="masked-cnic">@maskedCnic</span>. Leave empty to keep it.</p>
+                <div class="form-check">
+                    <input asp-for="RemoveCnic" class="form-check-input" />
+                    <label asp-for="RemoveCnic" class="form-check-label">Remove the saved CNIC</label>
+                </div>
+            }
+            else
+            {
+                <p class="form-hint" id="Cnic-hint">13 digits, as 12345-1234567-1.</p>
+            }
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="BankName" class="form-control" autocomplete="off" placeholder="Bank name" aria-describedby="BankName-error" />
+                <label asp-for="BankName"></label>
+            </div>
+            <span asp-validation-for="BankName" class="field-error" id="BankName-error"></span>
+        </div>
+        <div class="col-12">
+            <div class="form-floating">
+                <input asp-for="Iban" class="form-control" autocomplete="off" placeholder="PKxx BANK xxxx xxxx xxxx xxxx"
+                       aria-describedby="Iban-error Iban-hint" />
+                <label asp-for="Iban">@(isEdit ? "New IBAN (optional)" : "IBAN (optional)")</label>
+            </div>
+            <span asp-validation-for="Iban" class="field-error" id="Iban-error"></span>
+            @if (isEdit && maskedIban is not null)
+            {
+                <p class="form-hint" id="Iban-hint">Saved: <span class="masked" data-testid="masked-iban">@maskedIban</span>. Leave empty to keep it.</p>
+                <div class="form-check">
+                    <input asp-for="RemoveIban" class="form-check-input" />
+                    <label asp-for="RemoveIban" class="form-check-label">Remove the saved IBAN</label>
+                </div>
+            }
+            else
+            {
+                <p class="form-hint" id="Iban-hint">24 characters starting with PK. Spaces are fine.</p>
+            }
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="form-section">
+    <legend class="form-section-title">Notes</legend>
+    <div class="form-floating">
+        <textarea asp-for="Notes" class="form-control form-textarea" placeholder="Notes" aria-describedby="Notes-error"></textarea>
+        <label asp-for="Notes"></label>
+    </div>
+    <span asp-validation-for="Notes" class="field-error" id="Notes-error"></span>
+</fieldset>

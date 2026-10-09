@@ -1114,3 +1114,46 @@ a.btn-icon {
     border-color: var(--danger);
     border-width: 2px;
 }
+
+/* ---------- M3: pills, stat links, tabs ---------- */
+.pill-teal { background: rgba(20, 184, 166, var(--tone-alpha)); color: var(--tone-success-fg); }
+.pill-violet { background: rgba(168, 85, 247, var(--tone-alpha)); color: var(--tone-primary-fg); }
+
+.stat-body > span {
+    display: block;
+}
+
+a.stat-tile-link {
+    color: inherit;
+    text-decoration: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+a.stat-tile-link:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-highlight), 0 12px 36px rgba(2, 6, 23, .30);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    a.stat-tile-link {
+        transition: none;
+    }
+
+    a.stat-tile-link:hover {
+        transform: none;
+    }
+}
+
+.glass-tabs {
+    --bs-nav-tabs-border-color: var(--divider);
+    --bs-nav-link-color: var(--text);
+    --bs-nav-link-disabled-color: var(--text-muted);
+    --bs-nav-tabs-link-hover-border-color: var(--divider);
+    gap: 4px;
+}
+
+.glass-tabs .nav-link {
+    min-height: var(--touch-target);
+    border-radius: var(--radius-control) var(--radius-control) 0 0;
+    font-weight: 500;
+}

@@ -61,6 +61,20 @@ Create `src/HR.Web/appsettings.Development.local.json` instead. It is optional, 
 
 Never put passwords in this file: the Admin seeder refuses a seed password found in any `appsettings*.json`.
 
+### Demo people (Development only)
+
+To fill an empty dev database with about 25 realistic but clearly fake people (CNICs start with `00000`, IBANs use the bank code `TEST`, emails end in `@demo.example`), set the flag for one run. Never commit it as `true`:
+
+```bash
+dotnet user-secrets set "DemoData:Seed" "true" --project src/HR.Web
+```
+
+Seeding runs only in the Development environment and is idempotent: it adds only the demo people that are missing. Turn it off again afterwards:
+
+```bash
+dotnet user-secrets remove "DemoData:Seed" --project src/HR.Web
+```
+
 ### First Admin account
 
 At startup the app creates the Admin and Manager roles. If no user has the Admin role yet, it also creates one from `Seed:Admin:Email`, `Seed:Admin:FullName` and `Seed:Admin:Password`, with a forced password change at first sign-in.

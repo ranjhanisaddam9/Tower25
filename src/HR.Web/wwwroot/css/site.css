@@ -333,3 +333,202 @@
 .cell-actions form {
     margin-left: 0;
 }
+
+/* ---------- People ---------- */
+.filter-select {
+    flex: 0 1 170px;
+}
+
+.cell-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.cell-sub {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.row-link {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.row-link:hover {
+    color: var(--link);
+    text-decoration: underline;
+}
+
+.form-card-wide {
+    max-width: 880px;
+}
+
+.form-section {
+    margin: 0 0 20px;
+    padding: 0;
+    border: 0;
+}
+
+.form-section-title {
+    float: none;
+    width: auto;
+    margin-bottom: 10px;
+    color: var(--text-muted);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.form-textarea {
+    min-height: 110px;
+}
+
+.masked {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+}
+
+.action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .details-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.profile-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.profile-avatar {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 64px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--accent-gradient);
+    color: var(--on-accent);
+    font-size: 1.375rem;
+    font-weight: 700;
+}
+
+.profile-title {
+    min-width: 0;
+}
+
+.profile-name {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.profile-designation {
+    margin: 2px 0 8px;
+    color: var(--text-muted);
+}
+
+.profile-pills {
+    justify-content: flex-start;
+}
+
+.profile-facts {
+    margin-bottom: 12px;
+}
+
+.profile-meta {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.notes {
+    white-space: pre-line;
+}
+
+.copy-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.id-value {
+    color: var(--text);
+    font-size: .9375rem;
+    letter-spacing: .03em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.hire-help {
+    margin: 0 0 16px;
+    padding-left: 18px;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.conflict-panel > div {
+    min-width: 0;
+}
+
+.conflict-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 14px;
+    margin: 0;
+}
+
+.conflict-list dt {
+    font-weight: 700;
+}
+
+.conflict-list dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.conflict-label {
+    font-weight: 600;
+}
+
+@media (max-width: 575.98px) {
+    .conflict-list {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-select {
+        flex: 1 1 140px;
+    }
+}
+
+/* Touch targets: in the stacked mobile cards the row links become 40px-tall tap areas. */
+@media (max-width: 767.98px) {
+    .glass-table a.row-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: var(--touch-target);
+    }
+
+    .glass-table .cell-stack {
+        align-items: flex-end;
+    }
+}

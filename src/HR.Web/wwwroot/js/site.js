@@ -110,6 +110,13 @@
                 delete trigger.dataset.confirmed;
                 return;
             }
+            // Optional condition: only confirm when a field in the same form has a given value.
+            if (trigger.dataset.confirmIfName) {
+                var field = trigger.form && trigger.form.elements.namedItem(trigger.dataset.confirmIfName);
+                if (!field || field.value !== trigger.dataset.confirmIfValue) {
+                    return;
+                }
+            }
             event.preventDefault();
             pending = trigger;
             titleElement.textContent = trigger.dataset.confirmTitle || 'Are you sure?';
@@ -150,7 +157,11 @@
                 }
                 return;
             }
-            navigator.clipboard.writeText(source.textContent.trim()).then(function () {
+            var text = source.textContent.trim();
+            if (button.dataset.copyCompact === 'true') {
+                text = text.replace(/\s+/g, '');
+            }
+            navigator.clipboard.writeText(text).then(function () {
                 if (label) {
                     label.textContent = 'Copied';
                     window.setTimeout(function () { label.textContent = 'Copy'; }, 2000);

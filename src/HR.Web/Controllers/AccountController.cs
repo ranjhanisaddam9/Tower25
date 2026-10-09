@@ -69,6 +69,7 @@ public class AccountController(AccountService accounts) : Controller
     public IActionResult ChangePassword() => View(new ChangePasswordViewModel());
 
     [HttpPost("change-password")]
+    [EnableRateLimiting(ChangePasswordRateLimit.PolicyName)]
     public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
     {
         if (!ModelState.IsValid)

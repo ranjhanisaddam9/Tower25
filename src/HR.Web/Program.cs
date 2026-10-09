@@ -3,6 +3,7 @@ using System.Text.Unicode;
 using HR.Infrastructure;
 using HR.Infrastructure.Data;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure.People;
 using HR.Web.Configuration;
 using HR.Web.Security;
 using Microsoft.AspNetCore.Mvc;
@@ -49,6 +50,12 @@ if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.MigrateOn
 // Roles always; the first Admin only when none exists and Seed:Admin:* is configured.
 await AdminSeeder.RunAsync(app.Services);
 
+// Development only, and only when DemoData:Seed is true (never committed as true).
+if (app.Environment.IsDevelopment())
+{
+    await DemoDataSeeder.RunIfEnabledAsync(app.Services, app.Configuration);
+}
+
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (!app.Environment.IsDevelopment())
@@ -62,8 +69,8 @@ app.UseStatusCodePagesWithReExecute("/error/{0}");
 app.UseHttpsRedirection();
 app.UseCookiePolicy();
 app.UseRouting();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter(); // after authentication: the change-password limit is per signed-in user
 app.UseAuthorization();
 app.UseMiddleware<ForcePasswordChangeMiddleware>();
 

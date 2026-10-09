@@ -7,24 +7,25 @@
     var enabled = new List<(string Label, string Icon, string Controller, string Action)>
     {
         ("Dashboard", "bi-grid-1x2", "Home", "Index"),
+        ("People", "bi-people", "People", "Index"),
     };
     var upcoming = new List<(string Label, string Icon)>
     {
-        ("People", "bi-people"),
         ("Absences", "bi-calendar-x"),
         ("Salaries", "bi-cash-stack"),
         ("Exchange Rates", "bi-currency-exchange"),
         ("Payroll", "bi-receipt"),
-        ("Invoices", "bi-file-earmark-text"),
-        ("Owner Income", "bi-graph-up-arrow"),
-        ("Reports", "bi-bar-chart-line"),
     };
 
-    // Admin-only sections are not even listed for Managers.
+    // Admin-only sections (SPEC §1: invoices and owner income are Admin-only) are not even listed for Managers.
     if (isAdmin)
     {
+        upcoming.Add(("Invoices", "bi-file-earmark-text"));
+        upcoming.Add(("Owner Income", "bi-graph-up-arrow"));
         enabled.Add(("Managers", "bi-person-gear", "Managers", "Index"));
     }
+
+    upcoming.Add(("Reports", "bi-bar-chart-line"));
 }
 <nav class="sidebar-nav" aria-label="Sections">
     <ul class="nav-list">

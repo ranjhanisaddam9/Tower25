@@ -74,5 +74,8 @@ public static class DependencyInjection
         services.AddScoped<AdminSeeder>();
         services.AddScoped<ManagerService>();
         services.AddScoped<AccountService>();
+
+        services.AddScoped<People.PersonService>();
+        services.AddScoped<People.DemoDataSeeder>();
     }
 }

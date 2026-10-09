@@ -1,0 +1,24 @@
+@model PersonFormViewModel
+@{
+    ViewData["Title"] = "Add person";
+    ViewData["Section"] = "People";
+}
+
+<section class="glass-card form-card form-card-wide" aria-labelledby="createHeading">
+    <h2 class="card-title" id="createHeading">New person</h2>
+    <p class="text-muted-glass">A code such as HR-0001 is assigned automatically when you save.</p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert"></div>
+
+    <form method="post" asp-action="Create">
+        <partial name="_PersonFields" model="Model" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

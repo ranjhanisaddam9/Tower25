@@ -22,6 +22,9 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1003, Level = LogLevel.Warning, Message = "Security: login rate limit exceeded from {ClientIp}")]
     public static partial void LoginRateLimited(ILogger logger, string clientIp);
 
+    [LoggerMessage(EventId = 1006, Level = LogLevel.Warning, Message = "Security: change-password rate limit exceeded for {Partition} from {ClientIp}")]
+    public static partial void ChangePasswordRateLimited(ILogger logger, string partition, string clientIp);
+
     [LoggerMessage(EventId = 1004, Level = LogLevel.Information, Message = "Security: user {UserId} signed out")]
     public static partial void LoggedOut(ILogger logger, string userId);
 
@@ -51,4 +54,24 @@ public static partial class SecurityLog
 
     [LoggerMessage(EventId = 1021, Level = LogLevel.Warning, Message = "Security: Admin seeding skipped: {Reason}")]
     public static partial void AdminSeedSkipped(ILogger logger, string reason);
+
+    // ---- People (audit). Never CNIC, IBAN or phone numbers. ----
+
+    [LoggerMessage(EventId = 1100, Level = LogLevel.Information, Message = "Audit: {ActorId} created person {PersonId} ({PersonCode})")]
+    public static partial void PersonCreated(ILogger logger, string actorId, int personId, string personCode);
+
+    [LoggerMessage(EventId = 1101, Level = LogLevel.Information, Message = "Audit: {ActorId} edited person {PersonId} ({PersonCode})")]
+    public static partial void PersonEdited(ILogger logger, string actorId, int personId, string personCode);
+
+    [LoggerMessage(EventId = 1102, Level = LogLevel.Information, Message = "Audit: {ActorId} deactivated person {PersonId} ({PersonCode}) with leaving date {LeavingDate}")]
+    public static partial void PersonDeactivated(ILogger logger, string actorId, int personId, string personCode, DateOnly leavingDate);
+
+    [LoggerMessage(EventId = 1103, Level = LogLevel.Information, Message = "Audit: {ActorId} reactivated person {PersonId} ({PersonCode}) from {RejoiningDate}; previous joining {PreviousJoiningDate}, previous leaving {PreviousLeavingDate}")]
+    public static partial void PersonReactivated(ILogger logger, string actorId, int personId, string personCode, DateOnly rejoiningDate, DateOnly previousJoiningDate, DateOnly? previousLeavingDate);
+
+    [LoggerMessage(EventId = 1104, Level = LogLevel.Information, Message = "Audit: {ActorId} changed the hire source of person {PersonId} ({PersonCode}) from {PreviousSource} to {NewSource}")]
+    public static partial void PersonHireSourceChanged(ILogger logger, string actorId, int personId, string personCode, string previousSource, string newSource);
+
+    [LoggerMessage(EventId = 1110, Level = LogLevel.Information, Message = "Demo data: seeded {Count} people")]
+    public static partial void DemoDataSeeded(ILogger logger, int count);
 }

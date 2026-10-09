@@ -1,0 +1,64 @@
+@model PersonEditViewModel
+@{
+    ViewData["Title"] = "Edit person";
+    ViewData["Section"] = "People";
+    var fieldsData = new ViewDataDictionary(ViewData)
+    {
+        ["IsEdit"] = true,
+        ["MaskedCnic"] = Model.MaskedCnic,
+        ["MaskedIban"] = Model.MaskedIban,
+    };
+}
+
+<section class="glass-card form-card form-card-wide" aria-labelledby="editHeading">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="editHeading">@Model.Form.FullName <span class="text-muted-glass num">· @Model.Code</span></h2>
+        @if (Model.IsActive)
+        {
+            <span class="pill pill-success">Active</span>
+        }
+        else
+        {
+            <span class="pill pill-danger">Inactive</span>
+        }
+    </div>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="edit-errors"></div>
+
+    @if (Model.ConflictChanges is { } changes)
+    {
+        <div class="glass-alert alert-warning-glass conflict-panel" role="status" data-testid="conflict-changes">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+            <div>
+                @if (changes.Count == 0)
+                {
+                    <p class="mb-0">The saved values match what you entered; just save again to confirm.</p>
+                }
+                else
+                {
+                    <p class="mb-2">These fields differ between what is saved now and what you entered:</p>
+                    <dl class="conflict-list">
+                        @foreach (var change in changes)
+                        {
+                            <dt>@change.Label</dt>
+                            <dd><span class="conflict-label">Saved:</span> @change.Saved <span class="conflict-label">· Yours:</span> @change.Yours</dd>
+                        }
+                    </dl>
+                }
+            </div>
+        </div>
+    }
+
+    <form method="post" asp-action="Edit" asp-route-id="@Model.Id">
+        <input type="hidden" name="RowVersion" value="@Model.Form.RowVersion" />
+        <partial name="_PersonFields" model="Model.Form" view-data="fieldsData" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
+            <a class="btn btn-ghost" asp-action="Details" asp-route-id="@Model.Id">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
