@@ -100,6 +100,9 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
     public const string RejoiningDateField = "RejoiningDate";
     public const string LeavingDateField = "LeavingDate";
 
+    /// <summary>The error number THROWn by the TR_EmploymentPeriods_NoOverlap trigger.</summary>
+    public const int OverlapErrorNumber = 51001;
+
     private readonly ILogger _log = loggerFactory.CreateLogger(SecurityLog.Category);
 
     // ---------- Queries ----------
@@ -145,6 +148,14 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
         return new PagedResult<AdminPersonRow>(rows, page, query.PageSize, total);
     }
+
+    /// <summary>Every employment period of a person, oldest first.</summary>
+    public async Task<IReadOnlyList<EmploymentSpan>> GetEmploymentHistoryAsync(int id, CancellationToken cancellationToken = default) =>
+        await db.EmploymentPeriods.AsNoTracking()
+            .Where(p => p.PersonId == id)
+            .OrderBy(p => p.StartDate)
+            .Select(p => new EmploymentSpan(p.StartDate, p.EndDate))
+            .ToListAsync(cancellationToken);
 
     public Task<PersonDetails?> GetAsync(int id, CancellationToken cancellationToken = default) =>
         db.People.AsNoTracking()
@@ -225,7 +236,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         string actorId,
         CancellationToken cancellationToken = default)
     {
-        var person = await db.People.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (person is null)
         {
             return new PersonResult(PersonResultStatus.NotFound);
@@ -253,6 +264,18 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return PersonResult.Invalid(nameof(PersonInput.JoiningDate), "The joining date can't be after the leaving date.");
         }
 
+        // The joining date is the latest period's start: it must stay after the previous period's end.
+        var previousEnd = person.EmploymentPeriods
+            .OrderByDescending(p => p.StartDate)
+            .Skip(1)
+            .Select(p => p.EndDate)
+            .FirstOrDefault();
+        if (previousEnd is { } ended && normalized.JoiningDate <= ended)
+        {
+            return PersonResult.Invalid(nameof(PersonInput.JoiningDate),
+                $"The joining date must be after the previous employment period, which ended on {ended.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}.");
+        }
+
         var duplicates = await DuplicateErrorsAsync(normalized, exceptId: id, cancellationToken);
         if (duplicates.Count > 0)
         {
@@ -275,7 +298,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
     public async Task<PersonResult> DeactivateAsync(int id, DateOnly? leavingDate, string actorId, CancellationToken cancellationToken = default)
     {
-        var person = await db.People.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (person is null)
         {
             return new PersonResult(PersonResultStatus.NotFound);
@@ -315,7 +338,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         bool revealHireSource,
         CancellationToken cancellationToken = default)
     {
-        var person = await db.People.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (person is null)
         {
             return new PersonResult(PersonResultStatus.NotFound);
@@ -470,6 +493,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         {
             db.ChangeTracker.Clear();
             return await ConflictAsync(conflictId.Value, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: OverlapErrorNumber })
+        {
+            // The database trigger caught an overlap the domain should already have prevented.
+            db.ChangeTracker.Clear();
+            return PersonResult.Invalid(nameof(PersonInput.JoiningDate), "Employment periods can't overlap.");
         }
         catch (DbUpdateException ex) when (UniqueIndex(ex) is { } index)
         {

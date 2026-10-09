@@ -155,8 +155,33 @@
     }
 </div>
 
+<section class="glass-card mt-4" aria-labelledby="employmentHeading" data-testid="employment-history">
+    <h2 class="card-title" id="employmentHeading">Employment history</h2>
+    <p class="text-muted-glass">Each stint is a separate period. Payroll counts working days (Monday to Friday) inside these periods only.</p>
+    <ol class="period-list">
+        @foreach (var period in Model.EmploymentHistory)
+        {
+            <li class="period-item" data-testid="employment-period">
+                <span class="period-dates">
+                    <time datetime="@Iso(period.Start)">@DisplayFormat.Date(period.Start)</time>
+                    <span aria-hidden="true">→</span><span class="visually-hidden">to</span>
+                    @if (period.End is { } end)
+                    {
+                        <time datetime="@Iso(end)">@DisplayFormat.Date(end)</time>
+                    }
+                    else
+                    {
+                        <span class="pill pill-success">Current</span>
+                    }
+                </span>
+                <span class="period-days num">@period.WorkingDays @(period.WorkingDays == 1 ? "working day" : "working days")@(period.End is null ? " so far" : "")</span>
+            </li>
+        }
+    </ol>
+</section>
+
 <section class="glass-card mt-4" aria-labelledby="historyHeading">
-    <h2 class="card-title" id="historyHeading">History</h2>
+    <h2 class="card-title" id="historyHeading">Pay records</h2>
     <ul class="nav nav-tabs glass-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Salary &amp; increments (M5)</button>

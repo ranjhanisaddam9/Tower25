@@ -11,7 +11,13 @@
         new StatTileViewModel("Active people", people.Active.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), "bi-people", "indigo",
             $"{people.Employees} {(people.Employees == 1 ? "employee" : "employees")} · {people.Internees} {(people.Internees == 1 ? "internee" : "internees")}",
             Href: "/people", TestId: "active-people-tile"),
-        new StatTileViewModel("USD/PKR rate", "—", "bi-currency-exchange", "teal", "Exchange rates arrive in M4"),
+        Model.Rate.UsdToPkr is { } usdToPkr
+            ? new StatTileViewModel("USD/PKR rate", "Rs " + HR.Domain.Rates.ExchangeRateRules.Format(usdToPkr), "bi-currency-exchange", "teal",
+                $"since {DisplayFormat.Date(Model.Rate.Since!.Value)}",
+                Model.Rate.Change is { } rateChange ? rateChange.Text + " vs previous" : null, "neutral",
+                Href: "/exchange-rates", TestId: "rate-tile")
+            : new StatTileViewModel("USD/PKR rate", "Not set", "bi-currency-exchange", "teal", "Add rate",
+                Href: "/exchange-rates/create", TestId: "rate-tile"),
         new StatTileViewModel("Pending absences", "—", "bi-calendar-x", "warning", "Absences arrive in M6"),
     };
 }

@@ -4,6 +4,7 @@ using HR.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HR.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009145339_AddEmploymentPeriods")]
+    partial class AddEmploymentPeriods
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -207,59 +210,6 @@ namespace HR.Infrastructure.Data.Migrations
                             t.HasCheckConstraint("CK_People_InactiveHasLeavingDate", "([IsActive] = 1 AND [LeavingDate] IS NULL) OR ([IsActive] = 0 AND [LeavingDate] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_People_LeavingAfterJoining", "[LeavingDate] IS NULL OR [LeavingDate] >= [JoiningDate]");
-                        });
-                });
-
-            modelBuilder.Entity("HR.Domain.Rates.ExchangeRate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<decimal>("UsdToPkr")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EffectiveFrom")
-                        .IsUnique()
-                        .HasDatabaseName("UX_ExchangeRates_EffectiveFrom");
-
-                    b.ToTable("ExchangeRates", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ExchangeRates_UsdToPkrRange", "[UsdToPkr] >= 100.0000 AND [UsdToPkr] <= 1000.0000");
                         });
                 });
 

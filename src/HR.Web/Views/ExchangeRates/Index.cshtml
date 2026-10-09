@@ -1,0 +1,188 @@
+@using System.Globalization
+@using HR.Domain.Rates
+@model ExchangeRatesPageViewModel
+@{
+    ViewData["Title"] = "Exchange rates";
+    ViewData["Section"] = "Payroll setup";
+    static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var chart = Model.Chart;
+}
+
+<div class="page-actions">
+    <p class="page-lead mb-0">USD to PKR rates. Each rate applies from its date until the next entry. Payroll proposes the rate in effect on the period's end date.</p>
+    <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add rate</a>
+</div>
+
+@if (Model.TotalCount == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-currency-exchange"></i></span>
+            <p class="empty-state-text">No exchange rates yet. Add the current USD to PKR rate to get started.</p>
+            <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add rate</a>
+        </div>
+    </section>
+}
+else
+{
+    <div class="rates-top">
+        <section class="glass-card rate-hero" aria-labelledby="currentRateHeading">
+            <h2 class="card-title" id="currentRateHeading">Current rate</h2>
+            @if (Model.Current is { } current)
+            {
+                <p class="rate-hero-value" data-testid="current-rate">1 USD = Rs @ExchangeRateRules.Format(current.UsdToPkr)</p>
+                <p class="rate-hero-since">Effective since <time datetime="@Iso(current.EffectiveFrom)">@DisplayFormat.Date(current.EffectiveFrom)</time></p>
+                @if (Model.CurrentChange is { } change && Model.Previous is { } previous)
+                {
+                    <p class="rate-change rate-change-@change.Tone" data-testid="current-change">
+                        <i class="bi @change.Icon" aria-hidden="true"></i>
+                        <span>@change.Text</span>
+                        <span class="rate-change-vs">vs Rs @ExchangeRateRules.Format(previous.UsdToPkr) from @DisplayFormat.Date(previous.EffectiveFrom)</span>
+                    </p>
+                }
+                else
+                {
+                    <p class="rate-change rate-change-flat"><span>First entry: no previous rate to compare.</span></p>
+                }
+            }
+            else
+            {
+                <p class="rate-hero-value">Not set</p>
+                <p class="rate-hero-since">Every entry is scheduled for a future date.</p>
+            }
+        </section>
+
+        @if (chart is not null)
+        {
+            <section class="glass-card rate-chart-card" aria-labelledby="chartHeading">
+                <h2 class="card-title" id="chartHeading">Trend</h2>
+                <svg class="rate-chart" viewBox="0 0 @RateChartViewModel.Width @RateChartViewModel.Height" role="img"
+                     aria-labelledby="chartTitle chartDesc" focusable="false" data-testid="rate-chart">
+                    <title id="chartTitle">@chart.Title</title>
+                    <desc id="chartDesc">@chart.Summary</desc>
+                    @foreach (var value in new[] { chart.Max, chart.Min }.Distinct())
+                    {
+                        var y = chart.YOf(value).ToString(CultureInfo.InvariantCulture);
+                        <g class="chart-gridline"><line class="chart-grid" x1="@RateChartViewModel.PadLeft" y1="@y" x2="@RateChartViewModel.PlotRight" y2="@y" />
+                        <text class="chart-label" x="@(RateChartViewModel.PadLeft - 8)" y="@y" text-anchor="end" dominant-baseline="middle">@ExchangeRateRules.Format(value)</text></g>
+                    }
+                    <line class="chart-axis" x1="@RateChartViewModel.PadLeft" y1="@RateChartViewModel.PlotBottom" x2="@RateChartViewModel.PlotRight" y2="@RateChartViewModel.PlotBottom" />
+                    <polyline class="chart-line" points="@chart.Polyline" fill="none" />
+                    @foreach (var point in chart.Points)
+                    {
+                        <circle class="chart-point @(point.IsScheduled ? "chart-point-scheduled" : null)" cx="@point.Xs" cy="@point.Ys" r="4">
+                            <title>@DisplayFormat.Date(point.Date): Rs @ExchangeRateRules.Format(point.Value)@(point.IsScheduled ? " (scheduled)" : "")</title>
+                        </circle>
+                    }
+                    <text class="chart-label" x="@chart.Points[0].Xs" y="@(RateChartViewModel.Height - 10)" text-anchor="start">@DisplayFormat.Date(chart.Points[0].Date)</text>
+                    @if (chart.Points.Count > 1)
+                    {
+                        <g><text class="chart-label" x="@chart.Points[^1].Xs" y="@(RateChartViewModel.Height - 10)" text-anchor="end">@DisplayFormat.Date(chart.Points[^1].Date)</text></g>
+                    }
+                </svg>
+                <p class="chart-summary">@chart.Summary</p>
+            </section>
+        }
+    </div>
+
+    <section class="glass-card rate-lookup" aria-labelledby="lookupHeading">
+        <h2 class="card-title" id="lookupHeading">Rate on a date</h2>
+        <form method="get" asp-action="Index" class="lookup-form">
+            <div class="form-floating">
+                <input type="date" class="form-control" id="on" name="on" value="@Iso(Model.LookupDefault)" required />
+                <label for="on">Date</label>
+            </div>
+            <button type="submit" class="btn btn-ghost"><i class="bi bi-search" aria-hidden="true"></i> Look up</button>
+        </form>
+        @if (Model.Lookup is { } lookup)
+        {
+            <div class="lookup-result" role="status" data-testid="lookup-result">
+                @if (lookup.Result is { } found)
+                {
+                    <p class="mb-0">On <strong>@DisplayFormat.Date(lookup.Date)</strong>: <strong class="num">1 USD = Rs @ExchangeRateRules.Format(found.UsdToPkr)</strong>
+                        <span class="text-muted-glass">(entry effective from @DisplayFormat.Date(found.EffectiveFrom)@(found.Note is { } n ? $" · {n}" : ""))</span></p>
+                }
+                else
+                {
+                    <p class="mb-0">No rate on or before @DisplayFormat.Date(lookup.Date).</p>
+                }
+            </div>
+        }
+    </section>
+
+    <h2 class="card-title sg-heading mt-4" id="historyHeading">History</h2>
+    <p class="list-count">@Model.TotalCount @(Model.TotalCount == 1 ? "entry" : "entries")</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table" aria-labelledby="historyHeading">
+            <thead>
+                <tr>
+                    <th scope="col">Effective from</th>
+                    <th scope="col" class="money">Rate (PKR per USD)</th>
+                    <th scope="col">Change vs previous</th>
+                    <th scope="col">Note</th>
+                    <th scope="col">Added by</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr data-testid="rate-row">
+                        <td data-label="Effective from">
+                            <span class="cell-group">
+                                <time class="num" datetime="@Iso(r.EffectiveFrom)">@DisplayFormat.Date(r.EffectiveFrom)</time>
+                                @if (r.IsScheduled)
+                                {
+                                    <span class="pill pill-info" data-testid="scheduled-pill">Scheduled</span>
+                                }
+                            </span>
+                        </td>
+                        <td data-label="Rate" class="money" data-testid="rate-value">@ExchangeRateRules.Format(r.UsdToPkr)</td>
+                        <td data-label="Change vs previous">
+                            @if (r.Change is { } c)
+                            {
+                                <span class="rate-change rate-change-@c.Tone"><i class="bi @c.Icon" aria-hidden="true"></i> <span>@c.Text</span></span>
+                            }
+                            else
+                            {
+                                <span class="text-muted-glass">First entry</span>
+                            }
+                        </td>
+                        <td data-label="Note" class="cell-wrap">@(r.Note ?? "—")</td>
+                        <td data-label="Added by">@(r.AddedBy ?? "—")</td>
+                        <td data-label="Actions" class="cell-actions">
+                            <span class="cell-group">
+                                <a class="btn-icon" asp-action="Edit" asp-route-id="@r.Id" aria-label="Edit the rate from @DisplayFormat.Date(r.EffectiveFrom)" title="Edit">
+                                    <i class="bi bi-pencil" aria-hidden="true"></i>
+                                </a>
+                                <form method="post" asp-action="Delete" asp-route-id="@r.Id" class="d-inline">
+                                    <button type="submit" class="btn-icon btn-icon-danger" aria-label="Delete the rate from @DisplayFormat.Date(r.EffectiveFrom)" title="Delete"
+                                            data-confirm="The rate of Rs @ExchangeRateRules.Format(r.UsdToPkr) from @DisplayFormat.Date(r.EffectiveFrom) will be removed. Finalized payrolls keep their own copy of the rate."
+                                            data-confirm-title="Delete this rate?"
+                                            data-confirm-action="Delete">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="Exchange rate pages">
+            @if (Model.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-route-page="@(Model.Page - 1)" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i> Newer</a>
+            }
+            <span class="pager-status">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-route-page="@(Model.Page + 1)" rel="next">Older <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+            }
+        </nav>
+    }
+}

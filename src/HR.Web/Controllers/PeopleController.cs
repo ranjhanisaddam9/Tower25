@@ -73,7 +73,15 @@ public class PeopleController(PersonService people, IClock clock) : Controller
         var minRejoin = person.LeavingDate?.AddDays(1);
         var defaultLeaving = today < person.JoiningDate ? person.JoiningDate : today;
         var defaultRejoin = minRejoin is { } min && min > today ? min : today;
-        return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard));
+        var history = (await people.GetEmploymentHistoryAsync(id, cancellationToken))
+            .Select(span => new EmploymentPeriodRowViewModel(
+                span.Start,
+                span.End,
+                HR.Domain.Payroll.WorkingDays.Count(span.Start, span.End ?? today)))
+            .Reverse() // newest first
+            .ToList();
+
+        return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history));
     }
 
     [HttpGet("create")]

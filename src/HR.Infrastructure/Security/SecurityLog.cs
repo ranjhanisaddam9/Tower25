@@ -72,6 +72,17 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1104, Level = LogLevel.Information, Message = "Audit: {ActorId} changed the hire source of person {PersonId} ({PersonCode}) from {PreviousSource} to {NewSource}")]
     public static partial void PersonHireSourceChanged(ILogger logger, string actorId, int personId, string personCode, string previousSource, string newSource);
 
+    // ---- Exchange rates (audit) ----
+
+    [LoggerMessage(EventId = 1200, Level = LogLevel.Information, Message = "Audit: {ActorId} added exchange rate {RateId}: {NewEffectiveFrom} = {NewUsdToPkr}")]
+    public static partial void ExchangeRateCreated(ILogger logger, string actorId, int rateId, DateOnly newEffectiveFrom, decimal newUsdToPkr);
+
+    [LoggerMessage(EventId = 1201, Level = LogLevel.Information, Message = "Audit: {ActorId} edited exchange rate {RateId}: {OldEffectiveFrom} = {OldUsdToPkr} -> {NewEffectiveFrom} = {NewUsdToPkr}")]
+    public static partial void ExchangeRateEdited(ILogger logger, string actorId, int rateId, DateOnly oldEffectiveFrom, decimal oldUsdToPkr, DateOnly newEffectiveFrom, decimal newUsdToPkr);
+
+    [LoggerMessage(EventId = 1202, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted exchange rate {RateId}: {OldEffectiveFrom} = {OldUsdToPkr}")]
+    public static partial void ExchangeRateDeleted(ILogger logger, string actorId, int rateId, DateOnly oldEffectiveFrom, decimal oldUsdToPkr);
+
     [LoggerMessage(EventId = 1110, Level = LogLevel.Information, Message = "Demo data: seeded {Count} people")]
     public static partial void DemoDataSeeded(ILogger logger, int count);
 }

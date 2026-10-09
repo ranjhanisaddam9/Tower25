@@ -532,3 +532,195 @@
         align-items: flex-end;
     }
 }
+
+/* ---------- Exchange rates ---------- */
+.rates-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 991.98px) {
+    .rates-top {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.rate-hero-value {
+    margin: 4px 0 6px;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.rate-hero-since {
+    margin-bottom: 12px;
+    color: var(--text-muted);
+}
+
+.rate-change {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Direction is always also in words and an icon; colour only reinforces it. */
+.rate-change-up { color: var(--tone-warning-fg); }
+.rate-change-down { color: var(--tone-info-fg); }
+.rate-change-flat { color: var(--text-muted); }
+
+.rate-change-vs {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.rate-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.chart-line {
+    stroke: var(--focus-color); /* #4F46E5 light, #A5B4FC dark: ≥ 3:1 for graphics in both themes */
+    stroke-width: 3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chart-point {
+    r: 5;
+    fill: var(--focus-color);
+    stroke: var(--glass-bg-strong);
+    stroke-width: 2;
+}
+
+.chart-point-scheduled {
+    fill: var(--aurora-base);
+    stroke: var(--focus-color);
+    stroke-dasharray: 2 2;
+}
+
+.chart-grid {
+    stroke: var(--divider);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+}
+
+.chart-axis {
+    stroke: var(--input-border);
+    stroke-width: 1;
+}
+
+.chart-label {
+    fill: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--font-sans);
+}
+
+.chart-summary {
+    margin: 8px 0 0;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.lookup-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.lookup-form .form-floating {
+    flex: 0 1 220px;
+}
+
+.lookup-result {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-control);
+    background: var(--glass-hover);
+    border: 1px solid var(--divider);
+}
+
+.form-check-strong {
+    padding: 8px 12px 8px 2.25em;
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-control);
+    background: rgba(245, 158, 11, var(--tone-alpha));
+    font-weight: 600;
+}
+
+/* ---------- Employment history ---------- */
+.period-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.period-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--divider);
+}
+
+.period-item:last-child {
+    border-bottom: 0;
+}
+
+.period-dates {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.period-days {
+    color: var(--text-muted);
+}
+
+/* Table cells: groups start-align in the desktop table (they right-align only in stacked mobile cards),
+   row actions never wrap, and a rate change stays on one line. */
+@media (min-width: 768px) {
+    .glass-table td:not(.cell-actions):not(.money) .cell-group {
+        justify-content: flex-start;
+    }
+}
+
+.cell-actions .cell-group {
+    flex-wrap: nowrap;
+}
+
+.glass-table .rate-change {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+/* The chart scales with its viewBox (640 units wide). On phones it renders at about half size, so labels,
+   points and the line are drawn larger in viewBox units to stay legible (≈11px text). */
+@media (max-width: 575.98px) {
+    .chart-label {
+        font-size: 24px;
+    }
+
+    .chart-line {
+        stroke-width: 5;
+    }
+
+    .chart-point {
+        r: 8;
+        stroke-width: 3;
+    }
+}

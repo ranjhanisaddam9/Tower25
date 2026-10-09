@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using HR.Domain.People;
+using HR.Domain.Rates;
 using HR.Infrastructure.Data.Configurations;
 using HR.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -12,6 +13,10 @@ namespace HR.Infrastructure.Data;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<Person> People => Set<Person>();
+
+    public DbSet<EmploymentPeriod> EmploymentPeriods => Set<EmploymentPeriod>();
+
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     /// <summary>Takes the next person-code number. Sequence values are never rolled back, so codes are never reused.</summary>
     public async Task<int> NextPersonCodeNumberAsync(CancellationToken cancellationToken = default)

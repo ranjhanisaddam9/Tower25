@@ -59,6 +59,13 @@ internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
 
         builder.Property(p => p.RowVersion).IsRowVersion();
 
+        // Employment periods are owned by the person; JoiningDate/LeavingDate cache the latest period.
+        builder.HasMany(p => p.EmploymentPeriods)
+            .WithOne()
+            .HasForeignKey(e => e.PersonId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(p => p.EmploymentPeriods).HasField("_periods").UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(p => new { p.IsActive, p.FullName });
         builder.HasIndex(p => p.JoiningDate);
     }

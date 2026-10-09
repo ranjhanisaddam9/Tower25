@@ -77,5 +77,8 @@ public static class DependencyInjection
 
         services.AddScoped<People.PersonService>();
         services.AddScoped<People.DemoDataSeeder>();
+
+        services.AddScoped<Rates.ExchangeRateService>();
+        services.AddScoped<Rates.IExchangeRateService>(sp => sp.GetRequiredService<Rates.ExchangeRateService>());
     }
 }

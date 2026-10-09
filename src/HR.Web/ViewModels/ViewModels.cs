@@ -21,6 +21,7 @@ public sealed record DashboardViewModel(
     PeriodSummaryViewModel CurrentPeriod,
     PeriodSummaryViewModel NextPeriod,
     PeopleTileViewModel People,
+    RateTileViewModel Rate,
     int? HireSourceNotAssigned);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);
@@ -28,3 +29,6 @@ public sealed record ErrorViewModel(int StatusCode, string Title, string Message
 public sealed record StyleguideMoneyRow(string Name, string Designation, string Status, int Days, decimal PayUsd, decimal PayPkr);
 
 public sealed record StyleguideViewModel(IReadOnlyList<StyleguideMoneyRow> Rows);
+
+/// <summary>Dashboard USD/PKR tile (same for both roles). <see cref="UsdToPkr"/> is null when no rate is set yet.</summary>
+public sealed record RateTileViewModel(decimal? UsdToPkr, DateOnly? Since, RateChangeViewModel? Change);

@@ -1,0 +1,84 @@
+@using HR.Domain.Rates
+@model ExchangeRateEditViewModel
+@{
+    var isEdit = Model.Id is not null;
+    ViewData["Title"] = isEdit ? "Edit rate" : "Add rate";
+    ViewData["Section"] = "Exchange rates";
+    var form = Model.Form;
+    var fieldsData = new ViewDataDictionary(ViewData) { ["ShowConfirm"] = Model.LargeChange is not null || form.ConfirmLargeChange };
+}
+
+<section class="glass-card form-card" aria-labelledby="rateFormHeading">
+    <h2 class="card-title" id="rateFormHeading">@(isEdit ? "Correct a rate" : "New rate")</h2>
+    <p class="text-muted-glass">The rate applies from this date until the next entry. Use up to 4 decimal places.</p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="rate-errors"></div>
+
+    @if (Model.ConflictChanges is { } changes)
+    {
+        <div class="glass-alert alert-warning-glass conflict-panel" role="status" data-testid="conflict-changes">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+            <div>
+                @if (changes.Count == 0)
+                {
+                    <p class="mb-0">The saved values match what you entered; just save again to confirm.</p>
+                }
+                else
+                {
+                    <p class="mb-2">These fields differ between what is saved now and what you entered:</p>
+                    <dl class="conflict-list">
+                        @foreach (var change in changes)
+                        {
+                            <dt>@change.Label</dt>
+                            <dd><span class="conflict-label">Saved:</span> @change.Saved <span class="conflict-label">· Yours:</span> @change.Yours</dd>
+                        }
+                    </dl>
+                }
+            </div>
+        </div>
+    }
+
+    @if (Model.LargeChange is { } large)
+    {
+        <div class="glass-alert alert-warning-glass" role="alert" data-testid="large-change-warning">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <p class="mb-0">
+                <strong>That is a @(large.PercentChange > 0 ? "rise" : "fall") of @Math.Abs(large.PercentChange).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)%</strong>
+                from Rs @ExchangeRateRules.Format(large.PreviousUsdToPkr) (effective @DisplayFormat.Date(large.PreviousEffectiveFrom)).
+                Changes over 5% are often typos. Check the figure, then tick the box below to save it.
+            </p>
+        </div>
+    }
+
+    <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@Model.Id">
+        @if (isEdit)
+        {
+            <input type="hidden" name="RowVersion" value="@form.RowVersion" />
+        }
+        <partial name="_RateFields" model="form" view-data="fieldsData" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> @(isEdit ? "Save changes" : "Add rate")</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@if (isEdit)
+{
+    <section class="glass-card form-card mt-4" aria-labelledby="deleteHeading">
+        <h2 class="card-title" id="deleteHeading">Delete</h2>
+        <p class="text-muted-glass">Remove an entry that was added by mistake. Finalized payrolls keep their own copy of the rate.</p>
+        <form method="post" asp-action="Delete" asp-route-id="@Model.Id">
+            <button type="submit" class="btn btn-danger-solid"
+                    data-confirm="This rate entry will be removed. Finalized payrolls keep their own copy of the rate."
+                    data-confirm-title="Delete this rate?"
+                    data-confirm-action="Delete">
+                <i class="bi bi-trash" aria-hidden="true"></i> Delete rate
+            </button>
+        </form>
+    </section>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

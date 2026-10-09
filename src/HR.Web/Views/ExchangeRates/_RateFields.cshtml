@@ -1,0 +1,39 @@
+@model ExchangeRateFormViewModel
+@{
+    var showConfirm = ViewData["ShowConfirm"] as bool? == true;
+}
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="EffectiveFrom" class="form-control" type="date" placeholder="Effective from" aria-describedby="EffectiveFrom-error" />
+            <label asp-for="EffectiveFrom"></label>
+        </div>
+        <span asp-validation-for="EffectiveFrom" class="field-error" id="EffectiveFrom-error"></span>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="UsdToPkr" class="form-control num" type="number" inputmode="decimal" step="0.0001" min="100" max="1000"
+                   placeholder="280.50" aria-describedby="UsdToPkr-error UsdToPkr-hint" />
+            <label asp-for="UsdToPkr"></label>
+        </div>
+        <span asp-validation-for="UsdToPkr" class="field-error" id="UsdToPkr-error"></span>
+        <p class="form-hint" id="UsdToPkr-hint">Between 100 and 1000, for example 280.5 or 280.1234.</p>
+    </div>
+    <div class="col-12">
+        <div class="form-floating">
+            <input asp-for="Note" class="form-control" maxlength="200" placeholder="Note" aria-describedby="Note-error" />
+            <label asp-for="Note"></label>
+        </div>
+        <span asp-validation-for="Note" class="field-error" id="Note-error"></span>
+    </div>
+    @if (showConfirm)
+    {
+        <div class="col-12">
+            <div class="form-check form-check-strong">
+                <input asp-for="ConfirmLargeChange" class="form-check-input" aria-describedby="ConfirmLargeChange-error" />
+                <label asp-for="ConfirmLargeChange" class="form-check-label"></label>
+            </div>
+            <span asp-validation-for="ConfirmLargeChange" class="field-error" id="ConfirmLargeChange-error"></span>
+        </div>
+    }
+</div>

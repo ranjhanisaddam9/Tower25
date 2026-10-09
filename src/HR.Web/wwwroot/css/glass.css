@@ -1157,3 +1157,9 @@ a.stat-tile-link:hover {
     border-radius: var(--radius-control) var(--radius-control) 0 0;
     font-weight: 500;
 }
+
+/* The icon close button sits at the end of the modal header (Bootstrap only does this for .btn-close). */
+.glass-modal .modal-header {
+    justify-content: space-between;
+    gap: 12px;
+}

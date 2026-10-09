@@ -176,7 +176,11 @@ public sealed record PersonDetailsViewModel(
     DateOnly DefaultLeavingDate,
     DateOnly? MinRejoiningDate,
     DateOnly DefaultRejoiningDate,
-    HireSourceCardViewModel? AdminHireSource);
+    HireSourceCardViewModel? AdminHireSource,
+    IReadOnlyList<EmploymentPeriodRowViewModel> EmploymentHistory);
+
+/// <summary>One employment period on the details page. Working days run to today for the current (open) period.</summary>
+public sealed record EmploymentPeriodRowViewModel(DateOnly Start, DateOnly? End, int WorkingDays);
 
 /// <summary>Admin-only hire-source card on the details page. Null for Managers.</summary>
 public sealed record HireSourceCardViewModel(HireSource? Current);

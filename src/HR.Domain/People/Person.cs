@@ -6,6 +6,8 @@ namespace HR.Domain.People;
 /// </summary>
 public sealed class Person
 {
+    private readonly List<EmploymentPeriod> _periods = [];
+
     private Person()
     {
     }
@@ -65,21 +67,33 @@ public sealed class Person
             CreatedAt = now,
             CreatedByUserId = actorId,
         };
-        person.Apply(Normalized(input), actorId, now);
+        var normalized = Normalized(input);
+        person.Apply(normalized, actorId, now);
+        person._periods.Add(new EmploymentPeriod(normalized.JoiningDate!.Value, actorId, now)); // the first period, open
         return person;
     }
 
+    /// <summary>
+    /// Updates the details. The joining date edits the latest period's start, which must stay after the previous
+    /// period's end and on or before its own end. Requires <see cref="EmploymentPeriods"/> to be loaded.
+    /// </summary>
     public void UpdateDetails(PersonInput input, string actorId, DateTimeOffset now)
     {
         var normalized = Normalized(input);
-        if (LeavingDate is { } leaving && normalized.JoiningDate > leaving)
+        var latest = LatestPeriod();
+        var newStart = normalized.JoiningDate!.Value;
+        if (latest.EndDate is { } end && newStart > end)
         {
             throw new PersonRuleException(nameof(JoiningDate), "The joining date can't be after the leaving date.");
         }
 
+        EmploymentHistory.EnsureValid(_periods.Select(p => p == latest ? p.Span with { Start = newStart } : p.Span));
+
+        latest.MoveStart(newStart, actorId, now);
         Apply(normalized, actorId, now);
     }
 
+    /// <summary>Closes the open employment period. Requires <see cref="EmploymentPeriods"/> to be loaded.</summary>
     public void Deactivate(DateOnly leavingDate, string actorId, DateTimeOffset now)
     {
         if (!IsActive)
@@ -87,17 +101,27 @@ public sealed class Person
             throw new PersonRuleException(nameof(LeavingDate), "This person is already inactive.");
         }
 
-        if (leavingDate < JoiningDate)
+        var open = LatestPeriod();
+        if (!open.IsOpen)
+        {
+            throw new PersonRuleException(nameof(LeavingDate), "There is no open employment period to close.");
+        }
+
+        if (leavingDate < open.StartDate)
         {
             throw new PersonRuleException(nameof(LeavingDate), "The leaving date can't be before the joining date.");
         }
 
+        open.Close(leavingDate, actorId, now);
         LeavingDate = leavingDate;
         IsActive = false;
         Touch(actorId, now);
     }
 
-    /// <summary>Starts a new stint: the rejoining date becomes the joining date. Returns the previous dates for the audit log.</summary>
+    /// <summary>
+    /// Opens a new employment period starting on <paramref name="rejoiningDate"/>, which must be after the previous
+    /// period's end. Returns the previous period's dates for the audit log. Requires <see cref="EmploymentPeriods"/> to be loaded.
+    /// </summary>
     public (DateOnly PreviousJoiningDate, DateOnly? PreviousLeavingDate) Reactivate(DateOnly rejoiningDate, string actorId, DateTimeOffset now)
     {
         if (IsActive)
@@ -105,18 +129,28 @@ public sealed class Person
             throw new PersonRuleException("RejoiningDate", "This person is already active.");
         }
 
-        if (LeavingDate is { } leaving && rejoiningDate <= leaving)
+        var previous = LatestPeriod();
+        if (previous.EndDate is { } leaving && rejoiningDate <= leaving)
         {
             throw new PersonRuleException("RejoiningDate", "The rejoining date must be after the previous leaving date.");
         }
 
-        var previous = (JoiningDate, LeavingDate);
+        EmploymentHistory.EnsureValid(_periods.Select(p => p.Span).Append(new EmploymentSpan(rejoiningDate, null)));
+
+        _periods.Add(new EmploymentPeriod(rejoiningDate, actorId, now));
         JoiningDate = rejoiningDate;
         LeavingDate = null;
         IsActive = true;
         Touch(actorId, now);
-        return previous;
+        return (previous.StartDate, previous.EndDate);
     }
+
+    /// <summary>All employment periods (load them with Include before calling the methods that change them).</summary>
+    public IReadOnlyCollection<EmploymentPeriod> EmploymentPeriods => _periods;
+
+    private EmploymentPeriod LatestPeriod() =>
+        _periods.MaxBy(p => p.StartDate)
+        ?? throw new InvalidOperationException("Employment periods are not loaded for this person.");
 
     public void SetHireSource(HireSource? source, string actorId, DateTimeOffset now)
     {

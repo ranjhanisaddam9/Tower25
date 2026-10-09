@@ -18,7 +18,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 
 ## 2. Core concepts
 
-**Person**: an Employee or an Internee (`PersonType`). Has joining date, optional leaving date, designation, contact details, active flag.
+**Person**: an Employee or an Internee (`PersonType`). Has one or more employment periods (start date, optional end date; never overlapping; at most one open). Joining/leaving date shown in the UI are those of the latest period. Deactivate closes the open period; reactivate opens a new one. Also has a designation, contact details and an active flag.
 
 **Hire source** (`HireSource`, Admin-only field):
 
@@ -28,7 +28,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 | `BudgetHire` | Company gave a budget; owner hired someone for less | The budget (USD) | 0 | The pay the owner agreed with the person (usually PKR) | Budget − pay (the margin) |
 | `Owner` | The owner himself | His salary (USD) | 0 | The same salary | His salary (via this line) |
 
-Exactly one active person can have source `Owner`.
+At most one active person can have source `Owner`.
 
 **Rate record** (per person, history, never overwritten): `EffectiveFrom` (must be the 1st or 16th of a month), `BilledMonthlyUsd`, `CommissionPerPeriodUsd`, `PayMonthlyAmount`, `PayCurrency` (USD or PKR).
 - `CompanyRecommended`: `PayMonthlyAmount` = `BilledMonthlyUsd`, `PayCurrency` = USD (the UI fills it in automatically and keeps it in sync).
@@ -44,13 +44,13 @@ Exactly one active person can have source `Owner`.
 
 - Two periods per month: the 1st–15th and the 16th–last day of the month.
 - **Working days** = Monday–Friday dates in the period. Saturdays and Sundays are never working days.
-- **Employed working days** = working days on or after the joining date and on or before the leaving date (if any).
+- **Employed working days** = working days that fall inside any of the person's employment periods.
 - Dates are calendar dates (`DateOnly`). "Today" means today in the Asia/Karachi time zone.
 
 ## 4. Absences and paid leave
 
 - An absence is recorded per date (`Full` = 1.0 day, `Half` = 0.5 day) with an optional note. A date range is a convenience that creates one record per working day.
-- Absences may not be recorded on a Saturday or Sunday, before joining, after leaving, or twice on the same date.
+- Absences may not be recorded on a Saturday or Sunday, on a date outside every employment period, or twice on the same date.
 - **Paid leave: 1.0 day per calendar month per person (employees and internees).** It is applied automatically and chronologically to the first absences in that month, across both periods. A half day uses 0.5; a following full-day absence is then 0.5 paid and 0.5 unpaid. Unused paid leave expires at month end and never carries over.
 - Paid/unpaid status is computed, never entered by hand.
 - Absences inside a **finalized** payroll period are locked (cannot be added, edited or deleted). This keeps the chronological paid-leave allocation stable.
@@ -150,3 +150,4 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 
 ## Change log
 - 2026-10-08: Initial spec agreed with the owner.
+- 2026-10-09: Employment periods replace single joining/leaving dates; Owner rule relaxed to at most one active Owner.
