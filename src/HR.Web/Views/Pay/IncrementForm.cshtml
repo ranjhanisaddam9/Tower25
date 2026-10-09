@@ -1,0 +1,73 @@
+@using HR.Domain.Pay
+@model IncrementFormPage
+@{
+    var isEdit = Model.RecordId is not null;
+    ViewData["Title"] = isEdit ? "Edit pay change" : "Record increment";
+    ViewData["Section"] = "People";
+    var form = Model.Form;
+    var currency = PayDisplay.CurrencyName(Model.Currency);
+    var pickerData = new ViewDataDictionary(ViewData) { ["Earliest"] = Model.EarliestEffectiveFrom };
+}
+
+<section class="glass-card form-card" aria-labelledby="incrementHeading">
+    <h2 class="card-title" id="incrementHeading">@Model.PersonName <span class="text-muted-glass num">· @Model.PersonCode</span></h2>
+    @if (Model.Current is { } current)
+    {
+        <p class="text-muted-glass" data-testid="increment-current">Current pay: <strong class="num">@DisplayFormat.Money(current.PayMonthlyAmount, current.PayCurrency)</strong> a month, since @DisplayFormat.Date(current.EffectiveFrom).</p>
+    }
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="increment-errors"></div>
+
+    <form method="post" asp-action="@(isEdit ? "EditIncrement" : "Increment")" asp-route-personId="@Model.PersonId" asp-route-recordId="@Model.RecordId">
+        @if (isEdit)
+        {
+            <input type="hidden" name="RowVersion" value="@form.RowVersion" />
+        }
+
+        <partial name="_PeriodPicker" model="form" view-data="pickerData" />
+
+        <fieldset class="form-section">
+            <legend class="form-section-title">New pay</legend>
+            <div class="row g-3">
+                <div class="col-8">
+                    <div class="form-floating">
+                        <input asp-for="Form.Pay" name="Pay" id="Pay" class="form-control num" type="number" step="@(Model.Currency == PayCurrency.PKR ? "1" : "0.01")" min="1"
+                               placeholder="Pay" aria-describedby="Pay-error" />
+                        <label for="Pay">New monthly pay (@currency)</label>
+                    </div>
+                    <span class="field-error" id="Pay-error">@ViewData.ModelState["Pay"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                </div>
+                <div class="col-4">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="CurrencyShown" value="@currency" readonly aria-readonly="true" />
+                        <label for="CurrencyShown">Currency</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-floating mt-3">
+                <input asp-for="Form.Note" name="Note" id="Note" class="form-control" maxlength="300" placeholder="Note" />
+                <label for="Note">Note (optional)</label>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> @(isEdit ? "Save changes" : "Record increment")</button>
+            <a class="btn btn-ghost" asp-controller="People" asp-action="Details" asp-route-id="@Model.PersonId" asp-fragment="pay">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@if (isEdit)
+{
+    <section class="glass-card form-card mt-4" aria-labelledby="deleteIncrementHeading">
+        <h2 class="card-title" id="deleteIncrementHeading">Delete</h2>
+        <form method="post" asp-action="Delete" asp-route-personId="@Model.PersonId" asp-route-recordId="@Model.RecordId">
+            <button type="submit" class="btn btn-danger-solid"
+                    data-confirm="This pay change will be removed."
+                    data-confirm-title="Delete this pay change?"
+                    data-confirm-action="Delete">
+                <i class="bi bi-trash" aria-hidden="true"></i> Delete pay change
+            </button>
+        </form>
+    </section>
+}

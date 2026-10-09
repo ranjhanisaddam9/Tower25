@@ -100,6 +100,8 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
     public const string RejoiningDateField = "RejoiningDate";
     public const string LeavingDateField = "LeavingDate";
 
+    public const string HireSourceLockedMessage = "Delete this person's pay records before changing the hire source.";
+
     /// <summary>The error number THROWn by the TR_EmploymentPeriods_NoOverlap trigger.</summary>
     public const int OverlapErrorNumber = 51001;
 
@@ -387,6 +389,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         if (person is null)
         {
             return new PersonResult(PersonResultStatus.NotFound);
+        }
+
+        // Pay records were derived from the current source (SPEC §2), so the source is locked while any exist.
+        if (person.HireSource != source && await db.RateRecords.AnyAsync(r => r.PersonId == id, cancellationToken))
+        {
+            return PersonResult.Invalid(nameof(Person.HireSource), HireSourceLockedMessage);
         }
 
         if (source == HireSource.Owner && person.IsActive)

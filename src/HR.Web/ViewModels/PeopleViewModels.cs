@@ -177,12 +177,15 @@ public sealed record PersonDetailsViewModel(
     DateOnly? MinRejoiningDate,
     DateOnly DefaultRejoiningDate,
     HireSourceCardViewModel? AdminHireSource,
-    IReadOnlyList<EmploymentPeriodRowViewModel> EmploymentHistory);
+    IReadOnlyList<EmploymentPeriodRowViewModel> EmploymentHistory,
+    AdminPayTabViewModel? AdminPay,
+    ManagerPayTabViewModel? ManagerPay);
 
 /// <summary>One employment period on the details page. Working days run to today for the current (open) period.</summary>
 public sealed record EmploymentPeriodRowViewModel(DateOnly Start, DateOnly? End, int WorkingDays);
 
 /// <summary>Admin-only hire-source card on the details page. Null for Managers.</summary>
-public sealed record HireSourceCardViewModel(HireSource? Current);
+/// <param name="Locked">True while the person has pay records: the source can't change until they are deleted.</param>
+public sealed record HireSourceCardViewModel(HireSource? Current, bool Locked);
 
 public sealed record PeopleTileViewModel(int Active, int Employees, int Internees);

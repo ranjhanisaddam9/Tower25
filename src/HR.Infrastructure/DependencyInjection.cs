@@ -80,5 +80,9 @@ public static class DependencyInjection
 
         services.AddScoped<Rates.ExchangeRateService>();
         services.AddScoped<Rates.IExchangeRateService>(sp => sp.GetRequiredService<Rates.ExchangeRateService>());
+
+        services.AddScoped<HR.Domain.Pay.IPayrollLock, Pay.NoPayrollLock>();
+        services.AddScoped<Pay.PayRecordService>();
+        services.AddScoped<Pay.SalaryOverviewService>();
     }
 }

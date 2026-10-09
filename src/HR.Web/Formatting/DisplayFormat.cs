@@ -16,6 +16,14 @@ public static class DisplayFormat
     public static string Pkr(decimal amount) =>
         (amount < 0 ? "-Rs " : "Rs ") + Math.Abs(amount).ToString("N0", PkrCulture);
 
+    /// <summary>An amount in its pay currency: "$1,234.56" or "Rs 196,000".</summary>
+    public static string Money(decimal amount, HR.Domain.Pay.PayCurrency currency) =>
+        currency == HR.Domain.Pay.PayCurrency.USD ? Usd(amount) : Pkr(amount);
+
+    /// <summary>A signed percentage with 2 decimals: "+7.14%", "−3.50%", "0.00%".</summary>
+    public static string Percent(decimal percent) =>
+        (percent > 0 ? "+" : percent < 0 ? "−" : "") + Math.Abs(percent).ToString("0.00", CultureInfo.InvariantCulture) + "%";
+
     public static string Date(DateOnly date) =>
         date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 

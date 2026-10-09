@@ -2,6 +2,7 @@ using System.Security.Claims;
 using HR.Domain.People;
 using HR.Domain.Time;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure.Pay;
 using HR.Infrastructure.People;
 using HR.Web.Formatting;
 using HR.Web.Infrastructure;
@@ -18,7 +19,7 @@ namespace HR.Web.Controllers;
 /// </summary>
 [Authorize(Policy = Policies.ManagerOrAdmin)]
 [Route("people")]
-public class PeopleController(PersonService people, IClock clock) : Controller
+public class PeopleController(PersonService people, PayRecordService pay, IClock clock) : Controller
 {
     public const string ConflictMessage =
         "Someone else saved changes to this person while you were editing. The form now shows the latest saved values; review the differences below and save again.";
@@ -66,7 +67,7 @@ public class PeopleController(PersonService people, IClock clock) : Controller
         if (IsAdmin)
         {
             var (_, source) = await people.GetHireSourceAsync(id, cancellationToken);
-            hireCard = new HireSourceCardViewModel(source);
+            hireCard = new HireSourceCardViewModel(source, await pay.HasRecordsAsync(id, cancellationToken));
         }
 
         var today = clock.Today;
@@ -81,7 +82,19 @@ public class PeopleController(PersonService people, IClock clock) : Controller
             .Reverse() // newest first
             .ToList();
 
-        return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history));
+        // Pay tab: the Admin view model carries billing; the Manager one is built from pay fields only.
+        AdminPayTabViewModel? adminPay = null;
+        ManagerPayTabViewModel? managerPay = null;
+        if (IsAdmin)
+        {
+            adminPay = await pay.GetAdminTabAsync(id, cancellationToken) is { } adminTab ? new AdminPayTabViewModel(id, adminTab, today) : null;
+        }
+        else
+        {
+            managerPay = await pay.GetManagerTabAsync(id, ActorId, cancellationToken) is { } managerTab ? new ManagerPayTabViewModel(id, managerTab) : null;
+        }
+
+        return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history, adminPay, managerPay));
     }
 
     [HttpGet("create")]

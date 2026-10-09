@@ -123,10 +123,17 @@
                 <h2 class="card-title mb-0" id="hireHeading">Hire source</h2>
                 <span class="pill @HireSourceDisplay.PillClass(hire.Current)">@HireSourceDisplay.Label(hire.Current)</span>
             </div>
-            <p class="text-muted-glass">Admin only. Managers never see this. It decides billing, commission and margin in later milestones.</p>
+            <p class="text-muted-glass">Admin only. Managers never see this. It decides how billing, commission and pay relate.</p>
+            @if (hire.Locked)
+            {
+                <div class="glass-alert alert-warning-glass" role="note" data-testid="hire-source-locked">
+                    <i class="bi bi-lock" aria-hidden="true"></i>
+                    <p class="mb-0">Locked: this person has pay records built on this source. Delete this person's pay records before changing the hire source.</p>
+                </div>
+            }
             <form method="post" asp-action="SetHireSource" asp-route-id="@p.Id">
                 <div class="form-floating mb-3">
-                    <select class="form-select" id="hireSourceSelect" name="hireSource">
+                    <select class="form-select" id="hireSourceSelect" name="hireSource" disabled="@hire.Locked">
                         <option value="" selected="@(hire.Current is null)">@HireSourceDisplay.NotAssigned</option>
                         @foreach (var source in HireSourceDisplay.All)
                         {
@@ -141,7 +148,7 @@
                         <li><strong>@HireSourceDisplay.Label(source):</strong> @HireSourceDisplay.Description(source)</li>
                     }
                 </ul>
-                <button type="submit" class="btn btn-primary-gradient"
+                <button type="submit" class="btn btn-primary-gradient" disabled="@hire.Locked"
                         data-confirm="@p.FullName will become the Owner. Only one active person can have this hire source."
                         data-confirm-title="Set as Owner?"
                         data-confirm-action="Set as Owner"
@@ -180,11 +187,11 @@
     </ol>
 </section>
 
-<section class="glass-card mt-4" aria-labelledby="historyHeading">
+<section class="glass-card mt-4" aria-labelledby="historyHeading" id="pay">
     <h2 class="card-title" id="historyHeading">Pay records</h2>
     <ul class="nav nav-tabs glass-tabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Salary &amp; increments (M5)</button>
+            <button type="button" class="nav-link active" role="tab" id="salaryTab" aria-selected="true" aria-controls="salaryPanel">Salary &amp; increments</button>
         </li>
         <li class="nav-item" role="presentation">
             <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Absences (M6)</button>
@@ -193,7 +200,16 @@
             <button type="button" class="nav-link" role="tab" disabled aria-disabled="true" aria-selected="false">Payslips (M7)</button>
         </li>
     </ul>
-    <p class="text-muted-glass mt-3 mb-0">These tabs switch on in later milestones.</p>
+    <div class="tab-panel" role="tabpanel" id="salaryPanel" aria-labelledby="salaryTab" data-testid="salary-tab">
+        @if (Model.AdminPay is { } adminPay)
+        {
+            <partial name="_PayTabAdmin" model="adminPay" />
+        }
+        else if (Model.ManagerPay is { } managerPay)
+        {
+            <partial name="_PayTabManager" model="managerPay" />
+        }
+    </div>
 </section>
 
 @if (p.IsActive)

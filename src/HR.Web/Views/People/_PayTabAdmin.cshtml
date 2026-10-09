@@ -1,0 +1,127 @@
+@using HR.Domain.Pay
+@using HR.Domain.Rates
+@model AdminPayTabViewModel
+@{
+    var tab = Model.Tab;
+    var rateText = tab.UsdToPkr is { } r ? $"Rs {ExchangeRateRules.Format(r)} per USD" : null;
+}
+
+@if (tab.Source is null)
+{
+    <div class="empty-state" data-testid="pay-no-source">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
+        <p class="empty-state-text">Set this person's hire source (in the Hire source card) before setting up pay. The source decides how billing, commission and pay relate.</p>
+    </div>
+}
+else if (tab.Rows.Count == 0)
+{
+    <div class="empty-state" data-testid="pay-empty">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
+        <p class="empty-state-text">No pay set up yet. The first record sets billing and pay for @HireSourceDisplay.Label(tab.Source).ToLowerInvariant() terms.</p>
+        <a class="btn btn-primary-gradient" asp-controller="Pay" asp-action="New" asp-route-personId="@Model.PersonId"><i class="bi bi-plus-lg" aria-hidden="true"></i> Set up pay</a>
+    </div>
+}
+else
+{
+    <div class="pay-toolbar">
+        <a class="btn btn-primary-gradient" asp-controller="Pay" asp-action="New" asp-route-personId="@Model.PersonId"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add pay record</a>
+    </div>
+
+    @if (tab.Current is { } current)
+    {
+        var t = current.Terms;
+        var amounts = current.FullPeriod;
+        <div class="pay-summary" data-testid="pay-current">
+            <div class="pay-summary-item">
+                <span class="pay-summary-label">Pay</span>
+                <span class="pay-summary-value num">@DisplayFormat.Money(t.PayMonthlyAmount, t.PayCurrency) <span class="pay-summary-unit">/ month</span></span>
+                <span class="pay-summary-sub num">@DisplayFormat.Money(PayMath.PayPerFullPeriod(t.PayMonthlyAmount, t.PayCurrency), t.PayCurrency) per full period</span>
+            </div>
+            <div class="pay-summary-item">
+                <span class="pay-summary-label">Billed to the Company</span>
+                <span class="pay-summary-value num">@DisplayFormat.Usd(t.BilledMonthlyUsd) <span class="pay-summary-unit">/ month</span></span>
+                <span class="pay-summary-sub num">@DisplayFormat.Usd(amounts.BilledUsd) per full period@(amounts.CommissionUsd > 0 ? $" (incl. {DisplayFormat.Usd(amounts.CommissionUsd)} commission)" : "")</span>
+            </div>
+            <div class="pay-summary-item">
+                <span class="pay-summary-label">Your earning per full period</span>
+                @if (amounts.EarningUsd is { } earning)
+                {
+                    <span class="pay-summary-value num" data-testid="pay-earning">@DisplayFormat.Usd(earning)</span>
+                    <span class="pay-summary-sub">@(t.PayCurrency == PayCurrency.PKR ? $"Estimate at today's rate ({rateText})" : "Billed minus pay")</span>
+                }
+                else
+                {
+                    <span class="pay-summary-value">—</span>
+                    <span class="pay-summary-sub">Add an exchange rate to estimate PKR pay in USD.</span>
+                }
+            </div>
+        </div>
+        <p class="pay-since text-muted-glass">In effect since @DisplayFormat.Date(t.EffectiveFrom).</p>
+    }
+    else
+    {
+        <p class="text-muted-glass">Pay starts on @DisplayFormat.Date(tab.Rows[^1].EffectiveFrom).</p>
+    }
+
+    <div class="glass-table-wrap glass-table-wrap-inset">
+        <table class="glass-table" aria-label="Pay records">
+            <thead>
+                <tr>
+                    <th scope="col">Effective from</th>
+                    <th scope="col">Change</th>
+                    <th scope="col" class="money">Pay / month</th>
+                    <th scope="col" class="money">Billed / month</th>
+                    <th scope="col" class="money">Commission / period</th>
+                    <th scope="col" class="money">Pay change</th>
+                    <th scope="col">Note</th>
+                    <th scope="col">Added by</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in tab.Rows)
+                {
+                    <tr data-testid="pay-row">
+                        <td data-label="Effective from">
+                            <span class="cell-group">
+                                <span class="num">@DisplayFormat.Date(row.EffectiveFrom)</span>
+                                @if (row.EffectiveFrom > Model.Today)
+                                {
+                                    <span class="pill pill-info">Scheduled</span>
+                                }
+                            </span>
+                        </td>
+                        <td data-label="Change"><span class="pill @PayDisplay.PillClass(row.ChangeType)">@PayDisplay.AdminLabel(row.ChangeType)</span></td>
+                        <td data-label="Pay / month" class="money">@DisplayFormat.Money(row.PayMonthlyAmount, row.PayCurrency)</td>
+                        <td data-label="Billed / month" class="money">@DisplayFormat.Usd(row.BilledMonthlyUsd)</td>
+                        <td data-label="Commission / period" class="money">@DisplayFormat.Usd(row.CommissionPerPeriodUsd)</td>
+                        <td data-label="Pay change" class="money">@(row.PayChangePercent is { } pct ? DisplayFormat.Percent(pct) : "—")</td>
+                        <td data-label="Note" class="cell-wrap">@(row.Note ?? "—")</td>
+                        <td data-label="Added by">@(row.AddedBy ?? "—")</td>
+                        <td data-label="Actions" class="cell-actions">
+                            <span class="cell-group">
+                                @if (row.NeedsBillingReview)
+                                {
+                                    <span class="pill pill-warning" data-testid="review-pill">Review billing</span>
+                                    <form method="post" asp-controller="Pay" asp-action="Reviewed" asp-route-personId="@Model.PersonId" asp-route-recordId="@row.Id" class="d-inline">
+                                        <button type="submit" class="btn btn-ghost btn-sm-compact">Mark reviewed</button>
+                                    </form>
+                                }
+                                <a class="btn-icon" asp-controller="Pay" asp-action="Edit" asp-route-personId="@Model.PersonId" asp-route-recordId="@row.Id"
+                                   aria-label="Edit the pay record from @DisplayFormat.Date(row.EffectiveFrom)" title="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                <form method="post" asp-controller="Pay" asp-action="Delete" asp-route-personId="@Model.PersonId" asp-route-recordId="@row.Id" class="d-inline">
+                                    <button type="submit" class="btn-icon btn-icon-danger" aria-label="Delete the pay record from @DisplayFormat.Date(row.EffectiveFrom)" title="Delete"
+                                            data-confirm="The pay record from @DisplayFormat.Date(row.EffectiveFrom) will be removed. Finalized payrolls keep their own copy."
+                                            data-confirm-title="Delete this pay record?"
+                                            data-confirm-action="Delete">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

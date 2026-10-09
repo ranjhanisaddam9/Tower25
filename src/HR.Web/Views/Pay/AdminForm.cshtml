@@ -1,0 +1,154 @@
+@using System.Globalization
+@using HR.Domain.Pay
+@using HR.Domain.People
+@model AdminPayFormPage
+@{
+    var isEdit = Model.RecordId is not null;
+    ViewData["Title"] = isEdit ? "Edit pay record" : "Set up pay";
+    ViewData["Section"] = "People";
+    var form = Model.Form;
+    var source = Model.Source;
+    var pickerData = new ViewDataDictionary(ViewData) { ["Earliest"] = Model.EarliestEffectiveFrom };
+    var rate = Model.UsdToPkr?.ToString(CultureInfo.InvariantCulture) ?? "";
+    var lossShown = Model.LossPayUsd is not null || form.ConfirmLoss;
+}
+
+<section class="glass-card form-card form-card-wide" aria-labelledby="payFormHeading">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="payFormHeading">@Model.PersonName <span class="text-muted-glass num">· @Model.PersonCode</span></h2>
+        <span class="pill @HireSourceDisplay.PillClass(source)">@HireSourceDisplay.Label(source)</span>
+    </div>
+    <p class="text-muted-glass">
+        @switch (source)
+        {
+            case HireSource.CompanyRecommended:
+                <text>Company recommended: the Company is billed the salary plus your commission, and the person is paid the same salary in USD.</text>
+                break;
+            case HireSource.BudgetHire:
+                <text>Budget hire: the Company is billed its budget; you pay the person less. No commission.</text>
+                break;
+            default:
+                <text>Owner: your own salary, billed and paid in USD. No commission.</text>
+                break;
+        }
+    </p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="pay-errors"></div>
+
+    <form method="post" asp-action="@(isEdit ? "Edit" : "New")" asp-route-personId="@Model.PersonId" asp-route-recordId="@Model.RecordId" data-pay-form>
+        @if (isEdit)
+        {
+            <input type="hidden" name="RowVersion" value="@form.RowVersion" />
+        }
+
+        <partial name="_PeriodPicker" model="form" view-data="pickerData" />
+
+        <fieldset class="form-section">
+            <legend class="form-section-title">Amounts</legend>
+            @if (source == HireSource.BudgetHire)
+            {
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input asp-for="Form.Budget" name="Budget" id="Budget" class="form-control num" type="number" step="0.01" min="1" placeholder="1000" aria-describedby="Budget-error" />
+                            <label for="Budget">Company budget, monthly (USD)</label>
+                        </div>
+                        <span class="field-error" id="Budget-error">@ViewData.ModelState["Budget"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                    </div>
+                    <div class="col-md-4 col-8">
+                        <div class="form-floating">
+                            <input asp-for="Form.Pay" name="Pay" id="Pay" class="form-control num" type="number" step="0.01" min="1" placeholder="196000" aria-describedby="Pay-error" />
+                            <label for="Pay">Monthly pay to person</label>
+                        </div>
+                        <span class="field-error" id="Pay-error">@ViewData.ModelState["Pay"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <div class="form-floating">
+                            <select name="Currency" id="Currency" class="form-select">
+                                <option value="PKR" selected="@(form.Currency != PayCurrency.USD)">PKR</option>
+                                <option value="USD" selected="@(form.Currency == PayCurrency.USD)">USD</option>
+                            </select>
+                            <label for="Currency">Currency</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="margin-preview" data-margin-preview data-rate="@rate" aria-live="polite">
+                    <span class="margin-label">Your margin per full pay period</span>
+                    <strong class="margin-value num" data-margin-value>—</strong>
+                    <span class="margin-note" data-margin-note>@(Model.UsdToPkr is { } r ? $"PKR pay is an estimate at today's rate (Rs {HR.Domain.Rates.ExchangeRateRules.Format(r)} per USD)." : "No exchange rate yet: PKR pay can't be converted, so the margin isn't shown.")</span>
+                </div>
+
+                <div class="glass-alert alert-warning-glass loss-warning" data-loss-warning data-server-loss="@(lossShown ? "true" : null)" hidden="@(!lossShown)" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                    <div>
+                        <p class="mb-2"><strong>This hire loses money:</strong> the pay is at or above the Company's budget@(Model.LossPayUsd is { } lp ? $" (pay ≈ {DisplayFormat.Usd(lp)} a month)" : "").</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="ConfirmLoss" id="ConfirmLoss" value="true" checked="@form.ConfirmLoss" aria-describedby="ConfirmLoss-error" />
+                            <label class="form-check-label" for="ConfirmLoss">I understand this hire loses money</label>
+                        </div>
+                        <span class="field-error" id="ConfirmLoss-error">@ViewData.ModelState["ConfirmLoss"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input asp-for="Form.Salary" name="Salary" id="Salary" class="form-control num" type="number" step="0.01" min="1" placeholder="300" aria-describedby="Salary-error" />
+                            <label for="Salary">@(source == HireSource.Owner ? "Your monthly salary (USD)" : "Monthly salary (USD) — billed and paid")</label>
+                        </div>
+                        <span class="field-error" id="Salary-error">@ViewData.ModelState["Salary"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                    </div>
+                    @if (source == HireSource.CompanyRecommended)
+                    {
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input asp-for="Form.Commission" name="Commission" id="Commission" class="form-control num" type="number" step="0.01" min="0" placeholder="25" aria-describedby="Commission-error" />
+                                <label for="Commission">Your commission per pay period (USD)</label>
+                            </div>
+                            <span class="field-error" id="Commission-error">@ViewData.ModelState["Commission"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                        </div>
+                    }
+                </div>
+            }
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend class="form-section-title">Note</legend>
+            <div class="form-floating">
+                <input asp-for="Form.Note" name="Note" id="Note" class="form-control" maxlength="300" placeholder="Note" />
+                <label for="Note">Note (optional)</label>
+            </div>
+            @if (isEdit)
+            {
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="MarkCorrection" id="MarkCorrection" value="true" checked="@form.MarkCorrection" />
+                    <label class="form-check-label" for="MarkCorrection">Mark this change as a correction (not an increment)</label>
+                </div>
+            }
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> @(isEdit ? "Save changes" : "Save pay record")</button>
+            <a class="btn btn-ghost" asp-controller="People" asp-action="Details" asp-route-id="@Model.PersonId" asp-fragment="pay">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@if (isEdit)
+{
+    <section class="glass-card form-card mt-4" aria-labelledby="deletePayHeading">
+        <h2 class="card-title" id="deletePayHeading">Delete</h2>
+        <p class="text-muted-glass">Remove a record added by mistake. Finalized payrolls keep their own copy of the amounts.</p>
+        <form method="post" asp-action="Delete" asp-route-personId="@Model.PersonId" asp-route-recordId="@Model.RecordId">
+            <button type="submit" class="btn btn-danger-solid"
+                    data-confirm="This pay record will be removed and the records after it are re-labelled."
+                    data-confirm-title="Delete this pay record?"
+                    data-confirm-action="Delete">
+                <i class="bi bi-trash" aria-hidden="true"></i> Delete record
+            </button>
+        </form>
+    </section>
+}

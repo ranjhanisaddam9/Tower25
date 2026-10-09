@@ -724,3 +724,142 @@
         stroke-width: 3;
     }
 }
+
+/* ---------- Pay ---------- */
+.tab-panel {
+    padding-top: 16px;
+}
+
+.pay-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.pay-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.pay-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px 16px;
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-control);
+    background: var(--glass-hover);
+}
+
+.pay-summary-label {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 600;
+}
+
+.pay-summary-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.pay-summary-unit {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.pay-summary-sub {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.pay-since {
+    margin-bottom: 14px;
+    font-size: var(--fs-small);
+}
+
+.glass-table-wrap-inset {
+    box-shadow: none;
+    max-height: none;
+}
+
+.btn-sm-compact {
+    --bs-btn-padding-y: 4px;
+    --bs-btn-padding-x: 10px;
+    --bs-btn-font-size: var(--fs-small);
+    white-space: nowrap;
+}
+
+.period-picker-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+}
+
+.period-month {
+    flex: 0 1 220px;
+}
+
+.period-halves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+}
+
+.margin-preview {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border: 1px dashed var(--input-border);
+    border-radius: var(--radius-control);
+}
+
+.margin-label {
+    font-weight: 600;
+}
+
+.margin-value {
+    font-size: 1.125rem;
+}
+
+.margin-note {
+    flex-basis: 100%;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.loss-warning {
+    margin-top: 12px;
+}
+
+.filter-select-wide {
+    flex: 0 1 240px;
+}
+
+/* Wrapping cells (notes, emails) keep a readable minimum width; wide tables scroll inside their wrapper instead. */
+@media (min-width: 768px) {
+    .glass-table td.cell-wrap {
+        min-width: 14ch;
+        overflow-wrap: break-word;
+    }
+}
+
+/* Codes, dates and amounts never break across lines in the desktop table. */
+@media (min-width: 768px) {
+    .glass-table td.num,
+    .glass-table td.money {
+        white-space: nowrap;
+    }
+
+    .glass-table td.num .row-link {
+        white-space: nowrap;
+    }
+}

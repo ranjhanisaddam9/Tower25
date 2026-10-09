@@ -1,0 +1,33 @@
+@using System.Globalization
+@model PayPeriodPickerForm
+@{
+    var earliest = ViewData["Earliest"] as DateOnly?;
+}
+<fieldset class="form-section period-picker" aria-describedby="EffectiveMonth-hint">
+    <legend class="form-section-title">Takes effect from</legend>
+    <div class="period-picker-row">
+        <div class="form-floating period-month">
+            <input asp-for="EffectiveMonth" class="form-control" type="month" placeholder="Month"
+                   min="@(earliest?.ToString("yyyy-MM", CultureInfo.InvariantCulture))" aria-describedby="EffectiveMonth-error EffectiveMonth-hint" />
+            <label asp-for="EffectiveMonth"></label>
+        </div>
+        <div class="period-halves" role="radiogroup" aria-label="Pay period in the month">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="EffectiveHalf" id="EffectiveHalf1" value="1" checked="@(Model.EffectiveHalf != 16)" />
+                <label class="form-check-label" for="EffectiveHalf1">1st–15th</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="EffectiveHalf" id="EffectiveHalf16" value="16" checked="@(Model.EffectiveHalf == 16)" />
+                <label class="form-check-label" for="EffectiveHalf16">16th–end</label>
+            </div>
+        </div>
+    </div>
+    <span asp-validation-for="EffectiveMonth" class="field-error" id="EffectiveMonth-error"></span>
+    <p class="form-hint" id="EffectiveMonth-hint">
+        The pay applies to whole pay periods, from the 1st or the 16th.
+        @if (earliest is { } e)
+        {
+            <text>The earliest possible start is @DisplayFormat.Date(e).</text>
+        }
+    </p>
+</fieldset>

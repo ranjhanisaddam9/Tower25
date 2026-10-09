@@ -22,6 +22,8 @@ public sealed record DashboardViewModel(
     PeriodSummaryViewModel NextPeriod,
     PeopleTileViewModel People,
     RateTileViewModel Rate,
+    int NoPaySetup,
+    int? PendingBillingReviews,
     int? HireSourceNotAssigned);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);

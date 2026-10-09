@@ -1,6 +1,7 @@
 using HR.Domain.Payroll;
 using HR.Domain.Time;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure.Pay;
 using HR.Infrastructure.People;
 using HR.Infrastructure.Rates;
 using HR.Web.ViewModels;
@@ -8,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR.Web.Controllers;
 
-public class HomeController(IClock clock, PersonService people, ExchangeRateService rates) : Controller
+public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -20,6 +21,8 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
         var rate = await rates.GetOverviewAsync(cancellationToken);
 
         // Admin-only figure: not even queried for Managers.
+        var noPaySetup = await pay.CountActiveWithoutPaySetupAsync(cancellationToken);
+        int? pendingReviews = User.IsInRole(AppRoles.Admin) ? await pay.CountPendingReviewsAsync(cancellationToken) : null;
         int? notAssigned = User.IsInRole(AppRoles.Admin)
             ? await people.CountActiveWithoutHireSourceAsync(cancellationToken)
             : null;
@@ -33,6 +36,8 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
                 rate.Current?.UsdToPkr,
                 rate.Current?.EffectiveFrom,
                 rate.Current is { } currentRate ? RateChangeViewModel.Between(rate.Previous?.UsdToPkr, currentRate.UsdToPkr) : null),
+            noPaySetup,
+            pendingReviews,
             notAssigned);
 
         return View(model);

@@ -1,0 +1,173 @@
+@using HR.Infrastructure.Pay
+@model SalariesPageViewModel
+@{
+    ViewData["Title"] = "Salaries";
+    ViewData["Section"] = "Pay";
+    var admin = Model.Admin;
+    var filters = new List<(SalaryFilter Value, string Label)>
+    {
+        (SalaryFilter.All, "All active people"),
+        (SalaryFilter.MissingSetup, "No pay setup"),
+        (SalaryFilter.ChangedRecently, "Changed in the last 90 days"),
+    };
+    if (admin is not null)
+    {
+        filters.Add((SalaryFilter.NeedsReview, "Needs billing review"));
+    }
+}
+
+<p class="page-lead">Current monthly pay for every active person. Open a person to see their full pay history or record an increment.</p>
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter salaries">
+    <div class="form-floating filter-search">
+        <input type="search" class="form-control" id="q" name="q" value="@Model.Search" placeholder="Search" maxlength="100" />
+        <label for="q">Search name, code or designation</label>
+    </div>
+    <div class="form-floating filter-select filter-select-wide">
+        <select class="form-select" id="filter" name="filter">
+            @foreach (var (value, label) in filters)
+            {
+                <option value="@value" selected="@(value == Model.Filter)">@label</option>
+            }
+        </select>
+        <label for="filter">Show</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="sort" name="sort">
+            @foreach (var (value, label) in SalarySortOptions.All)
+            {
+                <option value="@value" selected="@(value == Model.Sort)">@label</option>
+            }
+        </select>
+        <label for="sort">Sort by</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.Filter != SalaryFilter.All || Model.Search is not null || Model.Sort != SalarySortOptions.Default)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.TotalCount == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
+            <p class="empty-state-text">No active people match these filters.</p>
+            <a class="btn btn-ghost" asp-action="Index">Show everyone</a>
+        </div>
+    </section>
+}
+else
+{
+    <p class="list-count" data-testid="salaries-count">@Model.TotalCount @(Model.TotalCount == 1 ? "person" : "people")</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table">
+            <caption class="visually-hidden">Salaries, page @Model.Page of @Model.TotalPages</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Code</th>
+                    <th scope="col">Name</th>
+                    <th scope="col" class="money">Pay / month</th>
+                    <th scope="col">Since</th>
+                    <th scope="col">Last change</th>
+                    @if (admin is not null)
+                    {
+                        <th scope="col" class="money">Billed / month</th>
+                        <th scope="col" class="money">Commission / period</th>
+                        <th scope="col" class="money">Est. earning / period</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr data-testid="salary-row">
+                        <td data-label="Code" class="num"><a asp-controller="People" asp-action="Details" asp-route-id="@row.PersonId" asp-fragment="pay" class="row-link">@row.Code</a></td>
+                        <td data-label="Name">
+                            <span class="cell-stack">
+                                <a asp-controller="People" asp-action="Details" asp-route-id="@row.PersonId" asp-fragment="pay" class="cell-primary row-link" data-testid="salary-name">@row.FullName</a>
+                                <span class="cell-sub">@row.Designation</span>
+                            </span>
+                        </td>
+                        <td data-label="Pay / month" class="money">
+                            @if (row.PayMonthlyAmount is { } payAmount && row.PayCurrency is { } currency)
+                            {
+                                <span data-testid="salary-pay">@DisplayFormat.Money(payAmount, currency)</span>
+                            }
+                            else if (row.StartsOn is { } starts)
+                            {
+                                <span class="pill pill-info">Starts @DisplayFormat.Date(starts)</span>
+                            }
+                            else
+                            {
+                                <span class="pill pill-warning" data-testid="no-pay-setup">No pay setup</span>
+                            }
+                        </td>
+                        <td data-label="Since" class="num">@(row.Since is { } since ? DisplayFormat.Date(since) : "—")</td>
+                        <td data-label="Last change" class="num">
+                            @if (row.LastChangeDate is { } changed)
+                            {
+                                <span>@DisplayFormat.Date(changed)@(row.LastChangePercent is { } pct ? " · " + DisplayFormat.Percent(pct) : "")</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        @if (admin is not null && admin.Rows.TryGetValue(row.PersonId, out var a))
+                        {
+                            <td data-label="Billed / month" class="money">@(a.BilledMonthlyUsd is { } b ? DisplayFormat.Usd(b) : "—")</td>
+                            <td data-label="Commission / period" class="money">@(a.CommissionPerPeriodUsd is { } c ? DisplayFormat.Usd(c) : "—")</td>
+                            <td data-label="Est. earning / period" class="money">
+                                <span class="cell-group">
+                                    <span>@(a.EarningPerFullPeriodUsd is { } e ? DisplayFormat.Usd(e) : "—")</span>
+                                    @if (a.NeedsReview)
+                                    {
+                                        <span class="pill pill-warning" data-testid="review-pill">Review billing</span>
+                                    }
+                                </span>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+            @if (admin is not null)
+            {
+                <tfoot>
+                    <tr data-testid="salary-totals">
+                        <th scope="row" colspan="5">Totals (all @Model.TotalCount shown by this filter)</th>
+                        <td data-label="Billed / month" class="money" data-testid="total-billed">@DisplayFormat.Usd(admin.Totals.BilledMonthlyUsd)</td>
+                        <td data-label="Commission / period" class="money">—</td>
+                        <td data-label="Est. earning / period" class="money" data-testid="total-earning">@DisplayFormat.Usd(admin.Totals.EarningPerFullPeriodUsd)</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+    @if (admin is not null)
+    {
+        <p class="form-hint mt-2">
+            Earning per full pay period is billed (salary part + commission) minus pay.
+            @(admin.Totals.EarningIsEstimate ? "PKR pay is converted at today's exchange rate, so totals are estimates." : "")
+            @(admin.Totals.PeopleWithoutRate > 0 ? $"{admin.Totals.PeopleWithoutRate} PKR-paid people are left out: there is no exchange rate yet." : "")
+        </p>
+    }
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="Salaries pages">
+            @if (Model.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Page - 1)" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i> Previous</a>
+            }
+            <span class="pager-status">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Page + 1)" rel="next">Next <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+            }
+        </nav>
+    }
+}

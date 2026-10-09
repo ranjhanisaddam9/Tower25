@@ -83,6 +83,20 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1202, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted exchange rate {RateId}: {OldEffectiveFrom} = {OldUsdToPkr}")]
     public static partial void ExchangeRateDeleted(ILogger logger, string actorId, int rateId, DateOnly oldEffectiveFrom, decimal oldUsdToPkr);
 
+    // ---- Rate records (audit; server-side logs only) ----
+
+    [LoggerMessage(EventId = 1300, Level = LogLevel.Information, Message = "Audit: {ActorId} added rate record {RecordId} for person {PersonId} ({ChangeType}): {EffectiveFrom} billed {BilledMonthlyUsd} USD, commission {CommissionPerPeriodUsd} USD, pay {PayMonthlyAmount} {PayCurrency}")]
+    public static partial void RateRecordCreated(ILogger logger, string actorId, int recordId, int personId, string changeType, DateOnly effectiveFrom, decimal billedMonthlyUsd, decimal commissionPerPeriodUsd, decimal payMonthlyAmount, string payCurrency);
+
+    [LoggerMessage(EventId = 1301, Level = LogLevel.Information, Message = "Audit: {ActorId} edited rate record {RecordId} for person {PersonId}: {OldValues} -> {NewValues} ({ChangeType})")]
+    public static partial void RateRecordEdited(ILogger logger, string actorId, int recordId, int personId, string oldValues, string newValues, string changeType);
+
+    [LoggerMessage(EventId = 1302, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted rate record {RecordId} for person {PersonId}: {OldValues}")]
+    public static partial void RateRecordDeleted(ILogger logger, string actorId, int recordId, int personId, string oldValues);
+
+    [LoggerMessage(EventId = 1303, Level = LogLevel.Information, Message = "Audit: {ActorId} marked the billing of rate record {RecordId} for person {PersonId} as reviewed")]
+    public static partial void RateRecordReviewed(ILogger logger, string actorId, int recordId, int personId);
+
     [LoggerMessage(EventId = 1110, Level = LogLevel.Information, Message = "Demo data: seeded {Count} people")]
     public static partial void DemoDataSeeded(ILogger logger, int count);
 }

@@ -128,8 +128,88 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
             SecurityLog.DemoDataSeeded(_log, added);
         }
 
+        await SeedRateRecordsAsync(cancellationToken);
         return added;
     }
+
+    /// <summary>The Manager who "created" demo increments (no such login exists; shown as "—").</summary>
+    public const string DemoManagerId = "demo-manager";
+
+    /// <summary>
+    /// Demo pay mirroring SPEC §9 (Ayesha = G1 CompanyRecommended $300 + $25; Bilal = G4 BudgetHire $1,000 budget /
+    /// Rs 196,000 pay; Imran = G6 Owner $1,200, all from 2026-10-01), plus a few people with a year of changes.
+    /// Idempotent: people who already have pay records are skipped.
+    /// </summary>
+    private static readonly DemoPay[] Pay =
+    [
+        new("Ayesha Siddiqui", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Bilal Ahmed", [new("2026-10-01", 1000m, 0m, 196_000m, Domain.Pay.PayCurrency.PKR, ActorId)]),
+        new("Imran Qureshi", [new("2026-10-01", 1200m, 0m, 1200m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Fatima Zahra",
+        [
+            new("2025-10-01", 800m, 25m, 800m, Domain.Pay.PayCurrency.USD, ActorId),
+            new("2026-04-01", 900m, 25m, 900m, Domain.Pay.PayCurrency.USD, DemoManagerId),
+        ]),
+        new("Hamza Sheikh",
+        [
+            new("2025-11-01", 1500m, 0m, 280_000m, Domain.Pay.PayCurrency.PKR, ActorId),
+            new("2026-05-16", 1500m, 0m, 310_000m, Domain.Pay.PayCurrency.PKR, DemoManagerId, NeedsReview: true),
+        ]),
+        new("Mariam Javed",
+        [
+            new("2025-12-01", 1200m, 0m, 850m, Domain.Pay.PayCurrency.USD, ActorId),
+            new("2026-07-01", 1200m, 0m, 900m, Domain.Pay.PayCurrency.USD, DemoManagerId, NeedsReview: true),
+        ]),
+        new("Omar Farooq",
+        [
+            new("2025-02-16", 1000m, 30m, 1000m, Domain.Pay.PayCurrency.USD, ActorId),
+            new("2026-01-01", 1000m, 35m, 1000m, Domain.Pay.PayCurrency.USD, ActorId), // commission only: BillingChange
+        ]),
+        new("Ali Raza",
+        [
+            new("2025-04-01", 700m, 25m, 700m, Domain.Pay.PayCurrency.USD, ActorId),
+            new("2026-04-01", 780m, 25m, 780m, Domain.Pay.PayCurrency.USD, DemoManagerId),
+        ]),
+    ];
+
+    private async Task SeedRateRecordsAsync(CancellationToken cancellationToken)
+    {
+        var emails = Pay.Select(p => EmailFor(p.FullName)).ToList();
+        var people = await db.People.AsNoTracking()
+            .Where(p => p.Email != null && emails.Contains(p.Email))
+            .Select(p => new { p.Id, p.Email, HasRecords = db.RateRecords.Any(r => r.PersonId == p.Id) })
+            .ToListAsync(cancellationToken);
+
+        var added = 0;
+        foreach (var demo in Pay)
+        {
+            var person = people.SingleOrDefault(p => p.Email == EmailFor(demo.FullName));
+            if (person is null || person.HasRecords)
+            {
+                continue;
+            }
+
+            Domain.Pay.PayTerms? previous = null;
+            foreach (var r in demo.Records)
+            {
+                var terms = new Domain.Pay.PayTerms(DateOnly.Parse(r.EffectiveFrom, CultureInfo.InvariantCulture), r.Billed, r.Commission, r.Pay, r.Currency);
+                var record = Domain.Pay.RateRecord.Create(person.Id, terms, "Demo data", r.NeedsReview, r.CreatedBy, clock.UtcNow);
+                record.SetChangeType(Domain.Pay.PayRules.DeriveChangeType(previous, terms, null));
+                db.RateRecords.Add(record);
+                previous = terms;
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private sealed record DemoPay(string FullName, DemoRate[] Records);
+
+    private sealed record DemoRate(string EffectiveFrom, decimal Billed, decimal Commission, decimal Pay, Domain.Pay.PayCurrency Currency, string CreatedBy, bool NeedsReview = false);
 
     private static string EmailFor(string fullName) =>
         fullName.ToLowerInvariant().Replace(' ', '.') + EmailDomain;

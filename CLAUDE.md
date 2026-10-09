@@ -32,7 +32,7 @@ Dependencies point inward only: Web → Infrastructure → Domain.
 - Business math lives in `HR.Domain` as pure, deterministic classes (e.g. `PayPeriod`, `WorkingDays`, `PaidLeaveAllocator`, `PayrollCalculator`). Controllers stay thin: validate, call a service, map to a view model.
 - Never bind entities directly to forms or views; use view models (prevents over-posting). Separate view models for Admin and Manager wherever Admin-only data exists, so Admin-only fields are never even loaded for a Manager.
 - Authorization through named policies (`AdminOnly`, `ManagerOrAdmin`) on controllers or actions. Default policy: authenticated. `[AllowAnonymous]` only on login, error and static pages.
-- History tables (rates, exchange rates) are append-only; finalized payroll data is immutable.
+- Rate records and exchange rates may be corrected; every change is audited. Finalized payroll data is immutable and keeps its own snapshot of every amount and rate.
 - Display formats: USD `$1,234.56`; PKR `Rs 1,234,567` (whole rupees, en-PK grouping); dates `08 Oct 2026`. Money columns right-aligned with tabular figures.
 - Every migration gets a meaningful name. Never edit a migration that's already committed; add a new one.
 

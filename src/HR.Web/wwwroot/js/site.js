@@ -144,6 +144,51 @@
         });
     }
 
+    // ---------- Pay form: live margin preview and "loses money" warning (BudgetHire) ----------
+    // Mirrors the server (SPEC §5, f = 1): margin = round2(budget/2) − payUsd, where PKR pay is
+    // payPkr = round0(pay/2), payUsd = round2(payPkr / rate). The server re-checks everything on save.
+    document.querySelectorAll('[data-margin-preview]').forEach(function (box) {
+        var form = box.closest('form');
+        var budget = form.elements.namedItem('Budget');
+        var pay = form.elements.namedItem('Pay');
+        var currency = form.elements.namedItem('Currency');
+        var output = box.querySelector('[data-margin-value]');
+        var loss = form.querySelector('[data-loss-warning]');
+        var rate = parseFloat(box.dataset.rate || '');
+        var round2 = function (x) { return Math.sign(x) * Math.round((Math.abs(x) + Number.EPSILON) * 100) / 100; };
+        var round0 = function (x) { return Math.sign(x) * Math.round(Math.abs(x)); };
+        var money = function (x) {
+            return (x < 0 ? '−$' : '$') + Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        function update() {
+            var b = parseFloat(budget.value);
+            var p = parseFloat(pay.value);
+            var isPkr = currency.value === 'PKR';
+            var monthlyPayUsd = null;
+            var payUsd = null;
+            if (b > 0 && p > 0) {
+                if (!isPkr) {
+                    monthlyPayUsd = p;
+                    payUsd = round2(p / 2);
+                } else if (rate > 0) {
+                    monthlyPayUsd = p / rate;
+                    payUsd = round2(round0(p / 2) / rate);
+                }
+            }
+
+            output.textContent = payUsd === null ? '—' : money(round2(round2(b / 2) - payUsd));
+            if (loss) {
+                var losing = monthlyPayUsd !== null && monthlyPayUsd >= b;
+                loss.hidden = !(losing || loss.dataset.serverLoss === 'true');
+            }
+        }
+
+        [budget, pay].forEach(function (input) { input.addEventListener('input', update); });
+        currency.addEventListener('change', update);
+        update();
+    });
+
     // ---------- Copy to clipboard ----------
     // Usage: <button type="button" data-copy-target="elementId">, with an optional .copy-label inside.
     document.querySelectorAll('[data-copy-target]').forEach(function (button) {

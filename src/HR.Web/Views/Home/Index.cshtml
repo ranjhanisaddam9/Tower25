@@ -44,6 +44,13 @@
 
     <partial name="_StatTile" model="tiles[2]" />
 
+    <partial name="_StatTile" model="@(new StatTileViewModel("No pay setup", Model.NoPaySetup.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-cash-stack", "violet", Model.NoPaySetup == 0 ? "Everyone active has pay set up" : "Active people without pay", Href: "/salaries?filter=MissingSetup", TestId: "no-pay-tile"))" />
+
+    @if (Model.PendingBillingReviews is { } reviews)
+    {
+        <partial name="_StatTile" model="@(new StatTileViewModel("Billing reviews pending", reviews.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-clipboard-check", "warning", reviews == 0 ? "Nothing to review" : "Pay changed by a Manager", Href: "/salaries?filter=NeedsReview", TestId: "review-tile"))" />
+    }
+
     @if (Model.HireSourceNotAssigned is { } notAssigned)
     {
         <partial name="_StatTile" model="@(new StatTileViewModel("Hire source not assigned", notAssigned.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-question-diamond", "warning", notAssigned == 0 ? "Every active person has a source" : "Active people to review", Href: "/people?hireSource=NotAssigned", TestId: "hire-source-tile"))" />
