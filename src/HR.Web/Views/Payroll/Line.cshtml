@@ -1,0 +1,201 @@
+@using HR.Domain.Absences
+@using HR.Domain.Pay
+@using HR.Domain.Payroll
+@model PayrollLineViewModel
+@{
+    var run = Model.Run;
+    var l = Model.Line;
+    var detail = Model.Detail;
+    ViewData["Title"] = l.PersonName;
+    ViewData["Section"] = "Payroll";
+    var draft = run.IsDraft;
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+    var fraction = PayrollDisplay.Fraction(l.PayableDays, l.WorkingDays);
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Run" asp-route-id="@run.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> Payroll @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</a>
+    @if (!l.IsOrphaned)
+    {
+        <a class="btn btn-ghost" asp-action="Payslip" asp-route-id="@run.Id" asp-route-lineId="@l.Id"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Payslip</a>
+    }
+</div>
+
+<section class="glass-card" aria-labelledby="lineHeading" data-testid="line-breakdown">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="lineHeading">@l.PersonName <span class="text-muted-glass num">· @l.PersonCode</span></h2>
+        <span class="pill @PayrollDisplay.StatusPill(run.Status)">@PayrollDisplay.StatusLabel(run.Status)</span>
+    </div>
+    <p class="text-muted-glass">@l.Designation · @l.PersonType · @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</p>
+
+    @if (l.Issue is { } issue)
+    {
+        <div class="glass-alert alert-danger-glass" role="alert" data-testid="line-issue">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @PayrollDisplay.IssueText(issue, Model.IsAdmin): @PayrollDisplay.IssueHint(issue, Model.IsAdmin)
+            <a asp-controller="People" asp-action="Details" asp-route-id="@l.PersonId" asp-fragment="pay">Open @l.PersonName</a>
+        </div>
+    }
+
+    <h3 class="breakdown-title">Days</h3>
+    <dl class="breakdown" data-testid="breakdown-days">
+        <dt>Working days in the period</dt>
+        <dd class="num">@l.WorkingDays</dd>
+        <dt>Employed working days</dt>
+        <dd class="num">@l.EmployedWorkingDays</dd>
+        <dt>Unpaid absence days</dt>
+        <dd class="num">− @PayrollDisplay.Days(l.UnpaidDays)</dd>
+        <dt>Extra days worked</dt>
+        <dd class="num">+ @PayrollDisplay.Days(l.ExtraDays)</dd>
+        <dt>Payable days</dt>
+        <dd class="num"><strong>@PayrollDisplay.PayableDays(l.PayableDays, l.WorkingDays, l.ExtraDays)</strong></dd>
+    </dl>
+
+    @if (detail.Absences.Count > 0)
+    {
+        <h3 class="breakdown-title">Absences in this period</h3>
+        <ul class="breakdown-absences" data-testid="line-absences">
+            @foreach (var a in detail.Absences)
+            {
+                <li>
+                    <span class="num">@AbsenceDisplay.Weekday(a.Date) @DisplayFormat.Date(a.Date)</span> · @AbsenceDisplay.PortionLabel(a.Portion) ·
+                    <span class="pill @AbsenceDisplay.PaidPill(a.PaidDays, a.UnpaidDays)"><i class="bi @AbsenceDisplay.PaidIcon(a.PaidDays, a.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(a.PaidDays, a.UnpaidDays)</span>
+                    <span class="cell-sub num">@AbsenceDisplay.Split(a.PaidDays, a.UnpaidDays)</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <h3 class="breakdown-title">Pay</h3>
+    <ul class="breakdown-steps num" data-testid="breakdown-pay">
+        @foreach (var step in PayrollDisplay.PayBreakdown(l, run.ExchangeRate))
+        {
+            <li>@step</li>
+        }
+        @if (l.PayMonthlyAmount is null)
+        {
+            <li class="text-muted-glass">No pay is calculated until the pay setup is complete.</li>
+        }
+    </ul>
+
+    <dl class="breakdown" data-testid="breakdown-net">
+        <dt>Base pay</dt>
+        <dd class="num">@PayrollDisplay.Pkr(l.PayPkr)</dd>
+        @foreach (var a in detail.Adjustments)
+        {
+            <dt>@PayrollDisplay.AdjustmentLabel(a.Type)@(a.Currency == PayCurrency.USD ? $" ({DisplayFormat.Usd(a.Amount)})" : "")</dt>
+            <dd class="num">@PayrollDisplay.Signed(a.AmountPkr, PayCurrency.PKR, a.Type == AdjustmentType.Deduction ? -1 : 1)</dd>
+        }
+        <dt>Net pay</dt>
+        <dd class="num"><strong data-testid="line-net-pay">@PayrollDisplay.Pkr(l.NetPayPkr)</strong> <span class="cell-sub">@PayrollDisplay.Usd(l.NetPayUsd) reference</span></dd>
+    </dl>
+</section>
+
+@if (Model.Billing is { } billing)
+{
+    <partial name="_LineBilling" model="(Model, billing)" />
+}
+
+<section class="glass-card mt-4" aria-labelledby="extraHeading" id="extra-days">
+    <h2 class="card-title" id="extraHeading">Extra days worked</h2>
+    <p class="text-muted-glass">Days worked outside the normal working days (for example a weekend), from 0.5 to 10 in steps of 0.5. They are paid at the normal daily rate.</p>
+    @if (draft)
+    {
+        <form method="post" asp-action="ExtraDays" asp-route-id="@run.Id" asp-route-lineId="@l.Id" data-testid="extra-days-form">
+            <div class="row g-3">
+                <div class="col-sm-4">
+                    <div class="form-floating">
+                        <input type="number" class="form-control num" id="ExtraDays" name="ExtraDays" step="0.5" min="0.5" max="10"
+                               value="@Model.ExtraDays.ExtraDays?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Days" aria-describedby="ExtraDays-error" />
+                        <label for="ExtraDays">Extra days</label>
+                    </div>
+                    <span class="field-error" id="ExtraDays-error">@Error("ExtraDays.ExtraDays")</span>
+                </div>
+                <div class="col-sm-8">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="ExtraDaysNote" name="ExtraDaysNote" maxlength="300" value="@Model.ExtraDays.ExtraDaysNote" placeholder="Dates" aria-describedby="ExtraDaysNote-error" />
+                        <label for="ExtraDaysNote">Dates worked (e.g. Sat 17 Oct, Sun 18 Oct half)</label>
+                    </div>
+                    <span class="field-error" id="ExtraDaysNote-error">@Error("ExtraDays.ExtraDaysNote")</span>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-ghost" data-testid="extra-days-save"><i class="bi bi-check2" aria-hidden="true"></i> Save extra days</button>
+                @if (l.ExtraDays > 0)
+                {
+                    <button type="submit" class="btn btn-ghost" name="clear" value="true">Clear extra days</button>
+                }
+            </div>
+        </form>
+    }
+    else
+    {
+        <p class="mb-0" data-testid="extra-days-readonly"><span class="num">@PayrollDisplay.Days(l.ExtraDays)</span> @(detail.ExtraDaysNote is { } n ? $"· {n}" : "")</p>
+    }
+</section>
+
+<section class="glass-card mt-4" aria-labelledby="adjustmentsHeading" id="adjustments">
+    <h2 class="card-title" id="adjustmentsHeading">Adjustments</h2>
+    <p class="text-muted-glass">Bonuses, reimbursements and deductions. They are not prorated and are converted at the payroll's exchange rate.</p>
+    @if (detail.Adjustments.Count == 0)
+    {
+        <p class="text-muted-glass" data-testid="no-adjustments">No adjustments.</p>
+    }
+    else
+    {
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table" data-testid="adjustments">
+                <thead>
+                    <tr>
+                        <th scope="col">Type</th>
+                        <th scope="col" class="money">Amount</th>
+                        <th scope="col" class="money">In PKR</th>
+                        <th scope="col">Note</th>
+                        <th scope="col">Added by</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in detail.Adjustments)
+                    {
+                        var sign = a.Type == AdjustmentType.Deduction ? -1 : 1;
+                        <tr data-testid="adjustment-row">
+                            <td data-label="Type"><span class="pill @(sign < 0 ? "pill-danger" : "pill-success")">@PayrollDisplay.AdjustmentLabel(a.Type)</span></td>
+                            <td data-label="Amount" class="money num">@PayrollDisplay.Signed(a.Amount, a.Currency, sign)</td>
+                            <td data-label="In PKR" class="money num">@PayrollDisplay.Signed(a.AmountPkr, PayCurrency.PKR, sign)</td>
+                            <td data-label="Note" class="cell-wrap">@(a.Note ?? "—")</td>
+                            <td data-label="Added by">@(a.AddedBy ?? "—")</td>
+                            <td data-label="Actions" class="cell-actions">
+                                @if (draft)
+                                {
+                                    <span class="cell-group">
+                                        <a class="btn-icon" asp-action="EditAdjustment" asp-route-id="@run.Id" asp-route-lineId="@l.Id" asp-route-adjustmentId="@a.Id"
+                                           aria-label="Edit the @PayrollDisplay.AdjustmentLabel(a.Type).ToLowerInvariant()" title="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                        <form method="post" asp-action="DeleteAdjustment" asp-route-id="@run.Id" asp-route-lineId="@l.Id" asp-route-adjustmentId="@a.Id" class="d-inline">
+                                            <button type="submit" class="btn-icon btn-icon-danger" aria-label="Delete the @PayrollDisplay.AdjustmentLabel(a.Type).ToLowerInvariant()" title="Delete"
+                                                    data-confirm="This @PayrollDisplay.AdjustmentLabel(a.Type).ToLowerInvariant() of @DisplayFormat.Money(a.Amount, a.Currency) will be removed."
+                                                    data-confirm-title="Delete this adjustment?"
+                                                    data-confirm-action="Delete">
+                                                <i class="bi bi-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    </span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (draft)
+    {
+        <form method="post" asp-action="AddAdjustment" asp-route-id="@run.Id" asp-route-lineId="@l.Id" class="mt-3" data-testid="adjustment-form">
+            <h3 class="breakdown-title">Add an adjustment</h3>
+            <partial name="_AdjustmentFields" model="Model.Adjustment" view-data='new ViewDataDictionary(ViewData) { ["ErrorPrefix"] = "Adjustment." }' />
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary-gradient" data-testid="adjustment-add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add adjustment</button>
+            </div>
+        </form>
+    }
+</section>

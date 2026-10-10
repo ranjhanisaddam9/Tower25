@@ -1,0 +1,148 @@
+/*
+ * Print stylesheet (loaded with media="print" on every page). Payslips and the register print black on white on A4:
+ * no aurora, glass, sidebar, top bar, toasts or page buttons.
+ */
+
+@page {
+    size: A4;
+    margin: 14mm 12mm;
+}
+
+html,
+body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10.5pt;
+}
+
+.aurora,
+.app-sidebar,
+.app-topbar,
+.offcanvas,
+.offcanvas-backdrop,
+.modal,
+.skip-link,
+.glass-toast-container,
+.page-actions,
+.no-print,
+.btn,
+.btn-icon,
+.sidebar-collapse-btn {
+    display: none !important;
+}
+
+.app-shell,
+.app-main,
+.app-content {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    background: none !important;
+}
+
+.glass-card,
+.glass-table-wrap,
+.glass-alert,
+.payslip {
+    max-width: none !important;
+    background: none !important;
+    color: #000 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 0 6mm !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+*,
+*::before,
+*::after {
+    color: #000 !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+}
+
+a,
+a:visited {
+    text-decoration: none !important;
+}
+
+.pill {
+    background: none !important;
+    border: 1px solid #000 !important;
+}
+
+/* Tables: plain ruled tables, never the mobile card layout. */
+.glass-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background: none !important;
+}
+
+.glass-table thead {
+    display: table-header-group !important;
+}
+
+.glass-table tr {
+    display: table-row !important;
+    break-inside: avoid;
+}
+
+.glass-table th,
+.glass-table td {
+    display: table-cell !important;
+    position: static !important;
+    background: none !important;
+    border-bottom: 0.5pt solid #555 !important;
+    padding: 1.5mm 2mm !important;
+}
+
+.glass-table td::before {
+    content: none !important;
+}
+
+.glass-table tfoot th,
+.glass-table tfoot td {
+    border-top: 1pt solid #000 !important;
+    font-weight: 700;
+}
+
+.money,
+.num {
+    font-variant-numeric: tabular-nums;
+}
+
+.money {
+    text-align: right !important;
+}
+
+/* One payslip per page when printing them all. */
+.payslip {
+    break-inside: avoid;
+}
+
+.payslip + .payslip {
+    break-before: page;
+}
+
+.payslip-table th,
+.payslip-table td {
+    border-bottom: 0.5pt solid #555 !important;
+}
+
+.payslip-total th,
+.payslip-total td {
+    border-top: 1pt solid #000 !important;
+    font-weight: 700;
+}
+
+.register .iban {
+    white-space: nowrap;
+}

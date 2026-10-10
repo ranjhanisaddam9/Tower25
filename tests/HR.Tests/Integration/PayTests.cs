@@ -508,6 +508,9 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     {
         // Locks every period that starts before the given date (both October periods in this test).
         public Task<bool> IsLockedAsync(DateOnly periodStart, CancellationToken cancellationToken = default) => Task.FromResult(periodStart < lockedBefore);
+
+        public Task<DateOnly?> LatestLockedPeriodStartAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<DateOnly?>(HR.Domain.Payroll.PayPeriod.For(lockedBefore.AddDays(-1)).Start);
     }
 
     // ---------- Change types, audit, POST-only ----------

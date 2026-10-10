@@ -66,8 +66,37 @@ public static class RateRecords
         personTerms.Where(t => t.EffectiveFrom <= date).MaxBy(t => t.EffectiveFrom);
 }
 
-/// <summary>Whether a pay period is locked by a finalized payroll. M5 always says no; M7 implements it.</summary>
+/// <summary>A payroll period is locked ⇔ its payroll run is Finalized (SPEC §6).</summary>
 public interface IPayrollLock
 {
     Task<bool> IsLockedAsync(DateOnly periodStart, CancellationToken cancellationToken = default);
+
+    /// <summary>The start of the latest locked period, or null when nothing is locked.</summary>
+    Task<DateOnly?> LatestLockedPeriodStartAsync(CancellationToken cancellationToken = default);
+}
+
+public static class PayrollLockExtensions
+{
+    /// <summary>
+    /// The start of the first locked period that overlaps <paramref name="from"/>–<paramref name="to"/> (inclusive;
+    /// null = no end), or null. Only periods up to the latest locked one are checked.
+    /// </summary>
+    public static async Task<DateOnly?> FirstLockedAsync(this IPayrollLock payrollLock, DateOnly from, DateOnly? to, CancellationToken cancellationToken = default)
+    {
+        if (await payrollLock.LatestLockedPeriodStartAsync(cancellationToken) is not { } latest)
+        {
+            return null;
+        }
+
+        var last = to is { } end && end < latest ? end : latest;
+        for (var period = Payroll.PayPeriod.For(from); period.Start <= last; period = period.Next())
+        {
+            if (await payrollLock.IsLockedAsync(period.Start, cancellationToken))
+            {
+                return period.Start;
+            }
+        }
+
+        return null;
+    }
 }

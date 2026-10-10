@@ -1,0 +1,330 @@
+@using HR.Domain.Pay
+@using HR.Domain.Payroll
+@model PayrollRunViewModel
+@{
+    var run = Model.Run;
+    ViewData["Title"] = "Payroll " + DisplayFormat.DateRange(run.Period.Start, run.Period.End);
+    ViewData["Section"] = "Payroll";
+    var included = Model.Included.ToList();
+    var blocked = Model.Blocked.ToList();
+    var orphans = Model.Orphans.ToList();
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All payrolls</a>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-action="Register" asp-route-id="@run.Id"><i class="bi bi-list-ol" aria-hidden="true"></i> Register</a>
+        <a class="btn btn-ghost" asp-action="Payslips" asp-route-id="@run.Id"><i class="bi bi-printer" aria-hidden="true"></i> Print all payslips</a>
+        @if (run.IsDraft)
+        {
+            <form method="post" asp-action="Regenerate" asp-route-id="@run.Id" class="d-inline">
+                <button type="submit" class="btn btn-ghost" data-testid="regenerate"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Recalculate</button>
+            </form>
+            <form method="post" asp-action="Delete" asp-route-id="@run.Id" class="d-inline">
+                <button type="submit" class="btn btn-ghost" data-testid="delete-draft"
+                        data-confirm="The draft payroll for @DisplayFormat.DateRange(run.Period.Start, run.Period.End) and its extra days and adjustments will be deleted."
+                        data-confirm-title="Delete this draft?"
+                        data-confirm-action="Delete draft">
+                    <i class="bi bi-trash" aria-hidden="true"></i> Delete draft
+                </button>
+            </form>
+            <form method="post" asp-action="Finalize" asp-route-id="@run.Id" class="d-inline">
+                <button type="submit" class="btn btn-primary-gradient" data-testid="finalize"
+                        data-confirm="Finalizing locks every figure, the absences, pay records and employment of this period. Only an administrator can reopen it."
+                        data-confirm-title="Finalize this payroll?"
+                        data-confirm-action="Finalize"
+                        data-confirm-variant="primary">
+                    <i class="bi bi-lock" aria-hidden="true"></i> Finalize
+                </button>
+            </form>
+        }
+        else if (Model.IsAdmin && run.IsLatestFinalized)
+        {
+            <button type="button" class="btn btn-danger-solid" data-bs-toggle="modal" data-bs-target="#reopenModal" data-testid="reopen">
+                <i class="bi bi-unlock" aria-hidden="true"></i> Reopen
+            </button>
+        }
+    </div>
+</div>
+
+<section class="glass-card run-header" aria-labelledby="runHeading" data-testid="run-header">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="runHeading">@DisplayFormat.DateRange(run.Period.Start, run.Period.End)</h2>
+        <span class="pill @PayrollDisplay.StatusPill(run.Status)" data-testid="run-status">@PayrollDisplay.StatusLabel(run.Status)</span>
+    </div>
+    <dl class="run-facts">
+        <div>
+            <dt>Working days</dt>
+            <dd class="num">@run.WorkingDays</dd>
+        </div>
+        <div>
+            <dt>People</dt>
+            <dd class="num">@included.Count</dd>
+        </div>
+        <div>
+            <dt>Exchange rate</dt>
+            <dd class="num" data-testid="run-rate">
+                @if (run.ExchangeRate is { } rate)
+                {
+                    @PayrollDisplay.Rate(rate)
+                    <span class="cell-sub">
+                        @if (run.RateOverridden)
+                        {
+                            <span class="pill pill-warning">Overridden</span> @run.RateNote
+                        }
+                        else if (run.ExchangeRateEntryDate is { } from)
+                        {
+                            @:from the rate history (since @DisplayFormat.Date(from))
+                        }
+                    </span>
+                }
+                else
+                {
+                    <span class="pill pill-danger">Not set</span>
+                }
+            </dd>
+        </div>
+        <div>
+            <dt>Generated</dt>
+            <dd>@DisplayFormat.DateTime(run.GeneratedAt) <span class="cell-sub">@(run.GeneratedBy ?? "—")</span></dd>
+        </div>
+        @if (run.FinalizedAt is { } finalizedAt)
+        {
+            <div>
+                <dt>Finalized</dt>
+                <dd>@DisplayFormat.DateTime(finalizedAt) <span class="cell-sub">@(run.FinalizedBy ?? "—")</span></dd>
+            </div>
+        }
+    </dl>
+</section>
+
+@if (run.IsDraft && run.ExchangeRate is null)
+{
+    <div class="glass-alert alert-danger-glass" role="alert" data-testid="no-rate">
+        <i class="bi bi-currency-exchange" aria-hidden="true"></i> Set exchange rate: there is no rate in effect on @DisplayFormat.Date(run.Period.End). PKR amounts appear once a rate is set, and the payroll can't be finalized without one.
+    </div>
+}
+
+@if (Model.Changes is { Count: > 0 } changes)
+{
+    <section class="glass-alert alert-warning-glass changes-panel" role="status" aria-labelledby="changesHeading" data-testid="changes">
+        <h2 class="card-title" id="changesHeading">What changed in the recalculation</h2>
+        <ul class="changes-list">
+            @foreach (var c in changes)
+            {
+                <li><strong>@c.PersonName</strong> <span class="num">(@c.PersonCode)</span>: <span class="change num">@($"{c.Field} {c.Old} → {c.New}")</span></li>
+            }
+        </ul>
+    </section>
+}
+
+@if (blocked.Count > 0)
+{
+    <section class="glass-card issues-panel" aria-labelledby="issuesHeading" data-testid="issues">
+        <h2 class="card-title" id="issuesHeading"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @blocked.Count @(blocked.Count == 1 ? "line needs" : "lines need") attention before finalizing</h2>
+        <ul class="issues-list">
+            @foreach (var l in blocked)
+            {
+                <li data-testid="issue-row">
+                    <span class="cell-stack">
+                        <a asp-controller="People" asp-action="Details" asp-route-id="@l.PersonId" asp-fragment="pay" class="cell-primary">@l.PersonName <span class="num">(@l.PersonCode)</span></a>
+                        <span class="cell-sub">@PayrollDisplay.IssueText(l.Issue!.Value, Model.IsAdmin): @PayrollDisplay.IssueHint(l.Issue!.Value, Model.IsAdmin)</span>
+                    </span>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@if (orphans.Count > 0)
+{
+    <section class="glass-alert alert-warning-glass" role="status" aria-labelledby="orphansHeading" data-testid="orphans">
+        <h2 class="card-title" id="orphansHeading">No longer employed in this period</h2>
+        <p class="mb-1">These people still have extra days or adjustments on this draft. Remove them before finalizing.</p>
+        <ul class="issues-list">
+            @foreach (var l in orphans)
+            {
+                <li><a asp-action="Line" asp-route-id="@run.Id" asp-route-lineId="@l.Id">@l.PersonName (@l.PersonCode)</a>: @l.AdjustmentCount @(l.AdjustmentCount == 1 ? "adjustment" : "adjustments")@(l.ExtraDays > 0 ? $", {PayrollDisplay.Days(l.ExtraDays)} extra days" : "")</li>
+            }
+        </ul>
+    </section>
+}
+
+@if (run.IsDraft)
+{
+    <details class="glass-card rate-card" id="rate" open="@(run.ExchangeRate is null)">
+        <summary class="card-title">Exchange rate</summary>
+        <form method="post" asp-action="Rate" asp-route-id="@run.Id" class="rate-form" data-testid="rate-form">
+            <fieldset class="form-section">
+                <legend class="visually-hidden">Rate source</legend>
+                <div class="form-check form-check-strong">
+                    <input class="form-check-input" type="radio" name="Source" id="SourceHistory" value="history" checked="@(Model.RateForm.Source == "history")" disabled="@(Model.HistoryRate is null)" />
+                    <label class="form-check-label" for="SourceHistory">
+                        Use the rate history: @(Model.HistoryRate is { } h ? $"{PayrollDisplay.Rate(h)} (since {DisplayFormat.Date(Model.HistoryRateDate!.Value)})" : "no rate in effect on the period's last day")
+                    </label>
+                </div>
+                <div class="form-check form-check-strong">
+                    <input class="form-check-input" type="radio" name="Source" id="SourceOverride" value="override" checked="@(Model.RateForm.Source != "history" || Model.HistoryRate is null)" />
+                    <label class="form-check-label" for="SourceOverride">Override with this rate</label>
+                </div>
+            </fieldset>
+            <div class="row g-3">
+                <div class="col-sm-4">
+                    <div class="form-floating">
+                        <input type="number" class="form-control num" id="Rate" name="Rate" step="0.0001" min="1" max="10000" value="@Model.RateForm.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Rate" />
+                        <label for="Rate">USD → PKR</label>
+                    </div>
+                </div>
+                <div class="col-sm-8">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="RateNote" name="RateNote" maxlength="300" placeholder="Note" />
+                        <label for="RateNote">Note (required to change the rate)</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-ghost" data-testid="rate-save"><i class="bi bi-check2" aria-hidden="true"></i> Set rate</button>
+            </div>
+        </form>
+    </details>
+}
+
+@if (included.Count == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+            <p class="empty-state-text">Nobody was employed on a working day in this period.</p>
+        </div>
+    </section>
+}
+else
+{
+    <div class="glass-table-wrap">
+        <table class="glass-table glass-table-compact" data-testid="lines">
+            <caption class="visually-hidden">Payroll lines for @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Person</th>
+                    <th scope="col">Payable days</th>
+                    <th scope="col" class="money">Monthly pay</th>
+                    <th scope="col" class="money">Period pay</th>
+                    <th scope="col" class="money">Adjustments</th>
+                    <th scope="col" class="money">Net pay</th>
+                    @if (Model.IsAdmin)
+                    {
+                        <th scope="col" class="money">Billed</th>
+                        <th scope="col" class="money">Invoice</th>
+                        <th scope="col" class="money">Your earning</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in included)
+                {
+                    <tr data-testid="line-row" data-line-id="@l.Id" data-person-id="@l.PersonId">
+                        <td data-label="Person">
+                            <span class="cell-stack">
+                                <a asp-action="Line" asp-route-id="@run.Id" asp-route-lineId="@l.Id" class="cell-primary row-link" data-testid="line-name">@l.PersonName</a>
+                                <span class="cell-sub"><span class="num">@l.PersonCode</span> · @l.PersonType</span>
+                                @if (Model.Billing?.GetValueOrDefault(l.Id) is { } source)
+                                {
+                                    <span class="pill @HireSourceDisplay.PillClass(source.HireSource)" data-testid="line-source">@HireSourceDisplay.Label(source.HireSource)</span>
+                                }
+                                @if (l.Issue is { } issue)
+                                {
+                                    <span class="pill pill-danger"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @PayrollDisplay.IssueText(issue, Model.IsAdmin)</span>
+                                }
+                            </span>
+                        </td>
+                        <td data-label="Payable days" class="num" data-testid="line-days">@PayrollDisplay.PayableDays(l.PayableDays, l.WorkingDays, l.ExtraDays)</td>
+                        <td data-label="Monthly pay" class="money num">@(l.PayMonthlyAmount is { } m && l.PayCurrency is { } c ? DisplayFormat.Money(m, c) : "—")</td>
+                        <td data-label="Period pay" class="money num" data-testid="line-pay">
+                            <span class="cell-stack">
+                                <span>@PayrollDisplay.Pkr(l.PayPkr)</span>
+                                @if (l.PayCurrency == PayCurrency.USD)
+                                {
+                                    <span class="cell-sub">@PayrollDisplay.Usd(l.PayUsd)</span>
+                                }
+                            </span>
+                        </td>
+                        <td data-label="Adjustments" class="money num" data-testid="line-adjustments">@(l.AdjustmentCount == 0 ? "—" : PayrollDisplay.Pkr(l.AdjustmentsPkr))</td>
+                        <td data-label="Net pay" class="money num" data-testid="line-net"><strong>@PayrollDisplay.Pkr(l.NetPayPkr)</strong></td>
+                        @if (Model.Billing is { } billing)
+                        {
+                            var b = billing.GetValueOrDefault(l.Id);
+                            <td data-label="Billed" class="money num">@PayrollDisplay.Usd(b?.BilledUsd)</td>
+                            <td data-label="Invoice" class="money num" data-testid="line-invoice">@PayrollDisplay.Usd(b?.InvoiceUsd)</td>
+                            <td data-label="Your earning" class="money num" data-testid="line-earning">
+                                <span class="cell-stack">
+                                    <span>@PayrollDisplay.Usd(b?.OwnerEarningUsd)</span>
+                                    <span class="cell-sub">@PayrollDisplay.Pkr(b?.OwnerEarningPkr)</span>
+                                </span>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr data-testid="totals">
+                    <th scope="row" colspan="3">Totals (@included.Count @(included.Count == 1 ? "person" : "people"))</th>
+                    <td data-label="Period pay" class="money num">@DisplayFormat.Pkr(Model.Sum(l => l.PayPkr))</td>
+                    <td data-label="Adjustments" class="money num">@DisplayFormat.Pkr(Model.Sum(l => l.AdjustmentsPkr))</td>
+                    <td data-label="Net pay" class="money num" data-testid="total-net"><strong>@DisplayFormat.Pkr(Model.Sum(l => l.NetPayPkr))</strong></td>
+                    @if (Model.IsAdmin)
+                    {
+                        <td data-label="Billed" class="money num">@DisplayFormat.Usd(Model.SumBilling(b => b.BilledUsd))</td>
+                        <td data-label="Invoice" class="money num" data-testid="total-invoice">@DisplayFormat.Usd(Model.SumBilling(b => b.InvoiceUsd))</td>
+                        <td data-label="Your earning" class="money num" data-testid="total-earning">
+                            <span class="cell-stack">
+                                <span>@DisplayFormat.Usd(Model.SumBilling(b => b.OwnerEarningUsd))</span>
+                                <span class="cell-sub">@DisplayFormat.Pkr(Model.SumBilling(b => b.OwnerEarningPkr))</span>
+                            </span>
+                        </td>
+                    }
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+
+<section class="glass-card mt-4" aria-labelledby="historyHeading">
+    <h2 class="card-title" id="historyHeading">History</h2>
+    <ol class="run-history">
+        @foreach (var e in Model.Events)
+        {
+            <li>
+                <span class="num">@DisplayFormat.DateTime(e.At)</span> · <strong>@PayrollDisplay.EventLabel(e.Type)</strong> by @(e.Actor ?? "—")
+                @if (!string.IsNullOrEmpty(e.Detail))
+                {
+                    <span class="cell-sub">@e.Detail</span>
+                }
+            </li>
+        }
+    </ol>
+</section>
+
+@if (Model.IsAdmin && !run.IsDraft && run.IsLatestFinalized)
+{
+    <div class="modal fade glass-modal" id="reopenModal" tabindex="-1" aria-labelledby="reopenTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" method="post" asp-action="Reopen" asp-route-id="@run.Id">
+                <div class="modal-header">
+                    <h2 class="modal-title card-title" id="reopenTitle">Reopen this payroll?</h2>
+                    <button type="button" class="btn-icon btn-icon-sm" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p>It becomes a draft again: the period unlocks until it is finalized again. The reason is kept in the payroll's history.</p>
+                    <div class="form-floating">
+                        <textarea class="form-control form-textarea" id="Reason" name="Reason" required minlength="10" maxlength="500" placeholder="Reason"></textarea>
+                        <label for="Reason">Reason (at least 10 characters)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger-solid" data-testid="reopen-submit">Reopen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

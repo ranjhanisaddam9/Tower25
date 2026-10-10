@@ -34,6 +34,10 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public async Task ResetAsync()
     {
         await using var db = CreateDbContext();
+        // Finalized runs can never be deleted (trigger), so tests first turn them back into drafts; lines, adjustments
+        // and line absences cascade from runs.
+        await db.PayrollRuns.ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, HR.Domain.Payroll.PayrollStatus.Draft).SetProperty(r => r.FinalizedAt, (DateTimeOffset?)null));
+        await db.PayrollRuns.ExecuteDeleteAsync();
         await db.ExchangeRates.ExecuteDeleteAsync();
         await db.People.ExecuteDeleteAsync(); // employment periods, rate records and absences cascade
         // Identity's user-role, claim, login and token rows cascade from users.

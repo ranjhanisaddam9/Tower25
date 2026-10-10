@@ -1,3 +1,4 @@
+using HR.Domain.People;
 using HR.Domain.Pay;
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
@@ -118,7 +119,7 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
 
     private async Task<List<PersonInfo>> ActivePeopleAsync(string? search, CancellationToken cancellationToken)
     {
-        var people = db.People.AsNoTracking().Where(p => p.IsActive);
+        var people = db.People.AsNoTracking().Where(PersonStatus.ActiveOn(clock.Today));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

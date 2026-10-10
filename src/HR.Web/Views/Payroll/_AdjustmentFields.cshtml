@@ -1,0 +1,46 @@
+@using HR.Domain.Payroll
+@model AdjustmentForm
+@{
+    var prefix = ViewData["ErrorPrefix"] as string ?? string.Empty;
+    string? Error(string key) => ViewData.ModelState[prefix + key]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+<div class="row g-3">
+    <div class="col-sm-4">
+        <div class="form-floating">
+            <select class="form-select" id="Type" name="Type" aria-describedby="Type-error">
+                @foreach (var type in Enum.GetValues<AdjustmentType>())
+                {
+                    <option value="@type" selected="@(Model.Type == type.ToString())">@PayrollDisplay.AdjustmentLabel(type)</option>
+                }
+            </select>
+            <label for="Type">Type</label>
+        </div>
+        <span class="field-error" id="Type-error">@Error("Type")</span>
+    </div>
+    <div class="col-7 col-sm-5">
+        <div class="form-floating">
+            <input type="number" class="form-control num" id="Amount" name="Amount" step="0.01" min="0.01" max="50000000" required
+                   value="@Model.Amount?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Amount" aria-describedby="Amount-error Amount-hint" />
+            <label for="Amount">Amount</label>
+        </div>
+        <span class="form-hint" id="Amount-hint">USD 0.01–100,000; PKR 1–50,000,000 whole rupees.</span>
+        <span class="field-error" id="Amount-error">@Error("Amount")</span>
+    </div>
+    <div class="col-5 col-sm-3">
+        <div class="form-floating">
+            <select class="form-select" id="Currency" name="Currency" aria-describedby="Currency-error">
+                <option value="PKR" selected="@(Model.Currency != "USD")">PKR</option>
+                <option value="USD" selected="@(Model.Currency == "USD")">USD</option>
+            </select>
+            <label for="Currency">Currency</label>
+        </div>
+        <span class="field-error" id="Currency-error">@Error("Currency")</span>
+    </div>
+    <div class="col-12">
+        <div class="form-floating">
+            <input type="text" class="form-control" id="Note" name="Note" maxlength="300" value="@Model.Note" placeholder="Note" aria-describedby="Note-error" />
+            <label for="Note">Note (optional)</label>
+        </div>
+        <span class="field-error" id="Note-error">@Error("Note")</span>
+    </div>
+</div>

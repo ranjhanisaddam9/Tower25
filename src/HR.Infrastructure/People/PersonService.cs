@@ -1,3 +1,4 @@
+using HR.Domain.Pay;
 using HR.Domain.People;
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
@@ -91,7 +92,7 @@ public sealed record PersonResult(PersonResultStatus Status, int? Id = null, IRe
 /// even loaded for a Manager; the hire source has its own Admin-only methods.
 /// Never logs CNIC, IBAN or phone numbers.
 /// </summary>
-public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory loggerFactory)
+public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock payrollLock, ILoggerFactory loggerFactory)
 {
     public const int DefaultPageSize = 20;
 
@@ -102,6 +103,9 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
     public const string HireSourceLockedMessage = "Delete this person's pay records before changing the hire source.";
 
+    /// <summary>The error number THROWn by the TR_People_SingleActiveOwner trigger.</summary>
+    public const int ActiveOwnerErrorNumber = 51002;
+
     /// <summary>The error number THROWn by the TR_EmploymentPeriods_NoOverlap trigger.</summary>
     public const int OverlapErrorNumber = 51001;
 
@@ -111,14 +115,15 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
     public async Task<PagedResult<PersonRow>> ListAsync(PeopleQuery query, CancellationToken cancellationToken = default)
     {
-        var filtered = Filter(db.People.AsNoTracking(), query);
+        var today = clock.Today;
+        var filtered = Filter(db.People.AsNoTracking(), query, today);
         var total = await filtered.CountAsync(cancellationToken);
         var page = PagedResult<PersonRow>.ClampPage(query.Page, total, query.PageSize);
 
         var rows = await Sort(filtered, query)
             .Skip((page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new PersonRow(p.Id, p.Code, p.FullName, p.Designation, p.Type, p.JoiningDate, p.LeavingDate, p.IsActive))
+            .Select(p => new PersonRow(p.Id, p.Code, p.FullName, p.Designation, p.Type, p.JoiningDate, p.LeavingDate, p.LeavingDate == null || p.LeavingDate >= today))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<PersonRow>(rows, page, query.PageSize, total);
@@ -127,7 +132,8 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
     /// <summary>Admin only: the list with hire sources and the hire-source filter.</summary>
     public async Task<PagedResult<AdminPersonRow>> ListForAdminAsync(PeopleQuery query, HireSourceFilter hireSource, CancellationToken cancellationToken = default)
     {
-        var filtered = Filter(db.People.AsNoTracking(), query);
+        var today = clock.Today;
+        var filtered = Filter(db.People.AsNoTracking(), query, today);
         filtered = hireSource switch
         {
             HireSourceFilter.NotAssigned => filtered.Where(p => p.HireSource == null),
@@ -144,7 +150,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             .Skip((page - 1) * query.PageSize)
             .Take(query.PageSize)
             .Select(p => new AdminPersonRow(
-                new PersonRow(p.Id, p.Code, p.FullName, p.Designation, p.Type, p.JoiningDate, p.LeavingDate, p.IsActive),
+                new PersonRow(p.Id, p.Code, p.FullName, p.Designation, p.Type, p.JoiningDate, p.LeavingDate, p.LeavingDate == null || p.LeavingDate >= today),
                 p.HireSource))
             .ToListAsync(cancellationToken);
 
@@ -164,7 +170,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             .Where(p => p.Id == id)
             .Select(p => new PersonDetails(
                 p.Id, p.Code, p.FullName, p.Type, p.Designation, p.Email, p.Phone, p.Cnic, p.BankName, p.Iban,
-                p.JoiningDate, p.LeavingDate, p.IsActive, p.Notes, p.CreatedAt, p.UpdatedAt, p.RowVersion))
+                p.JoiningDate, p.LeavingDate, p.LeavingDate == null || p.LeavingDate >= clock.Today, p.Notes, p.CreatedAt, p.UpdatedAt, p.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>Admin only. Returns null when the person does not exist; a found person may have a null source.</summary>
@@ -180,7 +186,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
     public async Task<PeopleCounts> GetCountsAsync(CancellationToken cancellationToken = default)
     {
         var byType = await db.People.AsNoTracking()
-            .Where(p => p.IsActive)
+            .Where(PersonStatus.ActiveOn(clock.Today))
             .GroupBy(p => p.Type)
             .Select(g => new { Type = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
@@ -192,7 +198,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
     /// <summary>Admin only: active people whose hire source has not been assigned yet.</summary>
     public Task<int> CountActiveWithoutHireSourceAsync(CancellationToken cancellationToken = default) =>
-        db.People.AsNoTracking().CountAsync(p => p.IsActive && p.HireSource == null, cancellationToken);
+        db.People.AsNoTracking().Where(PersonStatus.ActiveOn(clock.Today)).CountAsync(p => p.HireSource == null, cancellationToken);
 
     // ---------- Commands ----------
 
@@ -284,6 +290,17 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return new PersonResult(PersonResultStatus.Invalid, Errors: duplicates);
         }
 
+        // Moving the joining date adds or removes the days between the old and new dates.
+        if (normalized.JoiningDate is { } newJoining && newJoining != person.JoiningDate)
+        {
+            var earlier = newJoining < person.JoiningDate ? newJoining : person.JoiningDate;
+            var later = newJoining < person.JoiningDate ? person.JoiningDate : newJoining;
+            if (await LockedChangeAsync(earlier, later.AddDays(-1), cancellationToken) is { } locked)
+            {
+                return PersonResult.Invalid(nameof(PersonInput.JoiningDate), locked);
+            }
+        }
+
         // The version the user saw is the one EF checks in the UPDATE's WHERE clause.
         db.Entry(person).Property(p => p.RowVersion).OriginalValue = rowVersion;
         person.UpdateDetails(normalized, actorId, clock.UtcNow);
@@ -306,9 +323,9 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return new PersonResult(PersonResultStatus.NotFound);
         }
 
-        if (!person.IsActive)
+        if (person.LeavingDate is not null)
         {
-            return PersonResult.Invalid(LeavingDateField, "This person is already inactive.");
+            return PersonResult.Invalid(LeavingDateField, "This person already has a leaving date.");
         }
 
         if (leavingDate is null)
@@ -319,6 +336,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         if (leavingDate < person.JoiningDate)
         {
             return PersonResult.Invalid(LeavingDateField, "The leaving date can't be before the joining date.");
+        }
+
+        // Employment after the leaving date disappears: no finalized period may lose days.
+        if (await LockedChangeAsync(leavingDate.Value.AddDays(1), null, cancellationToken) is { } locked)
+        {
+            return PersonResult.Invalid(LeavingDateField, locked);
         }
 
         person.Deactivate(leavingDate.Value, actorId, clock.UtcNow);
@@ -346,9 +369,9 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return new PersonResult(PersonResultStatus.NotFound);
         }
 
-        if (person.IsActive)
+        if (person.LeavingDate is null)
         {
-            return PersonResult.Invalid(RejoiningDateField, "This person is already active.");
+            return PersonResult.Invalid(RejoiningDateField, "This person has no leaving date, so there is nothing to rejoin from.");
         }
 
         if (rejoiningDate is null)
@@ -361,8 +384,14 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return PersonResult.Invalid(RejoiningDateField, "The rejoining date must be after the previous leaving date.");
         }
 
+        if (await LockedChangeAsync(rejoiningDate.Value, null, cancellationToken) is { } locked)
+        {
+            return PersonResult.Invalid(RejoiningDateField, locked);
+        }
+
+        var today = clock.Today;
         if (person.HireSource == HireSource.Owner
-            && await db.People.AnyAsync(p => p.Id != id && p.IsActive && p.HireSource == HireSource.Owner, cancellationToken))
+            && await db.People.Where(PersonStatus.ActiveOn(today)).AnyAsync(p => p.Id != id && p.HireSource == HireSource.Owner, cancellationToken))
         {
             return PersonResult.Invalid(RejoiningDateField, revealHireSource
                 ? "Another active person already has the Owner hire source. Change one of them first."
@@ -382,6 +411,64 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
+    /// <summary>
+    /// Cancels a leaving date that hasn't passed yet (today counts as not passed). The same employment period is reopened;
+    /// no new period is created. Refused when a finalized payroll covers any day after the cancelled date.
+    /// </summary>
+    public async Task<PersonResult> CancelLeavingAsync(int id, string actorId, CancellationToken cancellationToken = default)
+    {
+        var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (person is null)
+        {
+            return new PersonResult(PersonResultStatus.NotFound);
+        }
+
+        if (person.LeavingDate is not { } leaving)
+        {
+            return PersonResult.Invalid(LeavingDateField, "This person has no leaving date to cancel.");
+        }
+
+        if (leaving < clock.Today)
+        {
+            return PersonResult.Invalid(LeavingDateField, "The leaving date has already passed. Use Reactivate to record a rejoining date.");
+        }
+
+        if (await LockedChangeAsync(leaving.AddDays(1), null, cancellationToken) is { } locked)
+        {
+            return PersonResult.Invalid(LeavingDateField, locked);
+        }
+
+        person.CancelLeaving(clock.Today, actorId, clock.UtcNow);
+        var failure = await SaveAsync(cancellationToken, conflictId: id);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        SecurityLog.PersonLeavingCancelled(_log, actorId, person.Id, person.Code, leaving);
+        return new PersonResult(PersonResultStatus.Success, person.Id);
+    }
+
+    /// <summary>
+    /// The message when changing employment from <paramref name="from"/> to <paramref name="to"/> (inclusive; null = no end)
+    /// would touch a finalized payroll period, or null when nothing locked is affected.
+    /// </summary>
+    private async Task<string?> LockedChangeAsync(DateOnly from, DateOnly? to, CancellationToken cancellationToken)
+    {
+        if (to is { } end && end < from)
+        {
+            return null;
+        }
+
+        return await payrollLock.FirstLockedAsync(from, to, cancellationToken) is { } start
+            ? LockedEmploymentMessage(HR.Domain.Payroll.PayPeriod.For(start))
+            : null;
+    }
+
+    public static string LockedEmploymentMessage(HR.Domain.Payroll.PayPeriod period) =>
+        $"This change would alter the finalized payroll for {period.Start.ToString("dd MMM", System.Globalization.CultureInfo.InvariantCulture)}–{period.End.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}. " +
+        "An administrator has to reopen that payroll first.";
+
     /// <summary>Admin only. At most one active person may have the Owner source (SPEC §2).</summary>
     public async Task<PersonResult> SetHireSourceAsync(int id, HireSource? source, string actorId, CancellationToken cancellationToken = default)
     {
@@ -397,10 +484,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return PersonResult.Invalid(nameof(Person.HireSource), HireSourceLockedMessage);
         }
 
-        if (source == HireSource.Owner && person.IsActive)
+        var today = clock.Today;
+        if (source == HireSource.Owner && person.IsActiveOn(today))
         {
             var currentOwner = await db.People.AsNoTracking()
-                .Where(p => p.Id != id && p.IsActive && p.HireSource == HireSource.Owner)
+                .Where(PersonStatus.ActiveOn(today))
+                .Where(p => p.Id != id && p.HireSource == HireSource.Owner)
                 .Select(p => new { p.FullName, p.Code })
                 .FirstOrDefaultAsync(cancellationToken);
             if (currentOwner is not null)
@@ -430,12 +519,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
 
     // ---------- Helpers ----------
 
-    private static IQueryable<Person> Filter(IQueryable<Person> people, PeopleQuery query)
+    private static IQueryable<Person> Filter(IQueryable<Person> people, PeopleQuery query, DateOnly today)
     {
         people = query.Status switch
         {
-            PersonStatusFilter.Active => people.Where(p => p.IsActive),
-            PersonStatusFilter.Inactive => people.Where(p => !p.IsActive),
+            PersonStatusFilter.Active => people.Where(PersonStatus.ActiveOn(today)),
+            PersonStatusFilter.Inactive => people.Where(PersonStatus.InactiveOn(today)),
             _ => people,
         };
 
@@ -508,6 +597,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             db.ChangeTracker.Clear();
             return PersonResult.Invalid(nameof(PersonInput.JoiningDate), "Employment periods can't overlap.");
         }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: ActiveOwnerErrorNumber })
+        {
+            // The database trigger caught a second active Owner (a race the checks above couldn't see).
+            db.ChangeTracker.Clear();
+            return PersonResult.Invalid(ownerField, ownerMessage ?? "This change can't be saved right now.");
+        }
         catch (DbUpdateException ex) when (UniqueIndex(ex) is { } index)
         {
             db.ChangeTracker.Clear();
@@ -515,7 +610,6 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             {
                 PersonConfiguration.EmailIndex => PersonResult.Invalid(nameof(PersonInput.Email), DuplicateEmailMessage),
                 PersonConfiguration.CnicIndex => PersonResult.Invalid(nameof(PersonInput.Cnic), DuplicateCnicMessage),
-                PersonConfiguration.ActiveOwnerIndex => PersonResult.Invalid(ownerField, ownerMessage ?? "This change can't be saved right now."),
                 _ => PersonResult.Invalid(string.Empty, "This change can't be saved. Please try again."),
             };
         }
@@ -536,7 +630,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, ILoggerFactory 
             return null;
         }
 
-        foreach (var index in new[] { PersonConfiguration.EmailIndex, PersonConfiguration.CnicIndex, PersonConfiguration.ActiveOwnerIndex })
+        foreach (var index in new[] { PersonConfiguration.EmailIndex, PersonConfiguration.CnicIndex })
         {
             if (sql.Message.Contains(index, StringComparison.Ordinal))
             {

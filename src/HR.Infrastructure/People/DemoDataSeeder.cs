@@ -84,7 +84,7 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
             .Select(p => p.Email!)
             .ToListAsync(cancellationToken);
         var existingEmails = existing.ToHashSet(StringComparer.Ordinal);
-        var hasActiveOwner = await db.People.AnyAsync(p => p.IsActive && p.HireSource == HireSource.Owner, cancellationToken);
+        var hasActiveOwner = await db.People.Where(PersonStatus.ActiveOn(clock.Today)).AnyAsync(p => p.HireSource == HireSource.Owner, cancellationToken);
 
         var added = 0;
         for (var i = 0; i < People.Length; i++)

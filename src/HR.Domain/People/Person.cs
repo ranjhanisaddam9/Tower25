@@ -2,7 +2,8 @@ namespace HR.Domain.People;
 
 /// <summary>
 /// An employee or internee placed at the Company (SPEC §2).
-/// Invariants: LeavingDate ≥ JoiningDate; inactive ⇔ a leaving date is set; the code never changes.
+/// Invariants: LeavingDate ≥ JoiningDate; the code never changes. Active status is not stored: a person is active until
+/// their leaving date has passed (<see cref="IsActiveOn"/>, <see cref="PersonStatus"/>).
 /// </summary>
 public sealed class Person
 {
@@ -39,7 +40,8 @@ public sealed class Person
 
     public DateOnly? LeavingDate { get; private set; }
 
-    public bool IsActive { get; private set; }
+    /// <summary>Active ⇔ no leaving date, or the leaving date is today or later (Asia/Karachi "today").</summary>
+    public bool IsActiveOn(DateOnly today) => LeavingDate is not { } leaving || leaving >= today;
 
     /// <summary>Admin-only. Null means "not assigned yet".</summary>
     public HireSource? HireSource { get; private set; }
@@ -63,7 +65,6 @@ public sealed class Person
         {
             CodeNumber = codeNumber,
             Code = PersonCode.Format(codeNumber),
-            IsActive = true,
             CreatedAt = now,
             CreatedByUserId = actorId,
         };
@@ -93,18 +94,16 @@ public sealed class Person
         Apply(normalized, actorId, now);
     }
 
-    /// <summary>Closes the open employment period. Requires <see cref="EmploymentPeriods"/> to be loaded.</summary>
+    /// <summary>
+    /// Sets a leaving date by closing the open employment period. The date may be in the past or the future; the person
+    /// stays active until it has passed. Requires <see cref="EmploymentPeriods"/> to be loaded.
+    /// </summary>
     public void Deactivate(DateOnly leavingDate, string actorId, DateTimeOffset now)
     {
-        if (!IsActive)
-        {
-            throw new PersonRuleException(nameof(LeavingDate), "This person is already inactive.");
-        }
-
         var open = LatestPeriod();
         if (!open.IsOpen)
         {
-            throw new PersonRuleException(nameof(LeavingDate), "There is no open employment period to close.");
+            throw new PersonRuleException(nameof(LeavingDate), "This person already has a leaving date.");
         }
 
         if (leavingDate < open.StartDate)
@@ -114,8 +113,30 @@ public sealed class Person
 
         open.Close(leavingDate, actorId, now);
         LeavingDate = leavingDate;
-        IsActive = false;
         Touch(actorId, now);
+    }
+
+    /// <summary>
+    /// Cancels a leaving date that hasn't passed yet: the same employment period is reopened (no new period).
+    /// Returns the cancelled date. Requires <see cref="EmploymentPeriods"/> to be loaded.
+    /// </summary>
+    public DateOnly CancelLeaving(DateOnly today, string actorId, DateTimeOffset now)
+    {
+        var latest = LatestPeriod();
+        if (latest.EndDate is not { } leaving)
+        {
+            throw new PersonRuleException(nameof(LeavingDate), "This person has no leaving date to cancel.");
+        }
+
+        if (leaving < today)
+        {
+            throw new PersonRuleException(nameof(LeavingDate), "The leaving date has already passed. Use Reactivate to record a rejoining date.");
+        }
+
+        latest.Reopen(actorId, now);
+        LeavingDate = null;
+        Touch(actorId, now);
+        return leaving;
     }
 
     /// <summary>
@@ -124,13 +145,13 @@ public sealed class Person
     /// </summary>
     public (DateOnly PreviousJoiningDate, DateOnly? PreviousLeavingDate) Reactivate(DateOnly rejoiningDate, string actorId, DateTimeOffset now)
     {
-        if (IsActive)
+        var previous = LatestPeriod();
+        if (previous.EndDate is not { } leaving)
         {
-            throw new PersonRuleException("RejoiningDate", "This person is already active.");
+            throw new PersonRuleException("RejoiningDate", "This person has no leaving date, so there is nothing to rejoin from.");
         }
 
-        var previous = LatestPeriod();
-        if (previous.EndDate is { } leaving && rejoiningDate <= leaving)
+        if (rejoiningDate <= leaving)
         {
             throw new PersonRuleException("RejoiningDate", "The rejoining date must be after the previous leaving date.");
         }
@@ -140,7 +161,6 @@ public sealed class Person
         _periods.Add(new EmploymentPeriod(rejoiningDate, actorId, now));
         JoiningDate = rejoiningDate;
         LeavingDate = null;
-        IsActive = true;
         Touch(actorId, now);
         return (previous.StartDate, previous.EndDate);
     }

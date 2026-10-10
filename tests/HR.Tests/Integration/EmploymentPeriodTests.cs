@@ -79,7 +79,7 @@ public partial class EmploymentPeriodTests(TestDatabaseFixture fixture) : Integr
         Assert.Equal(2, person.EmploymentPeriods.Count);
         Assert.Equal(latest.StartDate, person.JoiningDate);
         Assert.Equal(latest.EndDate, person.LeavingDate);
-        Assert.True(person.IsActive);
+        Assert.True(person.IsActiveOn(PeopleHelpers.Today));
 
         // Deactivating again closes the new period and updates the cache.
         await client.PostFormAsync($"/people/{id}/deactivate", $"/people/{id}", new Dictionary<string, string> { ["leavingDate"] = "2026-09-30" });

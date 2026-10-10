@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using HR.Domain.Absences;
 using HR.Domain.Pay;
+using HR.Domain.Payroll;
 using HR.Domain.People;
 using HR.Domain.Rates;
 using HR.Infrastructure.Data.Configurations;
@@ -23,6 +24,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<RateRecord> RateRecords => Set<RateRecord>();
 
     public DbSet<Absence> Absences => Set<Absence>();
+
+    public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+
+    public DbSet<PayrollLine> PayrollLines => Set<PayrollLine>();
+
+    public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
 
     /// <summary>Takes the next person-code number. Sequence values are never rolled back, so codes are never reused.</summary>
     public async Task<int> NextPersonCodeNumberAsync(CancellationToken cancellationToken = default)

@@ -9,13 +9,11 @@
         ("Dashboard", "bi-grid-1x2", "Home", "Index"),
         ("People", "bi-people", "People", "Index"),
         ("Absences", "bi-calendar-x", "Absences", "Index"),
+        ("Payroll", "bi-receipt", "Payroll", "Index"),
         ("Salaries", "bi-cash-stack", "Salaries", "Index"),
         ("Exchange Rates", "bi-currency-exchange", "ExchangeRates", "Index"),
     };
-    var upcoming = new List<(string Label, string Icon)>
-    {
-        ("Payroll", "bi-receipt"),
-    };
+    var upcoming = new List<(string Label, string Icon)>();
 
     // Admin-only sections (SPEC §1: invoices and owner income are Admin-only) are not even listed for Managers.
     if (isAdmin)

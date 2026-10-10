@@ -1,0 +1,12 @@
+@model PayslipViewModel
+@{
+    ViewData["Title"] = "Payslip";
+    ViewData["Section"] = "Payroll";
+}
+
+<div class="page-actions no-print">
+    <a class="btn btn-ghost" asp-action="Line" asp-route-id="@Model.Run.Id" asp-route-lineId="@Model.Detail.Line.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> @Model.Detail.Line.PersonName</a>
+    <button type="button" class="btn btn-primary-gradient" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+</div>
+
+<partial name="_Payslip" model="(Model.Run, Model.Detail, Model.IssuerName)" />

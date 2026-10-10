@@ -13,11 +13,23 @@
     <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All people</a>
     <div class="action-group">
         <a class="btn btn-ghost" asp-action="Edit" asp-route-id="@p.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
-        @if (p.IsActive)
+        @if (p.LeavingDate is null)
         {
             <button type="button" class="btn btn-danger-solid" data-bs-toggle="modal" data-bs-target="#deactivateModal">
                 <i class="bi bi-person-dash" aria-hidden="true"></i> Deactivate
             </button>
+        }
+        else if (p.IsActive)
+        {
+            <form method="post" asp-action="CancelLeaving" asp-route-id="@p.Id" class="d-inline">
+                <button type="submit" class="btn btn-ghost" data-testid="cancel-leaving"
+                        data-confirm="@p.FullName's leaving date (@DisplayFormat.Date(p.LeavingDate.Value)) will be removed and the current employment period continues."
+                        data-confirm-title="Cancel the leaving date?"
+                        data-confirm-action="Cancel leaving"
+                        data-confirm-variant="primary">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Cancel leaving
+                </button>
+            </form>
         }
         else
         {
@@ -38,14 +50,7 @@
                 <div class="cell-group profile-pills">
                     <span class="pill pill-neutral num" data-testid="person-code">@p.Code</span>
                     <span class="pill @(p.Type == PersonType.Employee ? "pill-primary" : "pill-info")">@p.Type</span>
-                    @if (p.IsActive)
-                    {
-                        <span class="pill pill-success">Active</span>
-                    }
-                    else
-                    {
-                        <span class="pill pill-danger">Inactive</span>
-                    }
+                    <partial name="_PersonStatus" model="p.LeavingDate" />
                 </div>
             </div>
         </div>
@@ -55,7 +60,7 @@
             <dd><time datetime="@Iso(p.JoiningDate)">@DisplayFormat.Date(p.JoiningDate)</time></dd>
             @if (p.LeavingDate is { } left)
             {
-                <dt>Left</dt>
+                <dt>@(p.IsActive ? "Leaving" : "Left")</dt>
                 <dd><time datetime="@Iso(left)">@DisplayFormat.Date(left)</time></dd>
             }
             <dt>Phone</dt>
@@ -226,7 +231,7 @@
     }
 </section>
 
-@if (p.IsActive)
+@if (p.LeavingDate is null)
 {
     <div class="modal fade glass-modal" id="deactivateModal" tabindex="-1" aria-labelledby="deactivateTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -252,7 +257,7 @@
         </div>
     </div>
 }
-else
+else if (!p.IsActive)
 {
     <div class="modal fade glass-modal" id="reactivateModal" tabindex="-1" aria-labelledby="reactivateTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">

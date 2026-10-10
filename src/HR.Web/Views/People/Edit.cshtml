@@ -13,14 +13,7 @@
 <section class="glass-card form-card form-card-wide" aria-labelledby="editHeading">
     <div class="card-heading-row">
         <h2 class="card-title mb-0" id="editHeading">@Model.Form.FullName <span class="text-muted-glass num">· @Model.Code</span></h2>
-        @if (Model.IsActive)
-        {
-            <span class="pill pill-success">Active</span>
-        }
-        else
-        {
-            <span class="pill pill-danger">Inactive</span>
-        }
+        <partial name="_PersonStatus" model="Model.LeavingDate" />
     </div>
 
     <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="edit-errors"></div>

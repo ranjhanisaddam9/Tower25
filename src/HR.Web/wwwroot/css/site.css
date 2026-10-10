@@ -1214,3 +1214,210 @@
 .attendance-note .form-control {
     min-height: var(--touch-target);
 }
+
+/* ===================== Payroll (M7) ===================== */
+
+.run-header {
+    margin-bottom: 1.5rem;
+}
+
+.run-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.75rem 1.5rem;
+    margin: 1rem 0 0;
+}
+
+.run-facts dt {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.run-facts dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.run-facts .cell-sub {
+    display: block;
+    font-weight: 400;
+}
+
+.issues-panel,
+.changes-panel,
+.rate-card {
+    margin-bottom: 1.5rem;
+}
+
+.issues-list,
+.changes-list,
+.run-history,
+.breakdown-steps,
+.breakdown-absences {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.issues-list li,
+.changes-list li,
+.run-history li,
+.breakdown-absences li {
+    padding: 0.25rem 0;
+}
+
+.rate-card summary {
+    cursor: pointer;
+    min-height: var(--touch-target);
+    display: flex;
+    align-items: center;
+}
+
+.rate-form {
+    margin-top: 0.5rem;
+}
+
+.breakdown-title {
+    font-size: var(--fs-body);
+    font-weight: 600;
+    margin: 1.25rem 0 0.5rem;
+}
+
+.breakdown {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    max-width: 34rem;
+}
+
+.breakdown dt {
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.breakdown dd {
+    margin: 0;
+    text-align: right;
+}
+
+.breakdown-steps li {
+    padding: 0.2rem 0;
+}
+
+/* Payslip on screen: a white-ish sheet inside the glass layout. */
+.payslip {
+    max-width: 52rem;
+}
+
+.payslip-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.payslip-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    border-bottom: 1px solid var(--divider);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.payslip-issuer {
+    margin: 0;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: var(--fs-small);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.payslip-title {
+    margin: 0.25rem 0 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.payslip-period {
+    margin: 0;
+}
+
+.payslip-draft {
+    margin: 0;
+    font-weight: 700;
+    color: var(--tone-warning-fg);
+}
+
+.payslip-person {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.5rem 1.5rem;
+    margin: 0 0 1rem;
+}
+
+.payslip-person dt {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.payslip-person dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.payslip-section {
+    font-size: var(--fs-body);
+    font-weight: 600;
+    margin: 1rem 0 0.25rem;
+}
+
+.payslip-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payslip-table th,
+.payslip-table td {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--divider);
+    font-weight: 400;
+    vertical-align: top;
+}
+
+.payslip-table td {
+    text-align: right;
+    white-space: nowrap;
+    padding-left: 1rem;
+}
+
+.payslip-total th,
+.payslip-total td {
+    font-weight: 700;
+    border-bottom: 0;
+}
+
+.payslip-note {
+    margin: 0.5rem 0 0;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.register .iban {
+    white-space: nowrap;
+}
+
+/* Wide money tables (the Admin payroll run): tighter cells on large screens so 9 columns fit without scrolling. */
+@media (min-width: 768px) {
+    .glass-table-compact th,
+    .glass-table-compact td {
+        padding: 10px 10px;
+    }
+
+    .glass-table-compact .cell-stack .pill {
+        align-self: flex-start;
+    }
+}

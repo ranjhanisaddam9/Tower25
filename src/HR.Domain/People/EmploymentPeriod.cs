@@ -53,6 +53,13 @@ public sealed class EmploymentPeriod
         Touch(actorId, now);
     }
 
+    /// <summary>Clears the end date (cancelling a planned leaving date). The same period continues.</summary>
+    internal void Reopen(string actorId, DateTimeOffset now)
+    {
+        EndDate = null;
+        Touch(actorId, now);
+    }
+
     private void Touch(string actorId, DateTimeOffset now)
     {
         UpdatedAt = now;

@@ -43,6 +43,9 @@ public partial class AbsenceTests(TestDatabaseFixture fixture) : IntegrationTest
     private sealed class FakePayrollLock(DateOnly lockedBefore) : IPayrollLock
     {
         public Task<bool> IsLockedAsync(DateOnly periodStart, CancellationToken cancellationToken = default) => Task.FromResult(periodStart < lockedBefore);
+
+        public Task<DateOnly?> LatestLockedPeriodStartAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<DateOnly?>(HR.Domain.Payroll.PayPeriod.For(lockedBefore.AddDays(-1)).Start);
     }
 
     private sealed class TestApp(WebApplicationFactory<Program> factory) : IAsyncDisposable

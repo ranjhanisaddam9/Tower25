@@ -111,6 +111,44 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1410, Level = LogLevel.Information, Message = "Demo data: seeded {Count} absences")]
     public static partial void DemoAbsencesSeeded(ILogger logger, int count);
 
+    [LoggerMessage(EventId = 1105, Level = LogLevel.Information, Message = "Audit: {ActorId} cancelled the leaving date {LeavingDate} of person {PersonId} ({PersonCode})")]
+    public static partial void PersonLeavingCancelled(ILogger logger, string actorId, int personId, string personCode, DateOnly leavingDate);
+
+    // ---- Payroll (audit; never notes or the reopen reason) ----
+
+    [LoggerMessage(EventId = 1500, Level = LogLevel.Information, Message = "Audit: {ActorId} generated payroll {RunId} for {PeriodStart} with {LineCount} lines, rate {Rate}")]
+    public static partial void PayrollGenerated(ILogger logger, string actorId, int runId, DateOnly periodStart, int lineCount, string rate);
+
+    [LoggerMessage(EventId = 1501, Level = LogLevel.Information, Message = "Audit: {ActorId} regenerated payroll {RunId}: {LineCount} lines, {ChangedCount} changed, {OrphanCount} orphaned")]
+    public static partial void PayrollRegenerated(ILogger logger, string actorId, int runId, int lineCount, int changedCount, int orphanCount);
+
+    [LoggerMessage(EventId = 1502, Level = LogLevel.Information, Message = "Audit: {ActorId} changed the rate of payroll {RunId}: {OldRate} -> {NewRate} (overridden {Overridden})")]
+    public static partial void PayrollRateChanged(ILogger logger, string actorId, int runId, string oldRate, string newRate, bool overridden);
+
+    [LoggerMessage(EventId = 1503, Level = LogLevel.Information, Message = "Audit: {ActorId} set extra days on payroll {RunId} line {LineId} (person {PersonId}): {OldDays} -> {NewDays}")]
+    public static partial void PayrollExtraDaysChanged(ILogger logger, string actorId, int runId, int lineId, int personId, decimal oldDays, decimal newDays);
+
+    [LoggerMessage(EventId = 1504, Level = LogLevel.Information, Message = "Audit: {ActorId} added adjustment {AdjustmentId} to payroll {RunId} line {LineId}: {NewValues}")]
+    public static partial void PayrollAdjustmentAdded(ILogger logger, string actorId, int runId, int lineId, int adjustmentId, string newValues);
+
+    [LoggerMessage(EventId = 1505, Level = LogLevel.Information, Message = "Audit: {ActorId} edited adjustment {AdjustmentId} on payroll {RunId} line {LineId}: {OldValues} -> {NewValues}")]
+    public static partial void PayrollAdjustmentEdited(ILogger logger, string actorId, int runId, int lineId, int adjustmentId, string oldValues, string newValues);
+
+    [LoggerMessage(EventId = 1506, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted adjustment {AdjustmentId} from payroll {RunId} line {LineId}: {OldValues}")]
+    public static partial void PayrollAdjustmentDeleted(ILogger logger, string actorId, int runId, int lineId, int adjustmentId, string oldValues);
+
+    [LoggerMessage(EventId = 1507, Level = LogLevel.Warning, Message = "Security: {ActorId} finalized payroll {RunId} for {PeriodStart}: {LineCount} lines, net pay {NetPayPkr} PKR, rate {Rate}")]
+    public static partial void PayrollFinalized(ILogger logger, string actorId, int runId, DateOnly periodStart, int lineCount, decimal netPayPkr, decimal rate);
+
+    [LoggerMessage(EventId = 1508, Level = LogLevel.Warning, Message = "Audit: {ActorId} could not finalize payroll {RunId}: {Reason}")]
+    public static partial void PayrollFinalizeRefused(ILogger logger, string actorId, int runId, string reason);
+
+    [LoggerMessage(EventId = 1509, Level = LogLevel.Warning, Message = "Security: {ActorId} reopened payroll {RunId} for {PeriodStart}")]
+    public static partial void PayrollReopened(ILogger logger, string actorId, int runId, DateOnly periodStart);
+
+    [LoggerMessage(EventId = 1510, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted draft payroll {RunId} for {PeriodStart}")]
+    public static partial void PayrollDeleted(ILogger logger, string actorId, int runId, DateOnly periodStart);
+
     [LoggerMessage(EventId = 1110, Level = LogLevel.Information, Message = "Demo data: seeded {Count} people")]
     public static partial void DemoDataSeeded(ILogger logger, int count);
 }

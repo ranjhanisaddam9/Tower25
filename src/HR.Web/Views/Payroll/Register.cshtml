@@ -1,0 +1,57 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "Payroll register";
+    ViewData["Section"] = "Payroll";
+    var run = Model.Run;
+}
+
+<div class="page-actions no-print">
+    <a class="btn btn-ghost" asp-action="Run" asp-route-id="@run.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> Payroll @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</a>
+    <button type="button" class="btn btn-primary-gradient" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+</div>
+
+<section class="glass-card register" aria-labelledby="registerHeading" data-testid="register">
+    <div class="card-heading-row">
+        <div>
+            <p class="payslip-issuer">@Model.IssuerName</p>
+            <h2 class="card-title mb-0" id="registerHeading">Disbursement register · @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</h2>
+        </div>
+        <span class="pill @PayrollDisplay.StatusPill(run.Status)">@PayrollDisplay.StatusLabel(run.Status)</span>
+    </div>
+    @if (run.IsDraft)
+    {
+        <p class="payslip-draft">Draft: amounts can still change.</p>
+    }
+    <div class="glass-table-wrap glass-table-wrap-inset">
+        <table class="glass-table register-table">
+            <caption class="visually-hidden">Net pay per person with bank details</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Code</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Bank</th>
+                    <th scope="col">IBAN</th>
+                    <th scope="col" class="money">Net pay</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr data-testid="register-row">
+                        <td data-label="Code" class="num">@r.PersonCode</td>
+                        <td data-label="Name">@r.PersonName</td>
+                        <td data-label="Bank">@(r.BankName ?? "—")</td>
+                        <td data-label="IBAN" class="num iban">@(r.Iban is { } iban ? HR.Domain.People.PakistaniIban.Format(iban) : "—")</td>
+                        <td data-label="Net pay" class="money num">@PayrollDisplay.Pkr(r.NetPayPkr)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th scope="row" colspan="4">Total (@Model.Rows.Count @(Model.Rows.Count == 1 ? "person" : "people"))</th>
+                    <td data-label="Total" class="money num" data-testid="register-total"><strong>@DisplayFormat.Pkr(Model.Total)</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</section>

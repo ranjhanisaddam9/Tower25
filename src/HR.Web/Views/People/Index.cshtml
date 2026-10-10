@@ -121,22 +121,7 @@ else
                             <td data-label="Hire source"><span class="pill @HireSourceDisplay.PillClass(source)">@HireSourceDisplay.Label(source)</span></td>
                         }
                         <td data-label="Joined" class="num">@DisplayFormat.Date(p.JoiningDate)</td>
-                        <td data-label="Status">
-                            @if (p.IsActive)
-                            {
-                                <span class="pill pill-success">Active</span>
-                            }
-                            else
-                            {
-                                <span class="cell-group">
-                                    <span class="pill pill-danger">Inactive</span>
-                                    @if (p.LeavingDate is { } left)
-                                    {
-                                        <span class="cell-sub">left @DisplayFormat.Date(left)</span>
-                                    }
-                                </span>
-                            }
-                        </td>
+                        <td data-label="Status"><partial name="_PersonStatus" model="p.LeavingDate" /></td>
                     </tr>
                 }
             </tbody>

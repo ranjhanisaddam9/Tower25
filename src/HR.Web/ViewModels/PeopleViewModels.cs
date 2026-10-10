@@ -88,7 +88,7 @@ public sealed record FieldChangeViewModel(string Label, string Saved, string You
 public sealed record PersonEditViewModel(
     int Id,
     string Code,
-    bool IsActive,
+    DateOnly? LeavingDate,
     string? MaskedCnic,
     string? MaskedIban,
     PersonFormViewModel Form,

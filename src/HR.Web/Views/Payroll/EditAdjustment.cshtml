@@ -1,0 +1,22 @@
+@model AdjustmentEditViewModel
+@{
+    ViewData["Title"] = "Edit adjustment";
+    ViewData["Section"] = "Payroll";
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Line" asp-route-id="@Model.Run.Id" asp-route-lineId="@Model.Line.Id" asp-fragment="adjustments"><i class="bi bi-arrow-left" aria-hidden="true"></i> @Model.Line.PersonName</a>
+</div>
+
+<section class="glass-card form-card" aria-labelledby="adjustmentHeading">
+    <h2 class="card-title" id="adjustmentHeading">@Model.Line.PersonName <span class="text-muted-glass num">· @Model.Line.PersonCode</span></h2>
+    <p class="text-muted-glass">Payroll @DisplayFormat.DateRange(Model.Run.Period.Start, Model.Run.Period.End)</p>
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="adjustment-errors"></div>
+    <form method="post" asp-action="EditAdjustment" asp-route-id="@Model.Run.Id" asp-route-lineId="@Model.Line.Id" asp-route-adjustmentId="@Model.AdjustmentId">
+        <input type="hidden" name="RowVersion" value="@Model.Form.RowVersion" />
+        <partial name="_AdjustmentFields" model="Model.Form" />
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
+        </div>
+    </form>
+</section>

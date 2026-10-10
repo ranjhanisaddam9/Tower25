@@ -199,6 +199,14 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
         return await AfterStatusChange(id, result, "has been reactivated.", cancellationToken);
     }
 
+    /// <summary>Removes a leaving date that hasn't passed: the same employment period continues (no new period).</summary>
+    [HttpPost("{id:int}/cancel-leaving")]
+    public async Task<IActionResult> CancelLeaving(int id, CancellationToken cancellationToken)
+    {
+        var result = await people.CancelLeavingAsync(id, ActorId, cancellationToken);
+        return await AfterStatusChange(id, result, "is no longer leaving: the leaving date was cancelled.", cancellationToken);
+    }
+
     /// <summary>Admin only (SPEC §2). The value is a hire-source name, or empty for "not assigned".</summary>
     [HttpPost("{id:int}/hire-source")]
     [Authorize(Policy = Policies.AdminOnly)]
@@ -258,7 +266,7 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
         new(r.Id, r.Code, r.FullName, r.Designation, r.Type, r.JoiningDate, r.LeavingDate, r.IsActive);
 
     private static PersonEditViewModel EditModel(PersonDetails person, PersonFormViewModel form, IReadOnlyList<FieldChangeViewModel>? changes = null) =>
-        new(person.Id, person.Code, person.IsActive,
+        new(person.Id, person.Code, person.LeavingDate,
             person.Cnic is null ? null : Masking.Cnic(person.Cnic),
             person.Iban is null ? null : Masking.Iban(person.Iban),
             form, changes);

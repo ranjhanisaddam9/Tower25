@@ -1,0 +1,78 @@
+@using HR.Domain.Pay
+@using HR.Domain.Payroll
+@using HR.Infrastructure.Payroll
+@model (PayrollRunHeader Run, PayrollLineDetail Detail, string Issuer)
+@{
+    // A payslip carries pay only: never billing, for any role.
+    var run = Model.Run;
+    var l = Model.Detail.Line;
+    var paidDays = Model.Detail.Absences.Sum(a => a.PaidDays);
+    var unpaidDays = Model.Detail.Absences.Sum(a => a.UnpaidDays);
+}
+<article class="payslip glass-card" aria-label="Payslip for @l.PersonName" data-testid="payslip">
+    <header class="payslip-head">
+        <div>
+            <p class="payslip-issuer" data-testid="payslip-issuer">@Model.Issuer</p>
+            <h2 class="payslip-title">Payslip</h2>
+            <p class="payslip-period num">@DisplayFormat.DateRange(run.Period.Start, run.Period.End)</p>
+        </div>
+        @if (run.IsDraft)
+        {
+            <p class="payslip-draft" data-testid="payslip-draft">Draft: not final</p>
+        }
+    </header>
+
+    <dl class="payslip-person">
+        <div><dt>Name</dt><dd>@l.PersonName</dd></div>
+        <div><dt>Code</dt><dd class="num">@l.PersonCode</dd></div>
+        <div><dt>Designation</dt><dd>@l.Designation</dd></div>
+        <div><dt>Type</dt><dd>@l.PersonType</dd></div>
+    </dl>
+
+    <h3 class="payslip-section">Days</h3>
+    <table class="payslip-table">
+        <tbody>
+            <tr><th scope="row">Working days in the period</th><td class="num">@l.WorkingDays</td></tr>
+            <tr><th scope="row">Employed working days</th><td class="num">@l.EmployedWorkingDays</td></tr>
+            <tr><th scope="row">Absences: paid leave</th><td class="num">@PayrollDisplay.Days(paidDays)</td></tr>
+            <tr><th scope="row">Absences: unpaid</th><td class="num">− @PayrollDisplay.Days(unpaidDays)</td></tr>
+            <tr><th scope="row">Extra days worked</th><td class="num">+ @PayrollDisplay.Days(l.ExtraDays)</td></tr>
+            <tr class="payslip-total"><th scope="row">Payable days</th><td class="num">@PayrollDisplay.Days(l.PayableDays) of @l.WorkingDays</td></tr>
+        </tbody>
+    </table>
+    @if (Model.Detail.Absences.Count > 0)
+    {
+        <p class="payslip-note">Absences: @string.Join("; ", Model.Detail.Absences.Select(a => $"{DisplayFormat.Date(a.Date)} {(a.Portion == HR.Domain.Absences.AbsencePortion.Full ? "full" : "half")} ({AbsenceDisplay.Split(a.PaidDays, a.UnpaidDays)})"))</p>
+    }
+
+    <h3 class="payslip-section">Pay</h3>
+    <table class="payslip-table">
+        <tbody>
+            <tr>
+                <th scope="row">Monthly pay</th>
+                <td class="num">@(l.PayMonthlyAmount is { } m && l.PayCurrency is { } c ? DisplayFormat.Money(m, c) : "—")</td>
+            </tr>
+            <tr>
+                <th scope="row">Base pay for the period (@PayrollDisplay.Fraction(l.PayableDays, l.WorkingDays) of half a month)</th>
+                <td class="num" data-testid="payslip-base">@PayrollDisplay.Pkr(l.PayPkr)</td>
+            </tr>
+            @foreach (var a in Model.Detail.Adjustments)
+            {
+                var sign = a.Type == AdjustmentType.Deduction ? -1 : 1;
+                <tr>
+                    <th scope="row">@PayrollDisplay.AdjustmentLabel(a.Type)@(a.Note is { } n ? $": {n}" : "")@(a.Currency == PayCurrency.USD ? $" ({DisplayFormat.Usd(a.Amount)})" : "")</th>
+                    <td class="num">@PayrollDisplay.Signed(a.AmountPkr, PayCurrency.PKR, sign)</td>
+                </tr>
+            }
+            <tr class="payslip-total">
+                <th scope="row">Net pay</th>
+                <td class="num" data-testid="payslip-net">@PayrollDisplay.Pkr(l.NetPayPkr)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="payslip-note num" data-testid="payslip-rate">
+        Exchange rate used: @(run.ExchangeRate is { } r ? $"1 USD = {PayrollDisplay.Rate(r)}" : "not set")
+        · USD reference: @PayrollDisplay.Usd(l.NetPayUsd)
+    </p>
+</article>

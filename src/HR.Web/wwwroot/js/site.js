@@ -221,4 +221,12 @@
             });
         });
     });
+
+    // ---------- Print buttons ----------
+    // Usage: <button type="button" data-print>Print</button> (no inline handlers under the CSP).
+    document.addEventListener('click', function (event) {
+        if (event.target.closest('[data-print]')) {
+            window.print();
+        }
+    });
 })();

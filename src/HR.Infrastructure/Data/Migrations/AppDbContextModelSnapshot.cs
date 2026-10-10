@@ -170,6 +170,405 @@ namespace HR.Infrastructure.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollAdjustment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("AmountPkr")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("AmountUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<int>("LineId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId");
+
+                    b.ToTable("PayrollAdjustments", null, t =>
+                        {
+                            t.HasTrigger("TR_PayrollAdjustments_Frozen");
+
+                            t.HasCheckConstraint("CK_PayrollAdjustments_Amount", "([Currency] = 'USD' AND [Amount] BETWEEN 0.01 AND 100000) OR ([Currency] = 'PKR' AND [Amount] BETWEEN 1 AND 50000000 AND [Amount] = ROUND([Amount], 0))");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("AdjustmentsPkr")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("AdjustmentsUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("BilledMonthlyUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("BilledUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CommissionPerPeriodUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CommissionUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("EmployedWorkingDays")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ExtraDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("ExtraDaysNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("HireSource")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Iban")
+                        .HasMaxLength(24)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(24)");
+
+                    b.Property<decimal?>("InvoiceUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsOrphaned")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Issue")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<decimal?>("NetPayPkr")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetPayUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OwnerEarningPkr")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OwnerEarningUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PayCurrency")
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<decimal?>("PayMonthlyAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PayPkr")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PayUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PayableDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("PersonCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PersonName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PersonType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<int?>("RateRecordId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("RunId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SalaryPartUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnpaidDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("WorkingDays")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("RunId", "PersonId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayrollLines_RunId_PersonId");
+
+                    b.ToTable("PayrollLines", null, t =>
+                        {
+                            t.HasTrigger("TR_PayrollLines_Frozen");
+
+                            t.HasCheckConstraint("CK_PayrollLines_ExtraDays", "[ExtraDays] = 0 OR ([ExtraDays] BETWEEN 0.5 AND 10 AND [ExtraDays] * 2 = FLOOR([ExtraDays] * 2))");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollLineAbsence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LineId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PaidDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("Portion")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<decimal>("UnpaidDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("PayrollLineAbsences", null, t =>
+                        {
+                            t.HasTrigger("TR_PayrollLineAbsences_Frozen");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("ExchangeRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int?>("ExchangeRateEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("FinalizedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FinalizedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("GeneratedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("RateNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("RateOverridden")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PeriodStart")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PayrollRuns_PeriodStart");
+
+                    b.ToTable("PayrollRuns", null, t =>
+                        {
+                            t.HasTrigger("TR_PayrollRuns_NoDeleteFinalized");
+
+                            t.HasCheckConstraint("CK_PayrollRuns_FinalizedHasRate", "[Status] <> 'Finalized' OR ([ExchangeRate] IS NOT NULL AND [FinalizedAt] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_PayrollRuns_Period", "[PeriodEnd] >= [PeriodStart] AND DAY([PeriodStart]) IN (1, 16)");
+
+                            t.HasCheckConstraint("CK_PayrollRuns_Rate", "[ExchangeRate] IS NULL OR [ExchangeRate] > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollRunEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("RunId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RunId", "At");
+
+                    b.ToTable("PayrollRunEvents", (string)null);
+                });
+
             modelBuilder.Entity("HR.Domain.People.EmploymentPeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -281,9 +680,6 @@ namespace HR.Infrastructure.Data.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(24)");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
                     b.Property<DateOnly>("JoiningDate")
                         .HasColumnType("date");
 
@@ -339,21 +735,22 @@ namespace HR.Infrastructure.Data.Migrations
                         .HasDatabaseName("UX_People_Email")
                         .HasFilter("[Email] IS NOT NULL");
 
-                    b.HasIndex("HireSource")
-                        .IsUnique()
-                        .HasDatabaseName("UX_People_ActiveOwner")
-                        .HasFilter("[HireSource] = 'Owner' AND [IsActive] = 1");
+                    b.HasIndex("FullName");
+
+                    b.HasIndex("HireSource");
 
                     b.HasIndex("JoiningDate");
 
-                    b.HasIndex("IsActive", "FullName");
+                    b.HasIndex("LeavingDate");
 
                     b.ToTable("People", null, t =>
                         {
-                            t.HasCheckConstraint("CK_People_InactiveHasLeavingDate", "([IsActive] = 1 AND [LeavingDate] IS NULL) OR ([IsActive] = 0 AND [LeavingDate] IS NOT NULL)");
+                            t.HasTrigger("TR_People_SingleActiveOwner");
 
                             t.HasCheckConstraint("CK_People_LeavingAfterJoining", "[LeavingDate] IS NULL OR [LeavingDate] >= [JoiningDate]");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("HR.Domain.Rates.ExchangeRate", b =>
@@ -642,6 +1039,48 @@ namespace HR.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollAdjustment", b =>
+                {
+                    b.HasOne("HR.Domain.Payroll.PayrollLine", null)
+                        .WithMany("Adjustments")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollLine", b =>
+                {
+                    b.HasOne("HR.Domain.People.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HR.Domain.Payroll.PayrollRun", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollLineAbsence", b =>
+                {
+                    b.HasOne("HR.Domain.Payroll.PayrollLine", null)
+                        .WithMany("Absences")
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollRunEvent", b =>
+                {
+                    b.HasOne("HR.Domain.Payroll.PayrollRun", null)
+                        .WithMany("Events")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HR.Domain.People.EmploymentPeriod", b =>
                 {
                     b.HasOne("HR.Domain.People.Person", null)
@@ -700,6 +1139,20 @@ namespace HR.Infrastructure.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollLine", b =>
+                {
+                    b.Navigation("Absences");
+
+                    b.Navigation("Adjustments");
+                });
+
+            modelBuilder.Entity("HR.Domain.Payroll.PayrollRun", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HR.Domain.People.Person", b =>

@@ -12,6 +12,9 @@ public static partial class PeopleHelpers
     private static int _phoneCounter;
 
     /// <summary>A unique valid mobile number in the 0345 range (test data only).</summary>
+    /// <summary>Today in Asia/Karachi on the real clock (what the app and the DB triggers use in tests).</summary>
+    public static DateOnly Today => HR.Domain.Time.PakistanTime.ToKarachiDate(DateTimeOffset.UtcNow);
+
     public static string NextPhone() => $"0345{Interlocked.Increment(ref _phoneCounter) % 10_000_000:0000000}";
 
     public static async Task<int> CreatePersonAsync(

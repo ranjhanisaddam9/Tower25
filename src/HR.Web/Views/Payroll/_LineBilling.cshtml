@@ -1,0 +1,33 @@
+@using HR.Infrastructure.Payroll
+@model (PayrollLineViewModel Page, PayrollLineBilling Billing)
+@{
+    // Admin only: the controller loads billing for Admins and never for Managers.
+    var l = Model.Page.Line;
+    var b = Model.Billing;
+    var rate = Model.Page.Run.ExchangeRate;
+    var fraction = PayrollDisplay.Fraction(l.PayableDays, l.WorkingDays);
+}
+<section class="glass-card mt-4" aria-labelledby="billingHeading" data-testid="line-billing">
+    <div class="card-heading-row">
+        <h2 class="card-title mb-0" id="billingHeading">Billing and your earning</h2>
+        <span class="pill @HireSourceDisplay.PillClass(b.HireSource)">@HireSourceDisplay.Label(b.HireSource)</span>
+    </div>
+    <ul class="breakdown-steps num">
+        @if (b.BilledMonthlyUsd is { } monthly)
+        {
+            <li>Salary part: @DisplayFormat.Usd(monthly) ÷ 2 × @fraction = @PayrollDisplay.Usd(b.SalaryPartUsd)</li>
+        }
+        @if (b.CommissionPerPeriodUsd is > 0m and { } commission)
+        {
+            <li>Commission: @DisplayFormat.Usd(commission) × @fraction = @PayrollDisplay.Usd(b.CommissionUsd)</li>
+        }
+        <li>Billed: @PayrollDisplay.Usd(b.SalaryPartUsd) + @PayrollDisplay.Usd(b.CommissionUsd) = <strong>@PayrollDisplay.Usd(b.BilledUsd)</strong></li>
+        <li>Adjustments pass through at cost: @PayrollDisplay.Usd(b.AdjustmentsUsd)</li>
+        <li>Invoice: @PayrollDisplay.Usd(b.BilledUsd) + @PayrollDisplay.Usd(b.AdjustmentsUsd) = <strong data-testid="billing-invoice">@PayrollDisplay.Usd(b.InvoiceUsd)</strong></li>
+        <li>Your earning (USD): invoice @PayrollDisplay.Usd(b.InvoiceUsd) − net pay @PayrollDisplay.Usd(l.NetPayUsd) = <strong data-testid="billing-earning-usd">@PayrollDisplay.Usd(b.OwnerEarningUsd)</strong></li>
+        @if (rate is { } r && b.InvoiceUsd is { } invoice)
+        {
+            <li>Your earning (PKR): @PayrollDisplay.Usd(invoice) × @r.ToString("0.00##", System.Globalization.CultureInfo.InvariantCulture) = @DisplayFormat.Pkr(HR.Domain.Payroll.Money.RoundPkr(invoice * r)), − net pay @PayrollDisplay.Pkr(l.NetPayPkr) = <strong data-testid="billing-earning-pkr">@PayrollDisplay.Pkr(b.OwnerEarningPkr)</strong></li>
+        }
+    </ul>
+</section>

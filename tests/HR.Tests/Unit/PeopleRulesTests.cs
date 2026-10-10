@@ -133,6 +133,9 @@ public class PersonInvariantTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 9, 8, 0, 0, TimeSpan.Zero);
 
+    /// <summary>"Today" for the active-status rule (active until the leaving date has passed).</summary>
+    private static readonly DateOnly StatusToday = new(2026, 10, 9);
+
     private static PersonInput Input(DateOnly? joining = null) => new(
         " Ayesha Siddiqui ", PersonType.Employee, "Engineer", "Ayesha@Example.COM", "0300-1234567",
         "1234512345671", "Bank", "pk36 scbl 0000 0011 2345 6702", joining ?? new DateOnly(2026, 1, 5), null);
@@ -148,7 +151,7 @@ public class PersonInvariantTests
         Assert.Equal("+923001234567", person.Phone);
         Assert.Equal("12345-1234567-1", person.Cnic);
         Assert.Equal("PK36SCBL0000001123456702", person.Iban);
-        Assert.True(person.IsActive);
+        Assert.True(person.IsActiveOn(StatusToday));
         Assert.Null(person.LeavingDate);
         Assert.Null(person.HireSource);
     }
@@ -160,7 +163,7 @@ public class PersonInvariantTests
 
         var ex = Assert.Throws<PersonRuleException>(() => person.Deactivate(new DateOnly(2026, 3, 1), "actor", Now));
         Assert.Equal("LeavingDate", ex.Field);
-        Assert.True(person.IsActive);
+        Assert.True(person.IsActiveOn(StatusToday));
         Assert.Null(person.LeavingDate);
     }
 
@@ -170,11 +173,11 @@ public class PersonInvariantTests
         var person = Person.Create(1, Input(new DateOnly(2026, 3, 2)), "actor", Now);
 
         person.Deactivate(new DateOnly(2026, 3, 2), "actor", Now); // same day as joining is allowed
-        Assert.False(person.IsActive);
+        Assert.False(person.IsActiveOn(StatusToday));
         Assert.Equal(new DateOnly(2026, 3, 2), person.LeavingDate);
 
         var (previousJoining, previousLeaving) = person.Reactivate(new DateOnly(2026, 5, 4), "actor", Now);
-        Assert.True(person.IsActive);
+        Assert.True(person.IsActiveOn(StatusToday));
         Assert.Null(person.LeavingDate);
         Assert.Equal(new DateOnly(2026, 5, 4), person.JoiningDate);
         Assert.Equal(new DateOnly(2026, 3, 2), previousJoining);
@@ -188,7 +191,7 @@ public class PersonInvariantTests
         person.Deactivate(new DateOnly(2026, 4, 30), "actor", Now);
 
         Assert.Throws<PersonRuleException>(() => person.Reactivate(new DateOnly(2026, 4, 30), "actor", Now));
-        Assert.False(person.IsActive);
+        Assert.False(person.IsActiveOn(StatusToday));
         Assert.NotNull(person.LeavingDate); // still inactive with its leaving date: never inactive without one
     }
 

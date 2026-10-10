@@ -502,11 +502,11 @@ public sealed class PayRecordService(
 
     /// <summary>Active people without any pay record (both roles).</summary>
     public Task<int> CountActiveWithoutPaySetupAsync(CancellationToken cancellationToken = default) =>
-        db.People.AsNoTracking().CountAsync(p => p.IsActive && !db.RateRecords.Any(r => r.PersonId == p.Id), cancellationToken);
+        db.People.AsNoTracking().Where(PersonStatus.ActiveOn(clock.Today)).CountAsync(p => !db.RateRecords.Any(r => r.PersonId == p.Id), cancellationToken);
 
     /// <summary>Admin only: records flagged for billing review (active people).</summary>
     public Task<int> CountPendingReviewsAsync(CancellationToken cancellationToken = default) =>
-        db.RateRecords.AsNoTracking().CountAsync(r => r.NeedsBillingReview && db.People.Any(p => p.Id == r.PersonId && p.IsActive), cancellationToken);
+        db.RateRecords.AsNoTracking().CountAsync(r => r.NeedsBillingReview && db.People.Any(p => p.Id == r.PersonId && (p.LeavingDate == null || p.LeavingDate >= clock.Today)), cancellationToken);
 
     // ===================== Helpers =====================
 

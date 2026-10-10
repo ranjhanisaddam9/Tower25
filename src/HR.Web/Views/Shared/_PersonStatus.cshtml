@@ -1,0 +1,28 @@
+@using HR.Domain.People
+@inject HR.Domain.Time.IClock Clock
+@model DateOnly?
+@{
+    // Active until the leaving date has passed (Asia/Karachi). A future leaving date shows as a "Leaving …" pill.
+    var today = Clock.Today;
+    var leaving = Model;
+}
+@if (PersonStatus.IsActive(leaving, today))
+{
+    <span class="cell-group">
+        <span class="pill pill-success" data-testid="status-active">Active</span>
+        @if (leaving is { } date)
+        {
+            <span class="pill pill-warning" data-testid="status-leaving">@(date == today ? "Leaving today" : $"Leaving {DisplayFormat.Date(date)}")</span>
+        }
+    </span>
+}
+else
+{
+    <span class="cell-group">
+        <span class="pill pill-danger" data-testid="status-inactive">Inactive</span>
+        @if (leaving is { } left)
+        {
+            <span class="cell-sub">left @DisplayFormat.Date(left)</span>
+        }
+    </span>
+}

@@ -25,7 +25,9 @@ public sealed record DashboardViewModel(
     int NoPaySetup,
     int? PendingBillingReviews,
     int? HireSourceNotAssigned,
-    HR.Infrastructure.Absences.AbsenceDashboard Absences);
+    HR.Infrastructure.Absences.AbsenceDashboard Absences,
+    HR.Infrastructure.Payroll.PayrollDashboard Payroll,
+    HR.Infrastructure.Payroll.PayrollDashboardAdmin? PayrollAdmin);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);
 

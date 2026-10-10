@@ -18,7 +18,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 
 ## 2. Core concepts
 
-**Person**: an Employee or an Internee (`PersonType`). Has one or more employment periods (start date, optional end date; never overlapping; at most one open). Joining/leaving date shown in the UI are those of the latest period. Deactivate closes the open period; reactivate opens a new one. Also has a designation, contact details and an active flag.
+**Person**: an Employee or an Internee (`PersonType`). Has one or more employment periods (start date, optional end date; never overlapping; at most one open). Joining/leaving date shown in the UI are those of the latest period. Deactivate closes the open period (the leaving date may be in the future); reactivate opens a new one; cancelling a leaving date that hasn't passed reopens the same period. Also has a designation and contact details. A person is **active** until their leaving date has passed: no leaving date, or a leaving date on or after today (Asia/Karachi). Nothing about it is stored.
 
 **Hire source** (`HireSource`, Admin-only field):
 
@@ -59,7 +59,7 @@ At most one active person can have source `Owner`.
 ## 5. Line calculation (per person, per period)
 
 ```
-f            = (employed working days − unpaid absence days) / working days in period
+f            = (employed working days − unpaid absence days + extra days) / working days in period
 SalaryPart   = round2(BilledMonthlyUsd / 2 × f)
 Commission   = round2(CommissionPerPeriodUsd × f)
 BilledUsd    = SalaryPart + Commission                      ← one amount per person on the invoice
@@ -76,12 +76,18 @@ OwnerEarningPkr = round0(BilledUsd × rate) − PayPkr
 - Use `decimal` everywhere. Never `double` or `float` for money or rates.
 - A person with 0 employed working days in a period gets no line.
 
-### Adjustments (extras)
-Added to a draft payroll line: type (`Bonus`, `Reimbursement`, `Deduction`), amount, currency (USD or PKR), note.
-- Not prorated. Converted to PKR at the payroll's rate (round0).
-- `Deduction` reduces pay; the other types increase pay.
-- **Billable to Company** flag (Admin-only): default true for `Reimbursement`, false for `Bonus` and `Deduction`. A billable adjustment is added to that person's invoice amount (USD, round2). A non-billable one is paid by the owner and reduces his earning.
-- Net pay: `PayPkr + Σ adjustments (PKR)`.
+### Extra days
+Extra days worked (e.g. a weekend or holiday) are entered on a payroll line in steps of 0.5, from 0.5 to 10. They add to payable days at the normal daily rate, so billing, commission/margin and pay all scale with them. f may exceed 1.
+
+### Adjustments
+Types: Bonus, Reimbursement, Deduction. Amount, currency (USD or PKR), note. Not prorated. Every adjustment passes through to the Company at cost: the invoice changes by exactly the amount the person's pay changes, and the owner takes no commission on it. With the payroll's rate and sign s = −1 for Deduction, +1 otherwise:
+
+```
+AmountPkr = PKR ? Amount : round0(Amount × rate);  AmountUsd = USD ? Amount : round2(Amount / rate).
+NetPayPkr = PayPkr + Σ s·AmountPkr;  NetPayUsd = PayUsd + Σ s·AmountUsd.
+InvoiceUsd = BilledUsd + Σ s·AmountUsd.
+Final OwnerEarningUsd = InvoiceUsd − NetPayUsd (always equals BilledUsd − PayUsd);  Final OwnerEarningPkr = round0(InvoiceUsd × rate) − NetPayPkr (may differ from the base by a rupee or two of rounding).
+```
 
 ## 6. Payroll lifecycle
 
@@ -93,17 +99,14 @@ Outputs: payroll register (PKR, Manager and Admin), payslips per person (PKR wit
 
 ## 7. Company invoice (Admin only)
 
-One invoice per finalized payroll. One row per person: name, designation, **amount in USD** (= `BilledUsd` + billable adjustments). **Commission is never shown as a separate line**; it is already inside the amount. The owner's own line appears like any other. Invoice total = sum of rows.
+One invoice per finalized payroll. One row per person: name, designation, **amount in USD** (= `InvoiceUsd`). **Commission is never shown as a separate line**; it is already inside the amount. The owner's own line appears like any other. Invoice total = sum of rows.
 
 ## 8. Owner income (Admin only)
 
 ```
-OwnerIncome(period) = Owner's own PayUsd/PayPkr
-                    + Σ OwnerEarning over CompanyRecommended lines   (commission)
-                    + Σ OwnerEarning over BudgetHire lines           (margin)
-                    − Σ non-billable adjustments
+OwnerIncome(period) = Owner's own NetPay + Σ final OwnerEarning over CompanyRecommended lines (commission) + Σ final OwnerEarning over BudgetHire lines (margin)
 ```
-Shown by period, month and year, broken into: own salary, commission, margin, adjustments, total, in USD and PKR.
+Shown by period, month and year, broken into: own salary, commission, margin, total, in USD and PKR.
 
 ## 9. Golden test cases
 
@@ -118,6 +121,14 @@ These must exist as unit tests of the calculator, with exactly these numbers. Al
 | G5 | BudgetHire | Oct 16–31 | same person as G4 | 9/11 | 409.09 | 286.36 | 80,182 | 122.73 | 34,363 |
 | G6 | Owner | Oct 16–31 | $1,200/mo | 11/11 | 600.00 | 600.00 | 168,000 | 0.00 | 0 |
 | G7 | CompanyRecommended | Oct 16–31 | as G1, leaving date Wed Oct 21 | 4/11 | 63.64 | 54.55 | 15,274 | 9.09 | 2,545 |
+
+With adjustments and extra days (also rate 280):
+
+| # | Person | Period | Inputs | f | BilledUsd | InvoiceUsd | PayUsd | PayPkr | NetPayUsd | NetPayPkr | OwnerUsd | OwnerPkr |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| G8 | BudgetHire | Oct 16–31 | the G5 line + Reimbursement Rs 5,000, Bonus $20, Deduction Rs 1,000 | 9/11 | 409.09 | 443.38 | | | 320.65 | 89,782 | 122.73 | 34,364 |
+| G9 | CompanyRecommended | Oct 1–15 | as G1 + 1 extra day | 12/11 | 190.91 | | 163.64 | 45,819 | | | 27.27 | 7,636 |
+| G10 | BudgetHire | Oct 16–31 | the G5 person + 1.5 extra days | 10.5/11 | 477.27 | | 334.09 | 93,545 | | | 143.18 | 40,091 |
 
 - G3: Oct 5 uses 0.5 paid leave; Oct 7 is 0.5 paid + 0.5 unpaid.
 - G4/G5: Oct 6 uses October's paid leave, so Oct 20 and Oct 27 are unpaid.
@@ -145,9 +156,10 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 ## 11. Open questions (settle before the milestone that needs them)
 
 1. (M6) Public holidays: no holiday calendar in v1. If the Company gives paid holidays, the Manager simply doesn't record absences on them. Confirm.
-2. (M7) Adjustment "billable" defaults above (Reimbursement billable, Bonus not). Confirm.
-3. (M7) PKR rounded to whole rupees. Confirm.
+2. ~~(M7) Adjustment "billable" defaults (Reimbursement billable, Bonus not).~~ **Resolved 2026-10-10:** all adjustments pass through.
+3. ~~(M7) PKR rounded to whole rupees.~~ **Resolved 2026-10-10:** PKR whole rupees.
 
 ## Change log
 - 2026-10-08: Initial spec agreed with the owner.
 - 2026-10-09: Employment periods replace single joining/leaving dates; Owner rule relaxed to at most one active Owner.
+- 2026-10-10: extra days; adjustments pass through at cost; deductions credit the Company; active status follows leaving date.

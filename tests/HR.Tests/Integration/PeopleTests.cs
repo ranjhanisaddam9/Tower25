@@ -73,7 +73,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         {
             var stored = await db.People.SingleAsync(p => p.Id == id);
             Assert.Equal("Senior DevOps Engineer", stored.Designation);
-            Assert.True(stored.IsActive);
+            Assert.True(stored.IsActiveOn(PeopleHelpers.Today));
             Assert.Null(stored.LeavingDate);
             Assert.Equal(new DateOnly(2026, 8, 3), stored.JoiningDate);
         }
@@ -221,7 +221,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         await using var check = TestDatabaseFixture.CreateDbContext();
         var ownerId = await check.People.Where(p => p.HireSource == HireSource.Owner).Select(p => p.Id).SingleAsync();
         var unassignedId = await check.People.Where(p => p.HireSource == null).Select(p => p.Id).FirstAsync();
-        var inactiveId = await check.People.Where(p => !p.IsActive).Select(p => p.Id).FirstAsync();
+        var inactiveId = await check.People.Where(PersonStatus.InactiveOn(PeopleHelpers.Today)).Select(p => p.Id).FirstAsync();
 
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
         var urls = new[]
@@ -245,7 +245,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         }
 
         // The Manager's hire-source query parameter is ignored: the active list is complete.
-        Assert.Contains("23 people", await manager.GetStringAsync("/people?hireSource=Owner"));
+        Assert.Contains("24 people", await manager.GetStringAsync("/people?hireSource=Owner")); // Rizwan leaves 21 Oct 2026: still active
 
         // The same pages do show it to an Admin.
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
@@ -318,8 +318,8 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
 
         await using var check = TestDatabaseFixture.CreateDbContext();
         Assert.Equal(HireSource.Owner, (await check.People.SingleAsync(p => p.Id == b)).HireSource);
-        Assert.False((await check.People.SingleAsync(p => p.Id == a)).IsActive);
-        Assert.Equal(1, await check.People.CountAsync(p => p.IsActive && p.HireSource == HireSource.Owner));
+        Assert.False((await check.People.SingleAsync(p => p.Id == a)).IsActiveOn(PeopleHelpers.Today));
+        Assert.Equal(1, await check.People.Where(PersonStatus.ActiveOn(PeopleHelpers.Today)).CountAsync(p => p.HireSource == HireSource.Owner));
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
 
         await using (var db = TestDatabaseFixture.CreateDbContext())
         {
-            Assert.True((await db.People.SingleAsync(p => p.Id == id)).IsActive);
+            Assert.True((await db.People.SingleAsync(p => p.Id == id)).IsActiveOn(PeopleHelpers.Today));
         }
 
         var ok = await client.PostFormAsync($"/people/{id}/deactivate", $"/people/{id}", new Dictionary<string, string> { ["leavingDate"] = "2026-03-02" });
@@ -365,7 +365,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
 
         await using var check = TestDatabaseFixture.CreateDbContext();
         var person = await check.People.SingleAsync(p => p.Id == id);
-        Assert.False(person.IsActive);
+        Assert.False(person.IsActiveOn(PeopleHelpers.Today));
         Assert.Equal(new DateOnly(2026, 3, 2), person.LeavingDate);
     }
 
@@ -397,7 +397,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
 
         await using var db = TestDatabaseFixture.CreateDbContext();
         var person = await db.People.SingleAsync(p => p.Id == id);
-        Assert.True(person.IsActive);
+        Assert.True(person.IsActiveOn(PeopleHelpers.Today));
         Assert.Null(person.HireSource);
         Assert.Equal("Guarded", person.FullName);
         Assert.Equal(1, await db.People.CountAsync());
@@ -615,11 +615,11 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         var people = await db.People.ToListAsync();
         Assert.Equal(28, people.Count);
         Assert.Contains(people, p => p.Type == PersonType.Internee);
-        Assert.Contains(people, p => !p.IsActive && p.LeavingDate is not null);
+        Assert.Contains(people, p => !p.IsActiveOn(PeopleHelpers.Today) && p.LeavingDate is not null);
         Assert.All(people, p => Assert.StartsWith("00000-", p.Cnic));
         Assert.All(people, p => Assert.Equal("TEST", p.Iban![4..8]));
         Assert.All(people, p => Assert.EndsWith(DemoDataSeeder.EmailDomain, p.Email));
-        Assert.Equal(1, people.Count(p => p.IsActive && p.HireSource == HireSource.Owner));
+        Assert.Equal(1, people.Count(p => p.IsActiveOn(PeopleHelpers.Today) && p.HireSource == HireSource.Owner));
     }
 
     private static int RowCount(string html) => RowRegex().Matches(html).Count;

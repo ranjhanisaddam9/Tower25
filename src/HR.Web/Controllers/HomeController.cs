@@ -3,6 +3,7 @@ using HR.Domain.Time;
 using HR.Infrastructure.Absences;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.Pay;
+using HR.Infrastructure.Payroll;
 using HR.Infrastructure.People;
 using HR.Infrastructure.Rates;
 using HR.Web.ViewModels;
@@ -10,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR.Web.Controllers;
 
-public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences) : Controller
+public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -40,7 +41,9 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
             noPaySetup,
             pendingReviews,
             notAssigned,
-            await absences.GetDashboardAsync(cancellationToken));
+            await absences.GetDashboardAsync(cancellationToken),
+            await payroll.DashboardAsync(cancellationToken),
+            User.IsInRole(AppRoles.Admin) ? await payroll.DashboardAdminAsync(cancellationToken) : null);
 
         return View(model);
     }

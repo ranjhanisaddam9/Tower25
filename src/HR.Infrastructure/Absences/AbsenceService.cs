@@ -181,8 +181,8 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
 
         people = query.Status switch
         {
-            PersonStatusFilter.Active => people.Where(p => p.IsActive),
-            PersonStatusFilter.Inactive => people.Where(p => !p.IsActive),
+            PersonStatusFilter.Active => people.Where(PersonStatus.ActiveOn(clock.Today)),
+            PersonStatusFilter.Inactive => people.Where(PersonStatus.InactiveOn(clock.Today)),
             _ => people,
         };
 
@@ -276,7 +276,7 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
     {
         var person = await db.People.AsNoTracking()
             .Where(p => p.Id == personId)
-            .Select(p => new { p.Id, p.Code, p.FullName, p.IsActive })
+            .Select(p => new { p.Id, p.Code, p.FullName, IsActive = p.LeavingDate == null || p.LeavingDate >= clock.Today })
             .SingleOrDefaultAsync(cancellationToken);
         if (person is null)
         {
@@ -290,8 +290,8 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
     /// <summary>People for the pickers on the add and range forms: active first, then by name.</summary>
     public async Task<IReadOnlyList<(int Id, string Code, string FullName, bool IsActive)>> PeopleForPickerAsync(CancellationToken cancellationToken = default) =>
         (await db.People.AsNoTracking()
-            .OrderByDescending(p => p.IsActive).ThenBy(p => p.FullName)
-            .Select(p => new { p.Id, p.Code, p.FullName, p.IsActive })
+            .OrderByDescending(p => p.LeavingDate == null || p.LeavingDate >= clock.Today).ThenBy(p => p.FullName)
+            .Select(p => new { p.Id, p.Code, p.FullName, IsActive = p.LeavingDate == null || p.LeavingDate >= clock.Today })
             .ToListAsync(cancellationToken))
         .Select(p => (p.Id, p.Code, p.FullName, p.IsActive))
         .ToList();

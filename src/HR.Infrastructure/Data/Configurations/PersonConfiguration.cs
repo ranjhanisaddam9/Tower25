@@ -8,7 +8,7 @@ namespace HR.Infrastructure.Data.Configurations;
 internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
 {
     public const string CodeSequence = "PersonCodeSequence";
-    public const string ActiveOwnerIndex = "UX_People_ActiveOwner";
+    public const string ActiveOwnerTrigger = "TR_People_SingleActiveOwner";
     public const string EmailIndex = "UX_People_Email";
     public const string CnicIndex = "UX_People_Cnic";
     public const string CodeIndex = "UX_People_Code";
@@ -18,8 +18,10 @@ internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
         builder.ToTable("People", table =>
         {
             table.HasCheckConstraint("CK_People_LeavingAfterJoining", "[LeavingDate] IS NULL OR [LeavingDate] >= [JoiningDate]");
-            table.HasCheckConstraint("CK_People_InactiveHasLeavingDate",
-                "([IsActive] = 1 AND [LeavingDate] IS NULL) OR ([IsActive] = 0 AND [LeavingDate] IS NOT NULL)");
+
+            // SPEC §2: at most one active Owner. "Active" depends on today, so a filtered index can't express it; the
+            // service checks it and this trigger is the safety net (THROW 51002).
+            table.HasTrigger(ActiveOwnerTrigger);
         });
 
         builder.HasKey(p => p.Id);
@@ -47,10 +49,7 @@ internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
         builder.Property(p => p.Iban).HasMaxLength(PakistaniIban.Length).IsUnicode(false);
 
         builder.Property(p => p.HireSource).HasConversion<string>().HasMaxLength(32).IsUnicode(false);
-        // SPEC §2: only one active person can have the Owner source.
-        builder.HasIndex(p => p.HireSource).IsUnique()
-            .HasFilter("[HireSource] = 'Owner' AND [IsActive] = 1")
-            .HasDatabaseName(ActiveOwnerIndex);
+        builder.HasIndex(p => p.HireSource);
 
         builder.Property(p => p.Notes).HasMaxLength(PersonInput.NotesMaxLength);
 
@@ -66,7 +65,8 @@ internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(p => p.EmploymentPeriods).HasField("_periods").UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.HasIndex(p => new { p.IsActive, p.FullName });
+        builder.HasIndex(p => p.FullName);
+        builder.HasIndex(p => p.LeavingDate);
         builder.HasIndex(p => p.JoiningDate);
     }
 }

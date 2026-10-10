@@ -1,0 +1,29 @@
+@model PayslipsViewModel
+@{
+    ViewData["Title"] = "Payslips";
+    ViewData["Section"] = "Payroll";
+}
+
+<div class="page-actions no-print">
+    <a class="btn btn-ghost" asp-action="Run" asp-route-id="@Model.Run.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> Payroll @DisplayFormat.DateRange(Model.Run.Period.Start, Model.Run.Period.End)</a>
+    <button type="button" class="btn btn-primary-gradient" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print all (@Model.Lines.Count)</button>
+</div>
+
+@if (Model.Lines.Count == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+            <p class="empty-state-text">This payroll has no lines.</p>
+        </div>
+    </section>
+}
+else
+{
+    <div class="payslip-stack">
+        @foreach (var detail in Model.Lines)
+        {
+            <partial name="_Payslip" model="(Model.Run, detail, Model.IssuerName)" />
+        }
+    </div>
+}

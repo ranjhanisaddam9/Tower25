@@ -49,6 +49,24 @@
     <partial name="_StatTile" model="tiles[2]" />
     <partial name="_StatTile" model="tiles[3]" />
 
+    @{
+        var payrollTile = Model.Payroll;
+        var payrollStatus = payrollTile.Status switch
+        {
+            null => "Not started",
+            HR.Domain.Payroll.PayrollStatus.Draft => "Draft",
+            _ => "Finalized",
+        };
+    }
+    <partial name="_StatTile" model="@(new StatTileViewModel($"Payroll {DisplayFormat.DateRange(payrollTile.Period.Start, payrollTile.Period.End)}", payrollStatus, "bi-receipt", "violet",
+        payrollTile.RunId is null ? "Generate the draft" : "Open the payroll", Href: payrollTile.RunId is { } runId ? $"/payroll/{runId}" : "/payroll", TestId: "payroll-tile"))" />
+
+    @if (Model.PayrollAdmin is { } latest)
+    {
+        <partial name="_StatTile" model="@(new StatTileViewModel("Latest finalized payroll", DisplayFormat.Usd(latest.InvoiceUsd) + " invoiced", "bi-graph-up-arrow", "teal",
+            $"{DisplayFormat.Usd(latest.OwnerEarningUsd)} your earning · {DisplayFormat.DateRange(latest.Period.Start, latest.Period.End)}", Href: $"/payroll/{latest.RunId}", TestId: "payroll-admin-tile"))" />
+    }
+
     <partial name="_StatTile" model="@(new StatTileViewModel("No pay setup", Model.NoPaySetup.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-cash-stack", "violet", Model.NoPaySetup == 0 ? "Everyone active has pay set up" : "Active people without pay", Href: "/salaries?filter=MissingSetup", TestId: "no-pay-tile"))" />
 
     @if (Model.PendingBillingReviews is { } reviews)
