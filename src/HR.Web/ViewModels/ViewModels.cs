@@ -28,7 +28,8 @@ public sealed record DashboardViewModel(
     HR.Infrastructure.Absences.AbsenceDashboard Absences,
     HR.Infrastructure.Payroll.PayrollDashboard Payroll,
     HR.Infrastructure.Payroll.PayrollDashboardAdmin? PayrollAdmin,
-    HR.Infrastructure.Invoices.InvoiceDashboard? Invoices);
+    HR.Infrastructure.Invoices.InvoiceDashboard? Invoices,
+    PayrollTrendViewModel Trend);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);
 

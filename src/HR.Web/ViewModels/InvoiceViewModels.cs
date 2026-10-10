@@ -22,6 +22,18 @@ public static class InvoiceDisplay
     };
 
     public static string Lines(string? text) => text ?? string.Empty;
+
+    /// <summary>A paid invoice whose amount received differs from its total: "Short by $X" or "Over by $X" (M9).</summary>
+    public static (string Text, string Pill)? Difference(InvoiceStatus status, decimal totalUsd, decimal? amountReceivedUsd)
+    {
+        var difference = InvoiceMath.PaymentDifference(status, totalUsd, amountReceivedUsd);
+        return difference switch
+        {
+            < 0m => ("Short by " + HR.Web.Formatting.DisplayFormat.Usd(-difference), "pill-warning"),
+            > 0m => ("Over by " + HR.Web.Formatting.DisplayFormat.Usd(difference), "pill-info"),
+            _ => null,
+        };
+    }
 }
 
 public sealed record InvoiceListViewModel(InvoiceList List, InvoiceStatusFilter Filter, int? Year, bool CanIssueInvoices)

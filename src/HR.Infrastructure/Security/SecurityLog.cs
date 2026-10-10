@@ -134,6 +134,11 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1604, Level = LogLevel.Warning, Message = "Audit: {ActorId} voided invoice {InvoiceId} ({Number}) of payroll {RunId}")]
     public static partial void InvoiceVoided(ILogger logger, string actorId, int invoiceId, string number, int runId);
 
+    // ---- Exports (M9; who, which report, filters and the row count: never row contents or search text) ----
+
+    [LoggerMessage(EventId = 1700, Level = LogLevel.Information, Message = "Audit: {ActorId} exported {Report} as {Format}: {RowCount} rows, filters {Filters}")]
+    public static partial void Exported(ILogger logger, string actorId, string report, string format, int rowCount, string filters);
+
     // ---- Payroll (audit; never notes or the reopen reason) ----
 
     [LoggerMessage(EventId = 1500, Level = LogLevel.Information, Message = "Audit: {ActorId} generated payroll {RunId} for {PeriodStart} with {LineCount} lines, rate {Rate}")]

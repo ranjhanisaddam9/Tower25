@@ -1,0 +1,79 @@
+@model PayrollHistoryViewModel
+@{
+    ViewData["Title"] = "Payroll history";
+    ViewData["Section"] = "Reports";
+}
+
+<partial name="_ReportActions" model="@("/reports/payroll-history/export")" />
+<p class="page-lead">Finalized payrolls only, with their frozen figures. Drafts are not included.</p>
+
+@if (Model.Rows.Count == 0)
+{
+    <div class="glass-card empty-state" data-testid="history-empty">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
+        <p class="empty-state-text">No payroll has been finalized yet.</p>
+        <a class="btn btn-primary-gradient" asp-controller="Payroll" asp-action="Index">Go to payroll</a>
+    </div>
+}
+else
+{
+    <section class="glass-card" aria-labelledby="netPayHeading">
+        <h2 class="card-title" id="netPayHeading">Net pay, last @Math.Min(Model.Rows.Count, HR.Infrastructure.Reports.ReportService.HistoryChartPeriods) periods</h2>
+        <partial name="_BarChart" model="Model.NetPayChart" />
+    </section>
+    @if (Model.EarningChart is { } earningChart)
+    {
+        <section class="glass-card mt-4" aria-labelledby="earningHeading">
+            <h2 class="card-title" id="earningHeading">Owner earning, last @Math.Min(Model.Rows.Count, HR.Infrastructure.Reports.ReportService.HistoryChartPeriods) periods</h2>
+            <partial name="_BarChart" model="earningChart" />
+        </section>
+    }
+
+    <section class="glass-card mt-4" aria-labelledby="historyHeading">
+        <h2 class="card-title" id="historyHeading">All finalized payrolls</h2>
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table" data-testid="history-table">
+                <caption class="visually-hidden">Finalized payrolls, newest first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Period</th>
+                        <th scope="col" class="num">People</th>
+                        <th scope="col" class="money">Net pay (PKR)</th>
+                        @if (Model.Admin is not null)
+                        {
+                            <th scope="col" class="money">Invoice (USD)</th>
+                            <th scope="col" class="money">Owner earning (USD)</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Rows.Count; i++)
+                    {
+                        var row = Model.Rows[i];
+                        <tr data-testid="history-row">
+                            <th scope="row" data-label="Period" class="num"><a asp-controller="Payroll" asp-action="Run" asp-route-id="@row.RunId">@DisplayFormat.DateRange(row.PeriodStart, row.PeriodEnd)</a></th>
+                            <td data-label="People" class="num">@row.People</td>
+                            <td data-label="Net pay (PKR)" class="money num" data-testid="history-netpay">@DisplayFormat.Pkr(row.NetPayPkr)</td>
+                            @if (Model.Admin is { } admin)
+                            {
+                                <td data-label="Invoice (USD)" class="money num">@DisplayFormat.Usd(admin[i].InvoiceUsd)</td>
+                                <td data-label="Owner earning (USD)" class="money num" data-testid="history-earning">@DisplayFormat.Usd(admin[i].OwnerEarningUsd)</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row" colspan="2">Total</th>
+                        <td class="money num" data-testid="history-total">@DisplayFormat.Pkr(Model.Rows.Sum(r => r.NetPayPkr))</td>
+                        @if (Model.Admin is { } adminTotals)
+                        {
+                            <td class="money num">@DisplayFormat.Usd(adminTotals.Sum(a => a.InvoiceUsd))</td>
+                            <td class="money num">@DisplayFormat.Usd(adminTotals.Sum(a => a.OwnerEarningUsd))</td>
+                        }
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+}

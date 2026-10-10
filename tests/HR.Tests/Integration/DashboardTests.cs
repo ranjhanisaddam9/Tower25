@@ -39,10 +39,8 @@ public class DashboardTests(TestDatabaseFixture fixture) : IntegrationTest(fixtu
         Assert.DoesNotContain("title=\"Payroll (coming soon)\"", html);
         Assert.Contains("href=\"/invoices\"", html);
         Assert.Contains("href=\"/owner-income\"", html);
-        foreach (var section in new[] { "Reports" })
-        {
-            Assert.Contains($"title=\"{section} (coming soon)\"", html);
-        }
+        Assert.Contains("href=\"/reports\"", html);
+        Assert.DoesNotContain("(coming soon)", html); // M9: every section is live
 
         Assert.Contains("aria-current=\"page\"", html);
     }

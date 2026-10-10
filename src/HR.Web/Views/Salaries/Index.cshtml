@@ -16,7 +16,10 @@
     }
 }
 
-<p class="page-lead">Current monthly pay for every active person. Open a person to see their full pay history or record an increment.</p>
+<div class="page-actions">
+    <p class="page-lead mb-0">Current monthly pay for every active person. Open a person to see their full pay history or record an increment.</p>
+    <a class="btn btn-ghost" href="@HR.Web.Exports.ExportLinks.For("/salaries/export", ("q", Model.Search), ("filter", Model.Filter), ("sort", Model.Sort))" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export</a>
+</div>
 
 <form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter salaries">
     <div class="form-floating filter-search">

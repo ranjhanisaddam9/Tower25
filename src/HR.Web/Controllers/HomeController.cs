@@ -6,12 +6,13 @@ using HR.Infrastructure.Pay;
 using HR.Infrastructure.Payroll;
 using HR.Infrastructure.People;
 using HR.Infrastructure.Rates;
+using HR.Infrastructure.Reports;
 using HR.Web.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR.Web.Controllers;
 
-public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll, HR.Infrastructure.Invoices.InvoiceService invoices) : Controller
+public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll, HR.Infrastructure.Invoices.InvoiceService invoices, ReportService reports) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -44,8 +45,21 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
             await absences.GetDashboardAsync(cancellationToken),
             await payroll.DashboardAsync(cancellationToken),
             User.IsInRole(AppRoles.Admin) ? await payroll.DashboardAdminAsync(cancellationToken) : null,
-            User.IsInRole(AppRoles.Admin) ? await invoices.DashboardAsync(cancellationToken) : null);
+            User.IsInRole(AppRoles.Admin) ? await invoices.DashboardAsync(cancellationToken) : null,
+            await TrendAsync(cancellationToken));
 
         return View(model);
+    }
+
+    /// <summary>Net pay of the last finalized periods; owner earnings only for Admins (never queried for Managers).</summary>
+    private async Task<PayrollTrendViewModel> TrendAsync(CancellationToken cancellationToken)
+    {
+        if (User.IsInRole(AppRoles.Admin))
+        {
+            var admin = (await reports.AdminPayrollHistoryAsync(ReportService.TrendPeriods, cancellationToken)).Reverse().ToList();
+            return new PayrollTrendViewModel(admin.Select(a => a.Row).ToList(), admin.Select(a => a.OwnerEarningUsd).ToList());
+        }
+
+        return new PayrollTrendViewModel((await reports.PayrollHistoryAsync(ReportService.TrendPeriods, cancellationToken)).Reverse().ToList(), null);
     }
 }

@@ -1,0 +1,16 @@
+@model (DateOnly From, DateOnly To, string? Error, string Label)
+@* GET form for a report's date range; the export keeps the same dates through the query string. *@
+<form method="get" class="glass-card filter-bar" aria-label="@Model.Label">
+    <div class="form-floating filter-select">
+        <input type="date" class="form-control num" id="from" name="from" value="@ReportDisplay.Iso(Model.From)" required aria-describedby="rangeError" />
+        <label for="from">From</label>
+    </div>
+    <div class="form-floating filter-select">
+        <input type="date" class="form-control num" id="to" name="to" value="@ReportDisplay.Iso(Model.To)" required aria-describedby="rangeError" />
+        <label for="to">To</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+    </div>
+    <span class="field-error w-100" id="rangeError" data-testid="range-error">@Model.Error</span>
+</form>

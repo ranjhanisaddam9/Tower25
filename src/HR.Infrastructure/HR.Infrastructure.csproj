@@ -8,6 +8,14 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="QuestPDF" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PDF font (SIL OFL 1.1, see Fonts/OFL.txt), embedded so PDFs never depend on the server's installed fonts. -->
+    <EmbeddedResource Include="Fonts\*.ttf" LogicalName="HR.Infrastructure.Fonts.%(Filename)%(Extension)" />
+    <None Include="Fonts\OFL.txt" />
   </ItemGroup>
 
   <ItemGroup>

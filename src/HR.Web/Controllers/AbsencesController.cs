@@ -3,7 +3,9 @@ using HR.Domain.Absences;
 using HR.Domain.Payroll;
 using HR.Domain.Time;
 using HR.Infrastructure.Absences;
+using HR.Infrastructure.Exports;
 using HR.Infrastructure.People;
+using HR.Web.Exports;
 using HR.Web.Formatting;
 using HR.Web.Infrastructure;
 using HR.Web.Security;
@@ -40,6 +42,52 @@ public class AbsencesController(AbsenceService absences, IClock clock) : Control
 
         var result = await absences.ListAsync(new AbsenceQuery(start, search, portionFilter, paidFilter, statusFilter, page), cancellationToken);
         return View(new AbsenceListViewModel(result, today, search, portionFilter, paidFilter, statusFilter));
+    }
+
+    /// <summary>
+    /// The list as .xlsx (M9): the selected period with the page's filters, or a custom range (<paramref name="from"/> to
+    /// <paramref name="to"/>, at most one year). Rows carry their paid/unpaid parts; a second sheet totals each person.
+    /// </summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(DateOnly? period, DateOnly? from, DateOnly? to, string? q, string? portion, string? paid, string? status,
+        [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        DateOnly start, end;
+        if (from is { } f && to is { } t)
+        {
+            if (HR.Domain.Reports.ReportRange.Validate(f, t) is { } problem)
+            {
+                TempData.ToastError(problem);
+                return RedirectToAction(nameof(Index));
+            }
+
+            (start, end) = (f, t);
+        }
+        else
+        {
+            var p = PayPeriod.For(period ?? clock.Today);
+            (start, end) = (p.Start, p.End);
+        }
+
+        AbsencePortion? portionFilter = AbsencePortions.TryParse(portion, out var parsedPortion) ? parsedPortion : null;
+        var paidFilter = ParseEnum(paid, PaidStatusFilter.All);
+        var statusFilter = ParseEnum(status, PersonStatusFilter.Active);
+        var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim()[..Math.Min(q.Trim().Length, 100)];
+
+        var range = await absences.RangeAsync(new AbsenceRangeQuery(start, end, search, portionFilter, paidFilter, statusFilter), cancellationToken);
+        var filters = new List<ExportFilter>
+        {
+            new("Dates", DisplayFormat.DateRange(start, end)),
+            new("People", statusFilter.ToString()),
+            new("Portion", portionFilter is { } pf ? AbsenceDisplay.PortionLabel(pf) : "All"),
+            new("Paid status", paidFilter.ToString()),
+        };
+        if (search is not null)
+        {
+            filters.Add(new(Downloads.SearchFilterName, search));
+        }
+
+        return downloads.Send(this, ExcelExports.Absences(downloads.Context(User, "Absences", filters), range), "Absences", filters);
     }
 
     // ===================== Single add / edit / delete =====================

@@ -50,6 +50,14 @@ public sealed record AbsenceSummary(int PersonId, string PersonCode, string Pers
 
 public sealed record AbsenceList(PayPeriod Period, bool Locked, PagedResult<AbsenceRow> Rows, IReadOnlyList<AbsenceSummary> Summary);
 
+/// <summary>Absences between two dates (inclusive) with the list's filters: for the export and the absence summary report.</summary>
+public sealed record AbsenceRangeQuery(DateOnly From, DateOnly To, string? Search, AbsencePortion? Portion, PaidStatusFilter Paid, PersonStatusFilter Status);
+
+/// <summary>One person's totals over a range, with absent days per calendar month (keyed by the month's first day).</summary>
+public sealed record AbsencePersonTotals(int PersonId, string PersonCode, string PersonName, decimal AbsentDays, decimal PaidDays, decimal UnpaidDays, IReadOnlyDictionary<DateOnly, decimal> AbsentByMonth);
+
+public sealed record AbsenceRange(DateOnly From, DateOnly To, IReadOnlyList<AbsenceRow> Rows, IReadOnlyList<AbsencePersonTotals> People, IReadOnlyList<DateOnly> Months);
+
 public sealed record AbsenceDetails(
     int Id,
     int PersonId,
@@ -247,6 +255,73 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
 
         return new AbsenceList(period, await payrollLock.IsLockedAsync(period.Start, cancellationToken),
             new PagedResult<AbsenceRow>(pageRows, page, query.PageSize, filtered.Count), summary);
+    }
+
+    /// <summary>
+    /// Every absence between two dates with the list's filters, sorted like the list, plus per-person totals over the
+    /// filtered rows. Paid leave is allocated over the whole of each month touched, exactly as on the list. Callers check
+    /// the range length first (<see cref="HR.Domain.Reports.ReportRange"/>).
+    /// </summary>
+    public async Task<AbsenceRange> RangeAsync(AbsenceRangeQuery query, CancellationToken cancellationToken = default)
+    {
+        var (monthStart, _) = MonthOf(query.From);
+        var (_, monthEnd) = MonthOf(query.To);
+
+        var people = db.People.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = query.Search.Trim();
+            people = people.Where(p => p.FullName.Contains(term) || p.Code.Contains(term));
+        }
+
+        people = query.Status switch
+        {
+            PersonStatusFilter.Active => people.Where(PersonStatus.ActiveOn(clock.Today)),
+            PersonStatusFilter.Inactive => people.Where(PersonStatus.InactiveOn(clock.Today)),
+            _ => people,
+        };
+
+        var all = await (
+                from a in db.Absences.AsNoTracking()
+                where a.Date >= monthStart && a.Date <= monthEnd
+                join p in people on a.PersonId equals p.Id
+                join u in db.Users on a.CreatedByUserId equals u.Id into users
+                from u in users.DefaultIfEmpty()
+                select new { a.Id, a.PersonId, p.Code, p.FullName, a.Date, a.Portion, a.Note, AddedBy = u == null ? null : u.FullName })
+            .ToListAsync(cancellationToken);
+
+        var rows = new List<AbsenceRow>();
+        foreach (var person in all.GroupBy(r => r.PersonId))
+        {
+            var allocated = PaidLeaveAllocator.Allocate(person.Select(r => new AbsenceDay(r.Date, r.Portion))).ToDictionary(a => a.Date);
+            rows.AddRange(person
+                .Where(r => r.Date >= query.From && r.Date <= query.To)
+                .Select(r => new AbsenceRow(r.Id, r.PersonId, r.Code, r.FullName, r.Date, r.Portion, allocated[r.Date].PaidDays, allocated[r.Date].UnpaidDays, r.Note, r.AddedBy, 0)));
+        }
+
+        var filtered = rows
+            .Where(r => query.Portion is not { } portion || r.Portion == portion)
+            .Where(r => query.Paid switch
+            {
+                PaidStatusFilter.Paid => r.UnpaidDays == 0m,
+                PaidStatusFilter.Unpaid => r.PaidDays == 0m,
+                PaidStatusFilter.PartlyPaid => r.PaidDays > 0m && r.UnpaidDays > 0m,
+                _ => true,
+            })
+            .OrderBy(r => r.Date)
+            .ThenBy(r => r.PersonName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        var months = HR.Domain.Reports.ReportRange.Months(query.From, query.To);
+        var totals = filtered
+            .GroupBy(r => r.PersonId)
+            .Select(g => new AbsencePersonTotals(g.Key, g.First().PersonCode, g.First().PersonName,
+                g.Sum(r => r.Portion.Days()), g.Sum(r => r.PaidDays), g.Sum(r => r.UnpaidDays),
+                months.ToDictionary(m => m, m => g.Where(r => r.Date.Year == m.Year && r.Date.Month == m.Month).Sum(r => r.Portion.Days()))))
+            .OrderBy(t => t.PersonName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return new AbsenceRange(query.From, query.To, filtered, totals, months);
     }
 
     public async Task<AbsenceDetails?> GetAsync(int id, CancellationToken cancellationToken = default)

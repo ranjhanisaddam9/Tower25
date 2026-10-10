@@ -24,6 +24,16 @@ public class ExchangeRatesController(ExchangeRateService rates, IClock clock) : 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new InvalidOperationException("Signed-in user has no id claim.");
 
+    /// <summary>The whole rate history as .xlsx (M9), newest first.</summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromServices] HR.Web.Exports.Downloads downloads, CancellationToken cancellationToken)
+    {
+        var list = await rates.ListAsync(1, HR.Infrastructure.Exports.ExportLimits.MaxRows, cancellationToken);
+        IReadOnlyList<HR.Infrastructure.Exports.ExportFilter> filters = [new("Entries", "All")];
+        return downloads.Send(this, HR.Web.Exports.ExcelExports.ExchangeRates(downloads.Context(User, "Exchange rates", filters), list.Items, clock.Today),
+            "Exchange rates", filters);
+    }
+
     /// <param name="on">Optional "rate on date" lookup.</param>
     [HttpGet("")]
     public async Task<IActionResult> Index(int page = 1, DateOnly? on = null, CancellationToken cancellationToken = default)

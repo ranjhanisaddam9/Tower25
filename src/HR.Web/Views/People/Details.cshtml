@@ -198,15 +198,16 @@
     <nav aria-label="Pay record sections">
         <ul class="nav nav-tabs glass-tabs">
             <li class="nav-item">
-                <a class="nav-link @(Model.ShowAbsences ? null : "active")" id="salaryTab" asp-action="Details" asp-route-id="@p.Id" asp-fragment="pay"
-                   aria-current="@(Model.ShowAbsences ? null : "page")">Salary &amp; increments</a>
+                <a class="nav-link @(Model.ShowSalary ? "active" : null)" id="salaryTab" asp-action="Details" asp-route-id="@p.Id" asp-fragment="pay"
+                   aria-current="@(Model.ShowSalary ? "page" : null)">Salary &amp; increments</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link @(Model.ShowAbsences ? "active" : null)" id="absencesTab" asp-action="Details" asp-route-id="@p.Id" asp-route-tab="absences" asp-fragment="absences"
                    aria-current="@(Model.ShowAbsences ? "page" : null)" data-testid="absences-tab-link">Absences</a>
             </li>
             <li class="nav-item">
-                <span class="nav-link disabled" aria-disabled="true">Payslips (M7)</span>
+                <a class="nav-link @(Model.ShowPayslips ? "active" : null)" id="payslipsTab" asp-action="Details" asp-route-id="@p.Id" asp-route-tab="payslips" asp-fragment="payslips"
+                   aria-current="@(Model.ShowPayslips ? "page" : null)" data-testid="payslips-tab-link">Payslips</a>
             </li>
         </ul>
     </nav>
@@ -214,6 +215,12 @@
     {
         <div class="tab-panel" id="absences" aria-labelledby="absencesTab" data-testid="absences-tab">
             <partial name="_AbsenceTab" model="absenceTab" />
+        </div>
+    }
+    else if (Model.Payslips is { } payslips)
+    {
+        <div class="tab-panel" id="payslips" aria-labelledby="payslipsTab" data-testid="payslips-tab">
+            <partial name="_PayslipsTab" model="payslips" />
         </div>
     }
     else

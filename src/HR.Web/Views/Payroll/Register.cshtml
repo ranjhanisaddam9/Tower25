@@ -7,7 +7,11 @@
 
 <div class="page-actions no-print">
     <a class="btn btn-ghost" asp-action="Run" asp-route-id="@run.Id"><i class="bi bi-arrow-left" aria-hidden="true"></i> Payroll @DisplayFormat.DateRange(run.Period.Start, run.Period.End)</a>
-    <button type="button" class="btn btn-primary-gradient" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-action="RegisterExport" asp-route-id="@run.Id" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Bank sheet (Excel)</a>
+        <a class="btn btn-ghost" asp-action="RegisterPdf" asp-route-id="@run.Id" data-testid="pdf-link"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+        <button type="button" class="btn btn-primary-gradient" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+    </div>
 </div>
 
 <section class="glass-card register" aria-labelledby="registerHeading" data-testid="register">

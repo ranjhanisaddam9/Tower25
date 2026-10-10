@@ -1698,3 +1698,154 @@
     color: var(--link);
     font-weight: 600;
 }
+
+/* ===================== Reports, exports, trend (M9) ===================== */
+
+.filter-bar-plain {
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); /* 2 × 2 on desktop, 1 column on phones */
+    gap: 1.5rem;
+}
+
+.report-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    color: var(--text);
+    text-decoration: none;
+    min-height: var(--touch-target);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.report-card:hover {
+    border-color: var(--focus-color);
+    color: var(--text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .report-card:hover {
+        transform: translateY(-2px);
+    }
+}
+
+.report-card-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 12px;
+    background: var(--glass-hover);
+    color: var(--focus-color);
+    font-size: 1.25rem;
+}
+
+.report-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+}
+
+.report-card-title {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.report-card-text {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.report-card-arrow {
+    color: var(--text-muted);
+    align-self: center;
+}
+
+.report-chart {
+    width: 100%;
+    height: auto;
+    max-height: 340px; /* keeps the aspect ratio: on wide screens the chart stays a readable height, centred */
+    display: block;
+}
+
+/* Charts render at about half size on phones, so labels are drawn larger in viewBox units (≈11px). */
+@media (max-width: 575.98px) {
+    .report-chart .chart-label {
+        font-size: 22px;
+    }
+
+    /* Every other x-axis label, so the larger labels never overlap; the data table lists every value. */
+    .report-chart .chart-label-alt {
+        display: none;
+    }
+}
+
+.trend-card {
+    margin-bottom: 1.5rem;
+}
+
+.trend-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.trend-summary {
+    color: var(--text-muted);
+    margin: 0.5rem 0 0;
+}
+
+.trend-lines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    margin-top: 0.75rem;
+}
+
+.trend-figure {
+    margin: 0;
+    flex: 1 1 200px;
+    max-width: 320px;
+}
+
+.trend-figure figcaption {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    margin-top: 0.25rem;
+}
+
+.sparkline {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.sparkline polyline {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.spark-netpay { stroke: var(--chart-salary); }
+.spark-earning { stroke: var(--chart-commission); }
+
+/* Wide month-by-month tables keep names on one line and scroll inside their card instead. */
+@media (min-width: 768px) {
+    .report-matrix th[scope="row"] {
+        white-space: nowrap;
+    }
+}

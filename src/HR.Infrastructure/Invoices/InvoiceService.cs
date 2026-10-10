@@ -30,10 +30,17 @@ public sealed record InvoiceRow(
     InvoiceStatus Status,
     bool IsOverdue,
     DateOnly? PaidDate,
-    decimal? AmountReceivedUsd);
+    decimal? AmountReceivedUsd)
+{
+    /// <summary>Paid invoices: received − total (negative = short, positive = over); 0 otherwise.</summary>
+    public decimal PaymentDifferenceUsd => InvoiceMath.PaymentDifference(Status, TotalUsd, AmountReceivedUsd);
+}
 
-/// <summary>Invoiced = all invoices that aren't void; received = amounts on paid ones; outstanding = issued, unpaid.</summary>
-public sealed record InvoiceTotals(decimal InvoicedUsd, decimal ReceivedUsd, decimal OutstandingUsd, int OverdueCount);
+/// <summary>
+/// Invoiced = all invoices that aren't void; received = amounts on paid ones; outstanding = unpaid totals plus the
+/// shortfalls on invoices paid short (M9); amounts received over the total are shown separately as "received in excess".
+/// </summary>
+public sealed record InvoiceTotals(decimal InvoicedUsd, decimal ReceivedUsd, decimal OutstandingUsd, int OverdueCount, decimal ReceivedInExcessUsd = 0m, int ShortPaidCount = 0);
 
 public sealed record InvoiceList(IReadOnlyList<InvoiceRow> Rows, InvoiceTotals Totals, IReadOnlyList<int> Years);
 
@@ -43,7 +50,8 @@ public sealed record InvoiceDetails(Invoice Invoice, bool IsOverdue, int? Replac
 /// <summary>What the run page shows about the run's invoice.</summary>
 public sealed record RunInvoice(int? InvoiceId, string? Number, InvoiceStatus? Status, bool IsOverdue, bool SettingsComplete);
 
-public sealed record InvoiceDashboard(decimal OutstandingUsd, int OutstandingCount, int OverdueCount);
+/// <param name="OutstandingUsd">Unpaid totals plus shortfalls on invoices paid short.</param>
+public sealed record InvoiceDashboard(decimal OutstandingUsd, int OutstandingCount, int OverdueCount, int ShortPaidCount = 0, decimal ReceivedInExcessUsd = 0m);
 
 public enum InvoiceResultStatus
 {
@@ -282,8 +290,10 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
         return new InvoiceTotals(
             list.Where(r => r.Status != InvoiceStatus.Void).Sum(r => r.TotalUsd),
             list.Where(r => r.Status == InvoiceStatus.Paid).Sum(r => r.AmountReceivedUsd ?? 0m),
-            list.Where(r => r.Status == InvoiceStatus.Issued).Sum(r => r.TotalUsd),
-            list.Count(r => r.IsOverdue));
+            list.Sum(r => InvoiceMath.OutstandingUsd(r.Status, r.TotalUsd, r.AmountReceivedUsd)),
+            list.Count(r => r.IsOverdue),
+            list.Sum(r => InvoiceMath.ExcessUsd(r.Status, r.TotalUsd, r.AmountReceivedUsd)),
+            list.Count(r => r.PaymentDifferenceUsd < 0m));
     }
 
     public async Task<InvoiceDetails?> GetAsync(int id, CancellationToken cancellationToken = default)
@@ -320,9 +330,15 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
     public async Task<InvoiceDashboard> DashboardAsync(CancellationToken cancellationToken = default)
     {
         var today = clock.Today;
-        var issued = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatus.Issued)
-            .Select(i => new { i.TotalUsd, i.DueDate }).ToListAsync(cancellationToken);
-        return new InvoiceDashboard(issued.Sum(i => i.TotalUsd), issued.Count, issued.Count(i => today > i.DueDate));
+        var open = await db.Invoices.AsNoTracking().Where(i => i.Status != InvoiceStatus.Void)
+            .Select(i => new { i.Status, i.TotalUsd, i.AmountReceivedUsd, i.DueDate }).ToListAsync(cancellationToken);
+        var issued = open.Where(i => i.Status == InvoiceStatus.Issued).ToList();
+        return new InvoiceDashboard(
+            open.Sum(i => InvoiceMath.OutstandingUsd(i.Status, i.TotalUsd, i.AmountReceivedUsd)),
+            issued.Count,
+            issued.Count(i => InvoiceMath.IsOverdue(i.Status, i.DueDate, today)),
+            open.Count(i => InvoiceMath.PaymentDifference(i.Status, i.TotalUsd, i.AmountReceivedUsd) < 0m),
+            open.Sum(i => InvoiceMath.ExcessUsd(i.Status, i.TotalUsd, i.AmountReceivedUsd)));
     }
 
     private async Task<InvoiceResult?> SaveAsync(CancellationToken cancellationToken)

@@ -1,0 +1,72 @@
+@model AbsenceSummaryViewModel
+@{
+    ViewData["Title"] = "Absence summary";
+    ViewData["Section"] = "Reports";
+}
+
+<partial name="_ReportActions" model="@HR.Web.Exports.ExportLinks.For("/reports/absences/export", ("from", Model.From), ("to", Model.To))" />
+<p class="page-lead">Absent days per person between two dates (at most one year), with paid leave used and unpaid days. Paid leave is allocated month by month as on the Absences page.</p>
+<partial name="_RangeForm" model="@((Model.From, Model.To, Model.Error, "Choose the date range"))" />
+
+@if (Model.Range is { } range)
+{
+    @if (range.People.Count == 0)
+    {
+        <div class="glass-card empty-state" data-testid="absence-summary-empty">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+            <p class="empty-state-text">No absences between @DisplayFormat.Date(range.From) and @DisplayFormat.Date(range.To).</p>
+            <a class="btn btn-ghost" asp-controller="Absences" asp-action="Index">Open absences</a>
+        </div>
+    }
+    else
+    {
+        <section class="glass-card" aria-labelledby="summaryHeading">
+            <h2 class="card-title" id="summaryHeading">@range.People.Count @(range.People.Count == 1 ? "person" : "people") · @DisplayFormat.DateRange(range.From, range.To)</h2>
+            <div class="glass-table-wrap glass-table-wrap-inset">
+                <table class="glass-table report-matrix" data-testid="absence-summary-table">
+                    <caption class="visually-hidden">Absent days per person and month</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Person</th>
+                            <th scope="col" class="num">Absent</th>
+                            <th scope="col" class="num">Paid leave</th>
+                            <th scope="col" class="num">Unpaid</th>
+                            @foreach (var month in range.Months)
+                            {
+                                <th scope="col" class="num"><abbr title="@ReportDisplay.MonthLong(month)">@ReportDisplay.MonthShort(month)</abbr></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var person in range.People)
+                        {
+                            <tr data-testid="absence-summary-row">
+                                <th scope="row" data-label="Person"><a asp-controller="People" asp-action="Details" asp-route-id="@person.PersonId" asp-route-tab="absences" class="cell-primary">@person.PersonName</a> <span class="text-muted-glass num">@person.PersonCode</span></th>
+                                <td data-label="Absent" class="num" data-testid="summary-absent">@AbsenceDisplay.Days(person.AbsentDays)</td>
+                                <td data-label="Paid leave" class="num">@AbsenceDisplay.Days(person.PaidDays)</td>
+                                <td data-label="Unpaid" class="num" data-testid="summary-unpaid">@AbsenceDisplay.Days(person.UnpaidDays)</td>
+                                @foreach (var month in range.Months)
+                                {
+                                    var days = person.AbsentByMonth.GetValueOrDefault(month);
+                                    <td data-label="@ReportDisplay.MonthShort(month)" class="num">@(days == 0m ? "–" : AbsenceDisplay.Days(days))</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th scope="row">Total</th>
+                            <td class="num" data-testid="summary-total-absent">@AbsenceDisplay.Days(range.People.Sum(p => p.AbsentDays))</td>
+                            <td class="num">@AbsenceDisplay.Days(range.People.Sum(p => p.PaidDays))</td>
+                            <td class="num" data-testid="summary-total-unpaid">@AbsenceDisplay.Days(range.People.Sum(p => p.UnpaidDays))</td>
+                            @foreach (var month in range.Months)
+                            {
+                                <td class="num">@AbsenceDisplay.Days(range.People.Sum(p => p.AbsentByMonth.GetValueOrDefault(month)))</td>
+                            }
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+    }
+}

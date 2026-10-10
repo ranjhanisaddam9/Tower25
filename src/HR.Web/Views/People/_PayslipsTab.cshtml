@@ -1,0 +1,47 @@
+@using HR.Infrastructure.Payroll
+@model IReadOnlyList<PersonPayslipRow>
+@* Finalized payroll lines only (drafts are never listed). Pay only: no billing for either role. *@
+@if (Model.Count == 0)
+{
+    <div class="empty-state" data-testid="payslips-empty">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+        <p class="empty-state-text">No finalized payroll includes this person yet. Payslips appear here once a payroll is finalized.</p>
+        <a class="btn btn-ghost" asp-controller="Payroll" asp-action="Index">Go to payroll</a>
+    </div>
+}
+else
+{
+    <div class="glass-table-wrap glass-table-wrap-inset">
+        <table class="glass-table" data-testid="payslips-table">
+            <caption class="visually-hidden">Payslips from finalized payrolls, newest first</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Period</th>
+                    <th scope="col" class="num">Payable days</th>
+                    <th scope="col" class="money">Net pay (PKR)</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var slip in Model)
+                {
+                    <tr data-testid="payslip-row">
+                        <td data-label="Period" class="num">@DisplayFormat.DateRange(slip.PeriodStart, slip.PeriodEnd)</td>
+                        <td data-label="Payable days" class="num">@PayrollDisplay.Fraction(slip.PayableDays, slip.WorkingDays)</td>
+                        <td data-label="Net pay (PKR)" class="money num">@PayrollDisplay.Pkr(slip.NetPayPkr)</td>
+                        <td data-label="Actions" class="cell-actions">
+                            <span class="cell-group">
+                            <a class="btn btn-ghost" asp-controller="Payroll" asp-action="Payslip" asp-route-id="@slip.RunId" asp-route-lineId="@slip.LineId">
+                                <i class="bi bi-eye" aria-hidden="true"></i> View<span class="visually-hidden"> payslip for @DisplayFormat.DateRange(slip.PeriodStart, slip.PeriodEnd)</span>
+                            </a>
+                            <a class="btn btn-ghost" asp-controller="Payroll" asp-action="PayslipPdf" asp-route-id="@slip.RunId" asp-route-lineId="@slip.LineId" data-testid="payslip-pdf-link">
+                                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF<span class="visually-hidden"> of the payslip for @DisplayFormat.DateRange(slip.PeriodStart, slip.PeriodEnd)</span>
+                            </a>
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

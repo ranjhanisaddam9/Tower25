@@ -1,0 +1,27 @@
+@{
+    ViewData["Title"] = "Reports";
+    ViewData["Section"] = "Insights";
+    var reports = new[]
+    {
+        ("PayrollHistory", "bi-clock-history", "Payroll history", "Every finalized payroll: people and total net pay, with a chart of the last 24 periods."),
+        ("SalaryChanges", "bi-arrow-up-right", "Salary changes", "Increments and decrements that took effect in a date range, with the change in percent."),
+        ("Absences", "bi-calendar-x", "Absence summary", "Absent days, paid leave used and unpaid days per person, month by month."),
+        ("Headcount", "bi-people", "Headcount", "Active people at each month end for the last 12 months, with joiners and leavers."),
+    };
+}
+
+<p class="page-lead">Read-only reports from saved data. Payroll figures come from finalized payrolls only. Each report can be downloaded as Excel.</p>
+
+<div class="report-grid" data-testid="report-hub">
+    @foreach (var (action, icon, title, text) in reports)
+    {
+        <a class="glass-card report-card" asp-action="@action" data-testid="report-card">
+            <span class="report-card-icon" aria-hidden="true"><i class="bi @icon"></i></span>
+            <span class="report-card-body">
+                <span class="report-card-title">@title</span>
+                <span class="report-card-text">@text</span>
+            </span>
+            <i class="bi bi-chevron-right report-card-arrow" aria-hidden="true"></i>
+        </a>
+    }
+</div>

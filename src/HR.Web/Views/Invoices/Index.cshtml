@@ -20,7 +20,12 @@
 <section class="stat-grid" aria-label="Invoice totals@(Model.Year is { } y ? $" for {y}" : "")">
     <partial name="_StatTile" model="@(new StatTileViewModel("Invoiced", DisplayFormat.Usd(totals.InvoicedUsd), "bi-file-earmark-text", "indigo", Model.Year is { } y1 ? $"Issued in {y1}, not void" : "All invoices that aren't void", TestId: "total-invoiced"))" />
     <partial name="_StatTile" model="@(new StatTileViewModel("Received", DisplayFormat.Usd(totals.ReceivedUsd), "bi-check2-circle", "teal", "On paid invoices", TestId: "total-received"))" />
-    <partial name="_StatTile" model="@(new StatTileViewModel("Outstanding", DisplayFormat.Usd(totals.OutstandingUsd), "bi-hourglass-split", "warning", totals.OverdueCount == 0 ? "Nothing overdue" : $"{totals.OverdueCount} overdue", TestId: "total-outstanding"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Outstanding", DisplayFormat.Usd(totals.OutstandingUsd), "bi-hourglass-split", "warning",
+        (totals.OverdueCount == 0 ? "Nothing overdue" : $"{totals.OverdueCount} overdue") + (totals.ShortPaidCount > 0 ? $" · includes {totals.ShortPaidCount} paid short" : ""), TestId: "total-outstanding"))" />
+    @if (totals.ReceivedInExcessUsd > 0m)
+    {
+        <partial name="_StatTile" model="@(new StatTileViewModel("Received in excess", DisplayFormat.Usd(totals.ReceivedInExcessUsd), "bi-plus-circle", "info", "Paid over the invoice total", TestId: "total-excess"))" />
+    }
 </section>
 
 <form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter invoices">
@@ -95,7 +100,15 @@ else
                         <td data-label="Issued" class="num">@DisplayFormat.Date(r.IssueDate)</td>
                         <td data-label="Due" class="num">@DisplayFormat.Date(r.DueDate)</td>
                         <td data-label="Total" class="money num">@DisplayFormat.Usd(r.TotalUsd)</td>
-                        <td data-label="Status"><span class="pill @InvoiceDisplay.Pill(r.Status, r.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(r.Status, r.IsOverdue)</span></td>
+                        <td data-label="Status">
+                            <span class="cell-group">
+                                <span class="pill @InvoiceDisplay.Pill(r.Status, r.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(r.Status, r.IsOverdue)</span>
+                                @if (InvoiceDisplay.Difference(r.Status, r.TotalUsd, r.AmountReceivedUsd) is { } diff)
+                                {
+                                    <span class="pill @diff.Pill" data-testid="payment-difference">@diff.Text</span>
+                                }
+                            </span>
+                        </td>
                         <td data-label="Paid" class="num">@(r.PaidDate is { } paid ? DisplayFormat.Date(paid) : "—")</td>
                     </tr>
                 }

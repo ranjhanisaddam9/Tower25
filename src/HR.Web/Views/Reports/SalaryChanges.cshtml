@@ -1,0 +1,64 @@
+@using HR.Domain.Pay
+@model SalaryChangesViewModel
+@{
+    ViewData["Title"] = "Salary changes";
+    ViewData["Section"] = "Reports";
+    static string Pay(decimal amount, PayCurrency currency) => DisplayFormat.Money(amount, currency);
+    static string Opt(decimal? usd) => usd is { } v ? DisplayFormat.Usd(v) : "—";
+}
+
+<partial name="_ReportActions" model="@HR.Web.Exports.ExportLinks.For("/reports/salary-changes/export", ("from", Model.From), ("to", Model.To))" />
+<p class="page-lead">Increments and decrements that took effect between the two dates (inclusive), from the pay records.</p>
+<partial name="_RangeForm" model="@((Model.From, Model.To, Model.Error, "Choose the date range"))" />
+
+@if (Model.Error is null && Model.Rows.Count == 0)
+{
+    <div class="glass-card empty-state" data-testid="changes-empty">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-arrow-up-right"></i></span>
+        <p class="empty-state-text">No pay changes took effect between @DisplayFormat.Date(Model.From) and @DisplayFormat.Date(Model.To).</p>
+        <a class="btn btn-ghost" asp-controller="Salaries" asp-action="Index">Open salaries</a>
+    </div>
+}
+else if (Model.Rows.Count > 0)
+{
+    <section class="glass-card" aria-labelledby="changesHeading">
+        <h2 class="card-title" id="changesHeading">@Model.Rows.Count @(Model.Rows.Count == 1 ? "change" : "changes") · @DisplayFormat.DateRange(Model.From, Model.To)</h2>
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table" data-testid="changes-table">
+                <caption class="visually-hidden">Pay changes by effective date</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Effective from</th>
+                        <th scope="col">Person</th>
+                        <th scope="col" class="money">Old pay</th>
+                        <th scope="col" class="money">New pay</th>
+                        <th scope="col" class="money">Change</th>
+                        @if (Model.ShowBilling)
+                        {
+                            <th scope="col" class="money">Billed monthly</th>
+                            <th scope="col" class="money">Commission</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var c = row.Change;
+                        <tr data-testid="change-row">
+                            <td data-label="Effective from" class="num">@DisplayFormat.Date(c.Current.EffectiveFrom)</td>
+                            <td data-label="Person"><a asp-controller="People" asp-action="Details" asp-route-id="@row.PersonId" class="cell-primary">@row.FullName</a> <span class="text-muted-glass num">@row.Code</span></td>
+                            <td data-label="Old pay" class="money num">@Pay(c.Previous.PayMonthlyAmount, c.Previous.PayCurrency)</td>
+                            <td data-label="New pay" class="money num">@Pay(c.Current.PayMonthlyAmount, c.Current.PayCurrency)</td>
+                            <td data-label="Change" class="money num">@(c.PayChanged ? (c.PayChangePercent is { } p ? DisplayFormat.Percent(p) : "currency changed") : "—")</td>
+                            @if (Model.ShowBilling)
+                            {
+                                <td data-label="Billed monthly" class="money num">@Opt(c.Previous.BilledMonthlyUsd) → @Opt(c.Current.BilledMonthlyUsd)</td>
+                                <td data-label="Commission" class="money num">@Opt(c.Previous.CommissionPerPeriodUsd) → @Opt(c.Current.CommissionPerPeriodUsd)</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}

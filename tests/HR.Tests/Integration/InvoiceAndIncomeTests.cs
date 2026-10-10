@@ -495,7 +495,9 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
             var list = await admin.GetStringAsync("/invoices");
             Assert.Contains("data-testid=\"invoice-status\">Paid<", list);
             Assert.Matches("data-testid=\"total-received\"[\\s\\S]*?stat-value\">\\$595\\.50<", list);
-            Assert.Matches("data-testid=\"total-outstanding\"[\\s\\S]*?stat-value\">\\$0\\.00<", list);
+            // M9: a payment $4.50 short leaves the shortfall outstanding and shows a "Short by" pill.
+            Assert.Matches("data-testid=\"total-outstanding\"[\\s\\S]*?stat-value\">\\$4\\.50<", list);
+            Assert.Contains("Short by $4.50", list);
             Assert.Matches("data-testid=\"total-invoiced\"[\\s\\S]*?stat-value\">\\$600\\.00<", list);
             Assert.Empty(InvoiceRowRegex().Matches(await admin.GetStringAsync("/invoices?status=Issued")));
             Assert.Single(InvoiceRowRegex().Matches(await admin.GetStringAsync("/invoices?year=2026")));

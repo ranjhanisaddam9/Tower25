@@ -1,10 +1,12 @@
 using System.Security.Claims;
+using HR.Domain.Exports;
 using HR.Domain.Payroll;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.Invoices;
 using HR.Infrastructure.Payroll;
 using HR.Infrastructure.Rates;
 using HR.Infrastructure.Settings;
+using HR.Web.Exports;
 using HR.Web.Formatting;
 using HR.Web.Infrastructure;
 using HR.Web.Security;
@@ -344,6 +346,94 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
         var run = await payroll.GetRunAsync(id, cancellationToken);
         return run is null ? NotFound() : View(new RegisterViewModel(run, await payroll.RegisterAsync(id, cancellationToken), (await settings.GetAsync(cancellationToken)).PayslipIssuerName));
     }
+
+    // ===================== Exports (M9) =====================
+
+    /// <summary>The run's lines as .xlsx. Admins also get billing, invoice and earning columns; Managers never do.</summary>
+    [HttpGet("{id:int}/export")]
+    public async Task<IActionResult> Export(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        if (run is null)
+        {
+            return NotFound();
+        }
+
+        var lines = await payroll.LinesAsync(id, cancellationToken);
+        var filters = ExcelExports.RunFilters(run);
+        var context = downloads.Context(User, "Payroll", filters);
+        var file = IsAdmin
+            ? ExcelExports.RunLinesAdmin(context, run, lines, await payroll.BillingAsync(id, cancellationToken: cancellationToken))
+            : ExcelExports.RunLines(context, run, lines);
+        return downloads.Send(this, file, "Payroll", filters);
+    }
+
+    /// <summary>The bank-upload sheet: full IBANs and net pay (PKR), with a total.</summary>
+    [HttpGet("{id:int}/register/export")]
+    public async Task<IActionResult> RegisterExport(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        if (run is null)
+        {
+            return NotFound();
+        }
+
+        var filters = ExcelExports.RunFilters(run);
+        var file = ExcelExports.Register(downloads.Context(User, "Payroll register", filters), run, await payroll.RegisterAsync(id, cancellationToken));
+        return downloads.Send(this, file, "Payroll register", filters);
+    }
+
+    [HttpGet("{id:int}/register/pdf")]
+    public async Task<IActionResult> RegisterPdf(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        if (run is null)
+        {
+            return NotFound();
+        }
+
+        var file = PdfDocuments.Register(run, await payroll.RegisterAsync(id, cancellationToken), (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
+            ExportFileName.Build("pdf", "register", Iso(run.Period.Start), run.IsDraft ? "draft" : null));
+        return downloads.Send(this, file, "Payroll register", ExcelExports.RunFilters(run));
+    }
+
+    [HttpGet("{id:int}/lines/{lineId:int}/payslip/pdf")]
+    public async Task<IActionResult> PayslipPdf(int id, int lineId, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        var detail = await payroll.GetLineAsync(id, lineId, cancellationToken);
+        if (run is null || detail is null || detail.Line.IsOrphaned)
+        {
+            return NotFound();
+        }
+
+        var file = PdfDocuments.Payslips(run, [detail], (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
+            ExportFileName.Build("pdf", "payslip", detail.Line.PersonCode, Iso(run.Period.Start), run.IsDraft ? "draft" : null));
+        return downloads.Send(this, file, "Payslip", [.. ExcelExports.RunFilters(run), new("Person", detail.Line.PersonCode)]);
+    }
+
+    [HttpGet("{id:int}/payslips/pdf")]
+    public async Task<IActionResult> PayslipsPdf(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        if (run is null)
+        {
+            return NotFound();
+        }
+
+        var details = await payroll.GetAllLineDetailsAsync(id, cancellationToken);
+        if (details.Count == 0)
+        {
+            TempData.ToastError("This payroll has no payslips yet.");
+            return RedirectToAction(nameof(Run), new { id });
+        }
+
+        var file = PdfDocuments.Payslips(run, details, (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
+            ExportFileName.Build("pdf", "payslips", Iso(run.Period.Start), run.IsDraft ? "draft" : null));
+        return downloads.Send(this, file, "All payslips", ExcelExports.RunFilters(run));
+    }
+
+    private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     // ===================== Helpers =====================
 

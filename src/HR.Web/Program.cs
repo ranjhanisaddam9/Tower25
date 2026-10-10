@@ -20,6 +20,7 @@ builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddMemoryCache(); // short-lived payroll recalculation diffs (too big for the TempData cookie)
+builder.Services.AddSingleton<HR.Web.Exports.Downloads>(); // M9: export responses and their audit events
 builder.Services.AddControllersWithViews(options =>
 {
     // Every unsafe HTTP method (POST/PUT/PATCH/DELETE) must carry a valid antiforgery token.

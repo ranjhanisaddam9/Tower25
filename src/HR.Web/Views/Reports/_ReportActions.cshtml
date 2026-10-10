@@ -1,0 +1,8 @@
+@model string
+@* The report header: back to the hub and the Excel export. Model = the export link, built from the report's own values. *@
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All reports</a>
+    <a class="btn btn-ghost" href="@Model" data-testid="export-link">
+        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export to Excel
+    </a>
+</div>

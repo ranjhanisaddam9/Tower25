@@ -105,6 +105,8 @@ One invoice per finalized payroll. One row per person: name, designation, **amou
 
 The invoice is issued when the payroll is finalized (if the business and client names are set in Settings), numbered `<prefix>-YYYY-NNNN` per year, dated on the finalize date and due after the payment terms. Reopening the payroll voids its invoice (refused while it is paid); finalizing again issues a replacement that refers to the voided one. Rows show the salary part (`BilledUsd`), extras (Σ s·AmountUsd) and the amount (`InvoiceUsd`). **Commission is never shown as a separate line**; it is already inside the amount. The owner's own line appears like any other. Invoice total = sum of rows.
 
+When an invoice is marked paid with an amount received that differs from its total, it shows "Short by $X" or "Over by $X". Outstanding = Σ totals of unpaid (issued) invoices + Σ shortfalls on invoices paid short; amounts received over the total are shown separately as "Received in excess".
+
 ## 8. Owner income (Admin only)
 
 ```
@@ -168,3 +170,4 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 - 2026-10-09: Employment periods replace single joining/leaving dates; Owner rule relaxed to at most one active Owner.
 - 2026-10-10: extra days; adjustments pass through at cost; deductions credit the Company; active status follows leaving date.
 - 2026-10-10 (M8): the Owner line's earning is its whole invoiced amount; owner income = Σ final OwnerEarning over all lines; deductions may not exceed pay (NegativeNetPay blocks finalize); people added after a finalized period need a confirmation (arrears paid in the current payroll); invoice and settings rules (§7).
+- 2026-10-10 (M9): short and over payments on paid invoices; outstanding includes shortfalls, overpayments shown as "received in excess" (§7).

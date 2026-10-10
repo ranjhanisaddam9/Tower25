@@ -50,6 +50,7 @@
         </div>
         <button type="submit" class="btn btn-ghost btn-sm-compact">Update</button>
     </form>
+    <a class="btn btn-ghost" asp-action="Export" asp-all-route-data="@Model.Route(Model.View, Model.Anchor)" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export</a>
 </div>
 
 <div class="income-grid">

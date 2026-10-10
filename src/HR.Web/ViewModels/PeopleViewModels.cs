@@ -183,9 +183,15 @@ public sealed record PersonDetailsViewModel(
     IReadOnlyList<EmploymentPeriodRowViewModel> EmploymentHistory,
     AdminPayTabViewModel? AdminPay,
     ManagerPayTabViewModel? ManagerPay,
-    PersonAbsenceTabViewModel? Absences = null)
+    PersonAbsenceTabViewModel? Absences = null,
+    IReadOnlyList<HR.Infrastructure.Payroll.PersonPayslipRow>? Payslips = null)
 {
     public bool ShowAbsences => Absences is not null;
+
+    /// <summary>The Payslips tab (M9): finalized lines only, pay only, for both roles.</summary>
+    public bool ShowPayslips => Payslips is not null;
+
+    public bool ShowSalary => !ShowAbsences && !ShowPayslips;
 }
 
 /// <summary>One employment period on the details page. Working days run to today for the current (open) period.</summary>

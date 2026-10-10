@@ -13,6 +13,8 @@
     <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All invoices</a>
     <div class="action-group">
         <a class="btn btn-ghost" asp-controller="Payroll" asp-action="Run" asp-route-id="@inv.RunId"><i class="bi bi-receipt" aria-hidden="true"></i> Payroll</a>
+        <a class="btn btn-ghost" asp-action="Pdf" asp-route-id="@inv.Id" data-testid="pdf-link"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+        <a class="btn btn-ghost" asp-action="Export" asp-route-id="@inv.Id" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Excel</a>
         <button type="button" class="btn btn-ghost" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
         @if (inv.Status == InvoiceStatus.Paid)
         {
@@ -69,7 +71,12 @@
                 <div><dt>Issue date</dt><dd class="num">@DisplayFormat.Date(inv.IssueDate)</dd></div>
                 <div><dt>Due date</dt><dd class="num">@DisplayFormat.Date(inv.DueDate)</dd></div>
                 <div><dt>Period</dt><dd class="num">@DisplayFormat.DateRange(inv.PeriodStart, inv.PeriodEnd)</dd></div>
-                <div><dt>Status</dt><dd><span class="pill @InvoiceDisplay.Pill(inv.Status, d.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(inv.Status, d.IsOverdue)</span></dd></div>
+                <div><dt>Status</dt><dd><span class="pill @InvoiceDisplay.Pill(inv.Status, d.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(inv.Status, d.IsOverdue)</span>
+                    @if (InvoiceDisplay.Difference(inv.Status, inv.TotalUsd, inv.AmountReceivedUsd) is { } diff)
+                    {
+                        <span class="pill @diff.Pill no-print" data-testid="payment-difference">@diff.Text</span>
+                    }
+                </dd></div>
             </dl>
             @if (d.ReplacesNumber is { } replaces)
             {

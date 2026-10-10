@@ -10,7 +10,10 @@
 
 <div class="page-actions">
     <p class="page-lead mb-0">USD to PKR rates. Each rate applies from its date until the next entry. Payroll proposes the rate in effect on the period's end date.</p>
-    <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add rate</a>
+    <div class="action-group">
+        <a class="btn btn-ghost" href="/exchange-rates/export" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export</a>
+        <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add rate</a>
+    </div>
 </div>
 
 @if (Model.TotalCount == 0)

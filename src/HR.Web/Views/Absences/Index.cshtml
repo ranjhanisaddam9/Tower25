@@ -27,6 +27,7 @@
     <div class="action-group">
         <a class="btn btn-ghost" asp-action="Day"><i class="bi bi-calendar-check" aria-hidden="true"></i> Daily attendance</a>
         <a class="btn btn-ghost" asp-action="Range"><i class="bi bi-calendar-range" aria-hidden="true"></i> Add a range</a>
+        <a class="btn btn-ghost" href="@HR.Web.Exports.ExportLinks.For("/absences/export", ("period", period.Start), ("q", Model.Search), ("portion", Model.Portion), ("paid", Model.Paid), ("status", Model.Status))" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export period</a>
         <a class="btn btn-primary-gradient" asp-action="New"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add absence</a>
     </div>
 </div>
@@ -224,3 +225,31 @@ else
         </nav>
     }
 }
+
+<section class="glass-card mt-4" aria-labelledby="rangeExportHeading">
+    <h2 class="card-title" id="rangeExportHeading">Export a date range</h2>
+    <p class="text-muted-glass">Download every absence between two dates (at most one year) with its paid and unpaid parts, and a sheet with each person's totals. The filters above apply too.</p>
+    <form method="get" action="/absences/export" class="filter-bar filter-bar-plain" data-testid="range-export-form">
+        @if (Model.Search is { } rangeSearch)
+        {
+            <input type="hidden" name="q" value="@rangeSearch" />
+        }
+        @if (Model.Portion is { } rangePortion)
+        {
+            <input type="hidden" name="portion" value="@rangePortion" />
+        }
+        <input type="hidden" name="paid" value="@Model.Paid" />
+        <input type="hidden" name="status" value="@Model.Status" />
+        <div class="form-floating filter-select">
+            <input type="date" class="form-control num" id="exportFrom" name="from" required value="@AbsenceDisplay.Iso(new DateOnly(period.Start.Year, 1, 1))" />
+            <label for="exportFrom">From</label>
+        </div>
+        <div class="form-floating filter-select">
+            <input type="date" class="form-control num" id="exportTo" name="to" required value="@AbsenceDisplay.Iso(new DateOnly(period.Start.Year, 12, 31))" />
+            <label for="exportTo">To</label>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-ghost"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export range</button>
+        </div>
+    </form>
+</section>

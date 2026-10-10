@@ -1,0 +1,52 @@
+@model HeadcountViewModel
+@{
+    ViewData["Title"] = "Headcount";
+    ViewData["Section"] = "Reports";
+}
+
+<partial name="_ReportActions" model="@("/reports/headcount/export")" />
+<p class="page-lead">People employed at each month end for the last 12 months (today for the current month). Joiners count every new employment period, including rejoins; leavers count leaving dates up to that day.</p>
+
+<section class="glass-card" aria-labelledby="headcountChartHeading">
+    <h2 class="card-title" id="headcountChartHeading">Active at month end</h2>
+    <partial name="_BarChart" model="Model.Chart" />
+</section>
+
+<section class="glass-card mt-4" aria-labelledby="headcountHeading">
+    <h2 class="card-title" id="headcountHeading">By month</h2>
+    <div class="glass-table-wrap glass-table-wrap-inset">
+        <table class="glass-table" data-testid="headcount-table">
+            <caption class="visually-hidden">Headcount, joiners and leavers by month</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Month</th>
+                    <th scope="col" class="num">Active</th>
+                    <th scope="col" class="num">Employees</th>
+                    <th scope="col" class="num">Internees</th>
+                    <th scope="col" class="num">Joiners</th>
+                    <th scope="col" class="num">Leavers</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Model.Months)
+                {
+                    <tr data-testid="headcount-row">
+                        <th scope="row" data-label="Month">@ReportDisplay.MonthLong(m.Month)@(m.AsOf < m.Month.AddMonths(1).AddDays(-1) ? " (to date)" : "")</th>
+                        <td data-label="Active" class="num" data-testid="headcount-active">@m.Active</td>
+                        <td data-label="Employees" class="num">@m.ActiveEmployees</td>
+                        <td data-label="Internees" class="num">@m.ActiveInternees</td>
+                        <td data-label="Joiners" class="num" data-testid="headcount-joiners">@m.Joiners</td>
+                        <td data-label="Leavers" class="num" data-testid="headcount-leavers">@m.Leavers</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th scope="row" colspan="4">Total over 12 months</th>
+                    <td class="num">@Model.Months.Sum(m => m.Joiners)</td>
+                    <td class="num">@Model.Months.Sum(m => m.Leavers)</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</section>

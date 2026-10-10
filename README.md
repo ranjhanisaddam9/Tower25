@@ -154,3 +154,9 @@ Never commit secrets. In production, supply settings through environment variabl
 | First Admin (only used while no Admin exists) | `Seed__Admin__Email`, `Seed__Admin__FullName`, `Seed__Admin__Password` |
 
 Behind a reverse proxy, the login rate limit (10 per minute per client IP) needs forwarded headers configured so it sees the real client IP. That is planned for the M10 deployment guide.
+
+## Exports and third-party licences
+
+- **Excel** files are written with [ClosedXML](https://github.com/ClosedXML/ClosedXML) (MIT).
+- **PDF** files are written with [QuestPDF](https://www.questpdf.com) under its **Community licence**, set in code (`QuestPDF.Settings.License = LicenseType.Community`). The Community licence is free for organisations with **less than USD 1M annual gross revenue**. Above that, a paid QuestPDF licence is required; check the current terms on questpdf.com before relying on this.
+- The PDF font is **Plus Jakarta Sans** (static TTFs from the official repository, github.com/tokotype/PlusJakartaSans), embedded from `src/HR.Infrastructure/Fonts` under the SIL Open Font License 1.1 (`Fonts/OFL.txt`).

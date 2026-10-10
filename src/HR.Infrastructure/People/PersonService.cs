@@ -51,6 +51,28 @@ public sealed record PersonRow(int Id, string Code, string FullName, string Desi
 /// <summary>An Admin list row: the shared row plus the Admin-only hire source.</summary>
 public sealed record AdminPersonRow(PersonRow Person, HireSource? HireSource);
 
+/// <summary>
+/// A people-export row (M9): the list row plus contact details. CNIC and IBAN are masked here, in the service, so the
+/// full values never leave it for an export. No hire source: this is what Managers get.
+/// </summary>
+public sealed record PersonExportRow(
+    int Id,
+    string Code,
+    string FullName,
+    PersonType Type,
+    string Designation,
+    string? Email,
+    string Phone,
+    string? CnicMasked,
+    string? BankName,
+    string? IbanMasked,
+    DateOnly JoiningDate,
+    DateOnly? LeavingDate,
+    bool IsActive);
+
+/// <summary>Admin people-export row: the shared row plus the Admin-only hire source.</summary>
+public sealed record AdminPersonExportRow(PersonExportRow Person, HireSource? HireSource);
+
 /// <summary>Everything on the details and edit pages, without the hire source (loaded separately for Admins).</summary>
 public sealed record PersonDetails(
     int Id,
@@ -135,15 +157,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
     public async Task<PagedResult<AdminPersonRow>> ListForAdminAsync(PeopleQuery query, HireSourceFilter hireSource, CancellationToken cancellationToken = default)
     {
         var today = clock.Today;
-        var filtered = Filter(db.People.AsNoTracking(), query, today);
-        filtered = hireSource switch
-        {
-            HireSourceFilter.NotAssigned => filtered.Where(p => p.HireSource == null),
-            HireSourceFilter.CompanyRecommended => filtered.Where(p => p.HireSource == HireSource.CompanyRecommended),
-            HireSourceFilter.BudgetHire => filtered.Where(p => p.HireSource == HireSource.BudgetHire),
-            HireSourceFilter.Owner => filtered.Where(p => p.HireSource == HireSource.Owner),
-            _ => filtered,
-        };
+        var filtered = FilterHireSource(Filter(db.People.AsNoTracking(), query, today), hireSource);
 
         var total = await filtered.CountAsync(cancellationToken);
         var page = PagedResult<AdminPersonRow>.ClampPage(query.Page, total, query.PageSize);
@@ -157,6 +171,34 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
             .ToListAsync(cancellationToken);
 
         return new PagedResult<AdminPersonRow>(rows, page, query.PageSize, total);
+    }
+
+    /// <summary>Every row of the list with the same filters and sort (no paging), for the people export.</summary>
+    public async Task<IReadOnlyList<PersonExportRow>> ExportAsync(PeopleQuery query, CancellationToken cancellationToken = default)
+    {
+        var today = clock.Today;
+        var rows = await Sort(Filter(db.People.AsNoTracking(), query, today), query)
+            .Select(p => new { p.Id, p.Code, p.FullName, p.Type, p.Designation, p.Email, p.Phone, p.Cnic, p.BankName, p.Iban, p.JoiningDate, p.LeavingDate })
+            .ToListAsync(cancellationToken);
+        return rows.Select(p => new PersonExportRow(p.Id, p.Code, p.FullName, p.Type, p.Designation, p.Email, p.Phone,
+                p.Cnic is null ? null : Masking.Cnic(p.Cnic), p.BankName, p.Iban is null ? null : Masking.Iban(p.Iban),
+                p.JoiningDate, p.LeavingDate, PersonStatus.IsActive(p.LeavingDate, today)))
+            .ToList();
+    }
+
+    /// <summary>Admin only: the people export with hire sources and the hire-source filter.</summary>
+    public async Task<IReadOnlyList<AdminPersonExportRow>> ExportForAdminAsync(PeopleQuery query, HireSourceFilter hireSource, CancellationToken cancellationToken = default)
+    {
+        var today = clock.Today;
+        var rows = await Sort(FilterHireSource(Filter(db.People.AsNoTracking(), query, today), hireSource), query)
+            .Select(p => new { p.Id, p.Code, p.FullName, p.Type, p.Designation, p.Email, p.Phone, p.Cnic, p.BankName, p.Iban, p.JoiningDate, p.LeavingDate, p.HireSource })
+            .ToListAsync(cancellationToken);
+        return rows.Select(p => new AdminPersonExportRow(
+                new PersonExportRow(p.Id, p.Code, p.FullName, p.Type, p.Designation, p.Email, p.Phone,
+                    p.Cnic is null ? null : Masking.Cnic(p.Cnic), p.BankName, p.Iban is null ? null : Masking.Iban(p.Iban),
+                    p.JoiningDate, p.LeavingDate, PersonStatus.IsActive(p.LeavingDate, today)),
+                p.HireSource))
+            .ToList();
     }
 
     /// <summary>Every employment period of a person, oldest first.</summary>
@@ -618,6 +660,15 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
 
         return people;
     }
+
+    private static IQueryable<Person> FilterHireSource(IQueryable<Person> people, HireSourceFilter hireSource) => hireSource switch
+    {
+        HireSourceFilter.NotAssigned => people.Where(p => p.HireSource == null),
+        HireSourceFilter.CompanyRecommended => people.Where(p => p.HireSource == HireSource.CompanyRecommended),
+        HireSourceFilter.BudgetHire => people.Where(p => p.HireSource == HireSource.BudgetHire),
+        HireSourceFilter.Owner => people.Where(p => p.HireSource == HireSource.Owner),
+        _ => people,
+    };
 
     private static IQueryable<Person> Sort(IQueryable<Person> people, PeopleQuery query) => (query.Sort, query.Descending) switch
     {

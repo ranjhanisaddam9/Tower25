@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using HR.Infrastructure.Invoices;
 using HR.Infrastructure.Settings;
+using HR.Web.Exports;
 using HR.Web.Infrastructure;
 using HR.Web.Security;
 using HR.Web.ViewModels;
@@ -33,6 +34,33 @@ public class InvoicesController(InvoiceService invoices, SettingsService setting
     {
         var details = await invoices.GetAsync(id, cancellationToken);
         return details is null ? NotFound() : View(new InvoiceViewModel(details, new MarkPaidForm { PaidDate = null, AmountReceivedUsd = details.Invoice.TotalUsd }));
+    }
+
+    /// <summary>The invoice lines as .xlsx (the same columns as the invoice page), from the invoice's own snapshot.</summary>
+    [HttpGet("{id:int}/export")]
+    public async Task<IActionResult> Export(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var details = await invoices.GetAsync(id, cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        var filters = ExcelExports.InvoiceFilters(details);
+        return downloads.Send(this, ExcelExports.Invoice(downloads.Context(User, "Invoice", filters), details.Invoice), "Invoice", filters);
+    }
+
+    /// <summary>The A4 invoice as "&lt;number&gt;.pdf", from the invoice's own snapshot only.</summary>
+    [HttpGet("{id:int}/pdf")]
+    public async Task<IActionResult> Pdf(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var details = await invoices.GetAsync(id, cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        return downloads.Send(this, PdfDocuments.Invoice(details.Invoice, details.IsOverdue, details.ReplacesNumber), "Invoice", ExcelExports.InvoiceFilters(details));
     }
 
     [HttpPost("{id:int}/paid")]

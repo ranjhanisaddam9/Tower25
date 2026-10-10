@@ -9,7 +9,10 @@
 
 <div class="page-actions">
     <p class="page-lead mb-0">Employees and internees placed at the Company.</p>
-    <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</a>
+    <div class="action-group">
+        <a class="btn btn-ghost" href="@HR.Web.Exports.ExportLinks.For("/people/export", ("q", Model.Search), ("type", Model.Type), ("status", Model.Status), ("sort", Model.Sort), ("hireSource", Model.Admin?.Filter))" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export</a>
+        <a class="btn btn-primary-gradient" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</a>
+    </div>
 </div>
 
 <form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter people">

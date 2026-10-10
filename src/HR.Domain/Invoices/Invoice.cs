@@ -26,6 +26,25 @@ public static class InvoiceMath
     public static bool IsOverdue(InvoiceStatus status, DateOnly dueDate, DateOnly today) => status == InvoiceStatus.Issued && today > dueDate;
 
     /// <summary>
+    /// For a paid invoice: amount received − total (negative = paid short, positive = paid over). Zero when exact, and
+    /// zero for invoices that aren't paid (their whole total is outstanding instead).
+    /// </summary>
+    public static decimal PaymentDifference(InvoiceStatus status, decimal totalUsd, decimal? amountReceivedUsd) =>
+        status == InvoiceStatus.Paid && amountReceivedUsd is { } received ? received - totalUsd : 0m;
+
+    /// <summary>What is still owed on an invoice: the whole total while issued, the shortfall once paid short, else 0.</summary>
+    public static decimal OutstandingUsd(InvoiceStatus status, decimal totalUsd, decimal? amountReceivedUsd) => status switch
+    {
+        InvoiceStatus.Issued => totalUsd,
+        InvoiceStatus.Paid => Math.Max(0m, -PaymentDifference(status, totalUsd, amountReceivedUsd)),
+        _ => 0m,
+    };
+
+    /// <summary>The amount received over the total on a paid invoice (0 when exact or short).</summary>
+    public static decimal ExcessUsd(InvoiceStatus status, decimal totalUsd, decimal? amountReceivedUsd) =>
+        Math.Max(0m, PaymentDifference(status, totalUsd, amountReceivedUsd));
+
+    /// <summary>
     /// The invoice row for a finalized payroll line. The amount is the line's InvoiceUsd; salary is BilledUsd and extras are
     /// the pass-through adjustments, so Salary + Extras = Amount.
     /// </summary>

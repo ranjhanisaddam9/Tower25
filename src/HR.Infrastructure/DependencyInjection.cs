@@ -89,5 +89,9 @@ public static class DependencyInjection
         services.AddScoped<Pay.PayRecordService>();
         services.AddScoped<Pay.SalaryOverviewService>();
         services.AddScoped<Absences.AbsenceService>();
+        services.AddScoped<Reports.ReportService>();
+
+        // PDF exports: Community licence and the embedded font, registered once per process.
+        Exports.PdfSetup.Configure();
     }
 }

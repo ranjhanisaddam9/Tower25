@@ -15,6 +15,8 @@
     <div class="action-group">
         <a class="btn btn-ghost" asp-action="Register" asp-route-id="@run.Id"><i class="bi bi-list-ol" aria-hidden="true"></i> Register</a>
         <a class="btn btn-ghost" asp-action="Payslips" asp-route-id="@run.Id"><i class="bi bi-printer" aria-hidden="true"></i> Print all payslips</a>
+        <a class="btn btn-ghost" asp-action="PayslipsPdf" asp-route-id="@run.Id" data-testid="payslips-pdf-link"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Payslips PDF</a>
+        <a class="btn btn-ghost" asp-action="Export" asp-route-id="@run.Id" data-testid="export-link"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export</a>
         @if (run.IsDraft)
         {
             <form method="post" asp-action="Regenerate" asp-route-id="@run.Id" class="d-inline">

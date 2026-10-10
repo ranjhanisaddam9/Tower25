@@ -1,0 +1,52 @@
+@model BarChartViewModel
+@* Server-rendered SVG: no style attributes, no script. Colours come from theme tokens via CSS classes. *@
+@{
+    var c = Model;
+    var baseline = BarChartViewModel.Top + c.PlotHeight;
+}
+<svg class="report-chart" viewBox="0 0 @BarChartViewModel.Width @BarChartViewModel.Height" role="img" aria-labelledby="@(c.Id)Title @(c.Id)Desc" data-testid="@c.Id">
+    <title id="@(c.Id)Title">@c.Title</title>
+    <desc id="@(c.Id)Desc">@c.Description The same numbers are in the table below the chart.</desc>
+    @for (var g = 0; g <= 4; g++)
+    {
+        var value = c.AxisMax * g / 4m;
+        var y = baseline - c.Scale(value);
+        <g class="chart-gridline">
+            <line class="chart-grid" x1="@BarChartViewModel.Left" x2="@(BarChartViewModel.Width - BarChartViewModel.Right)" y1="@BarChartViewModel.F(y)" y2="@BarChartViewModel.F(y)" />
+            <text class="chart-label" x="@(BarChartViewModel.Left - 8)" y="@BarChartViewModel.F(y + 4)" text-anchor="end">@c.Axis(value)</text>
+        </g>
+    }
+    @for (var i = 0; i < c.Labels.Count; i++)
+    {
+        var top = (decimal)baseline;
+        <g class="chart-bar">
+            @foreach (var series in c.Series)
+            {
+                var h = c.Scale(series.Values[i]);
+                if (h <= 0m)
+                {
+                    continue;
+                }
+
+                top -= h;
+                <rect class="@series.Css" x="@BarChartViewModel.F(c.BarX(i))" y="@BarChartViewModel.F(top)" width="@BarChartViewModel.F(c.BarWidth)" height="@BarChartViewModel.F(h)">
+                    <title>@c.Labels[i]: @series.Label @c.Value(series.Values[i])</title>
+                </rect>
+            }
+            @if (i % c.LabelEvery == 0)
+            {
+                <g><text class="chart-label@(c.Labels.Count / c.LabelEvery > 6 && i / c.LabelEvery % 2 == 1 ? " chart-label-alt" : "")" x="@BarChartViewModel.F(c.BarX(i) + c.BarWidth / 2)" y="@(BarChartViewModel.Height - 12)" text-anchor="middle">@c.Labels[i]</text></g>
+            }
+        </g>
+    }
+    <line class="chart-axis" x1="@BarChartViewModel.Left" x2="@(BarChartViewModel.Width - BarChartViewModel.Right)" y1="@baseline" y2="@baseline" />
+</svg>
+@if (c.Series.Count > 1)
+{
+    <ul class="chart-legend" aria-label="Legend">
+        @foreach (var series in c.Series)
+        {
+            <li><span class="legend-swatch @series.Css" aria-hidden="true"></span> @series.Label</li>
+        }
+    </ul>
+}

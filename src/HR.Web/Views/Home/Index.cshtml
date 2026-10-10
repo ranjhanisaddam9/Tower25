@@ -64,7 +64,9 @@
     @if (Model.Invoices is { } outstanding)
     {
         <partial name="_StatTile" model="@(new StatTileViewModel("Outstanding invoices", DisplayFormat.Usd(outstanding.OutstandingUsd), "bi-file-earmark-text", outstanding.OverdueCount > 0 ? "danger" : "info",
-            outstanding.OutstandingCount == 0 ? "Nothing to collect" : $"{outstanding.OutstandingCount} unpaid · {outstanding.OverdueCount} overdue",
+            (outstanding.OutstandingCount == 0 && outstanding.ShortPaidCount == 0 ? "Nothing to collect" : $"{outstanding.OutstandingCount} unpaid · {outstanding.OverdueCount} overdue")
+                + (outstanding.ShortPaidCount > 0 ? $" · {outstanding.ShortPaidCount} paid short" : "")
+                + (outstanding.ReceivedInExcessUsd > 0m ? $" · received in excess {DisplayFormat.Usd(outstanding.ReceivedInExcessUsd)}" : ""),
             Href: outstanding.OverdueCount > 0 ? "/invoices?status=Overdue" : "/invoices?status=Issued", TestId: "invoices-tile"))" />
     }
 
@@ -84,6 +86,34 @@
     @if (Model.HireSourceNotAssigned is { } notAssigned)
     {
         <partial name="_StatTile" model="@(new StatTileViewModel("Hire source not assigned", notAssigned.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-question-diamond", "warning", notAssigned == 0 ? "Every active person has a source" : "Active people to review", Href: "/people?hireSource=NotAssigned", TestId: "hire-source-tile"))" />
+    }
+</section>
+
+<section class="glass-card trend-card" aria-labelledby="trendTitle" data-testid="trend-card">
+    <div class="trend-head">
+        <h2 class="card-title" id="trendTitle">Payroll trend</h2>
+        <a class="btn btn-ghost" asp-controller="Reports" asp-action="PayrollHistory">Payroll history <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <p class="trend-summary" data-testid="trend-summary">@Model.Trend.Summary</p>
+    @if (Model.Trend.OldestFirst.Count > 1)
+    {
+        <div class="trend-lines">
+            <figure class="trend-figure">
+                <svg class="sparkline" viewBox="0 0 @SparklineViewModel.Width @SparklineViewModel.Height" aria-hidden="true" focusable="false" data-testid="sparkline-netpay">
+                    <polyline class="@Model.Trend.NetPay.Css" points="@Model.Trend.NetPay.Points" />
+                </svg>
+                <figcaption><span class="legend-swatch chart-salary" aria-hidden="true"></span> Net pay (PKR), last @Model.Trend.OldestFirst.Count finalized periods</figcaption>
+            </figure>
+            @if (Model.Trend.Earning is { } earning)
+            {
+                <figure class="trend-figure">
+                    <svg class="sparkline" viewBox="0 0 @SparklineViewModel.Width @SparklineViewModel.Height" aria-hidden="true" focusable="false" data-testid="sparkline-earning">
+                        <polyline class="@earning.Css" points="@earning.Points" />
+                    </svg>
+                    <figcaption><span class="legend-swatch chart-commission" aria-hidden="true"></span> Owner earning (USD)</figcaption>
+                </figure>
+            }
+        </div>
     }
 </section>
 

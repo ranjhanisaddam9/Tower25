@@ -6,6 +6,9 @@ using HR.Infrastructure.Absences;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.Pay;
 using HR.Infrastructure.People;
+using HR.Infrastructure.Exports;
+using HR.Infrastructure.Payroll;
+using HR.Web.Exports;
 using HR.Web.Formatting;
 using HR.Web.Infrastructure;
 using HR.Web.Security;
@@ -31,18 +34,27 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
 
     private bool IsAdmin => User.IsInRole(AppRoles.Admin);
 
-    [HttpGet("")]
-    public async Task<IActionResult> Index(string? q, string? type, string? status, string? sort, string? hireSource, int page = 1, CancellationToken cancellationToken = default)
+    private static (PeopleQuery Query, string? Search, PersonType? Type, PersonStatusFilter Status, string SortValue) ParseList(
+        string? q, string? type, string? status, string? sort, int page)
     {
         var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim()[..Math.Min(q.Trim().Length, 100)];
         PersonType? typeFilter = Enum.TryParse<PersonType>(type, ignoreCase: true, out var t) && Enum.IsDefined(t) ? t : null;
         var statusFilter = Enum.TryParse<PersonStatusFilter>(status, ignoreCase: true, out var s) && Enum.IsDefined(s) ? s : PersonStatusFilter.Active;
         var (sortBy, descending, sortValue) = PeopleSortOptions.Parse(sort);
-        var query = new PeopleQuery(search, typeFilter, statusFilter, sortBy, descending, page);
+        return (new PeopleQuery(search, typeFilter, statusFilter, sortBy, descending, page), search, typeFilter, statusFilter, sortValue);
+    }
+
+    private static HireSourceFilter ParseHireSource(string? hireSource) =>
+        Enum.TryParse<HireSourceFilter>(hireSource, ignoreCase: true, out var h) && Enum.IsDefined(h) ? h : HireSourceFilter.All;
+
+    [HttpGet("")]
+    public async Task<IActionResult> Index(string? q, string? type, string? status, string? sort, string? hireSource, int page = 1, CancellationToken cancellationToken = default)
+    {
+        var (query, search, typeFilter, statusFilter, sortValue) = ParseList(q, type, status, sort, page);
 
         if (IsAdmin)
         {
-            var hireFilter = Enum.TryParse<HireSourceFilter>(hireSource, ignoreCase: true, out var h) && Enum.IsDefined(h) ? h : HireSourceFilter.All;
+            var hireFilter = ParseHireSource(hireSource);
             var result = await people.ListForAdminAsync(query, hireFilter, cancellationToken);
             var rows = result.Items.Select(r => ToRow(r.Person)).ToList();
             var sources = result.Items.ToDictionary(r => r.Person.Id, r => r.HireSource);
@@ -56,8 +68,37 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
             managerResult.Page, managerResult.TotalPages, managerResult.TotalCount, Admin: null));
     }
 
+    /// <summary>The list as .xlsx with the page's filters (M9). CNIC and IBAN are masked; hire sources only for Admins.</summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(string? q, string? type, string? status, string? sort, string? hireSource,
+        [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var (query, search, typeFilter, statusFilter, sortValue) = ParseList(q, type, status, sort, 1);
+        var filters = new List<ExportFilter>
+        {
+            new("Status", statusFilter.ToString()),
+            new("Type", typeFilter?.ToString() ?? "All"),
+            new("Sort", PeopleSortOptions.All.FirstOrDefault(o => o.Value == sortValue).Label ?? sortValue),
+        };
+        if (search is not null)
+        {
+            filters.Add(new(Downloads.SearchFilterName, search));
+        }
+
+        if (IsAdmin)
+        {
+            var hireFilter = ParseHireSource(hireSource);
+            filters.Add(new("Hire source", hireFilter == HireSourceFilter.All ? "All" : hireFilter.ToString()));
+            var adminRows = await people.ExportForAdminAsync(query, hireFilter, cancellationToken);
+            return downloads.Send(this, ExcelExports.PeopleAdmin(downloads.Context(User, "People", filters), adminRows, clock.Today), "People", filters);
+        }
+
+        var rows = await people.ExportAsync(query, cancellationToken);
+        return downloads.Send(this, ExcelExports.People(downloads.Context(User, "People", filters), rows, clock.Today), "People", filters);
+    }
+
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> Details(int id, string? tab, string? month, int? year, CancellationToken cancellationToken)
+    public async Task<IActionResult> Details(int id, string? tab, string? month, int? year, [FromServices] PayrollService payroll, CancellationToken cancellationToken)
     {
         var person = await people.GetAsync(id, cancellationToken);
         if (person is null)
@@ -91,6 +132,13 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
             var absenceTab = await absences.GetPersonTabAsync(id, shownMonth, year, cancellationToken);
             return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history, null, null,
                 absenceTab is null ? null : new PersonAbsenceTabViewModel(absenceTab, today)));
+        }
+
+        // Payslips tab: the person's finalized payroll lines (pay only, the same for both roles).
+        if (string.Equals(tab, "payslips", StringComparison.OrdinalIgnoreCase))
+        {
+            return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history, null, null,
+                Payslips: await payroll.PersonPayslipsAsync(id, cancellationToken)));
         }
 
         // Pay tab: the Admin view model carries billing; the Manager one is built from pay fields only.

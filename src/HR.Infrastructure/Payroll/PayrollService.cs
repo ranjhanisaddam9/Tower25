@@ -112,6 +112,9 @@ public sealed record RegisterRow(int LineId, string PersonCode, string PersonNam
 
 public sealed record PayrollDashboard(PayPeriod Period, int? RunId, PayrollStatus? Status);
 
+/// <summary>A person's line in a finalized payroll (the Payslips tab): pay only, never billing.</summary>
+public sealed record PersonPayslipRow(int RunId, int LineId, DateOnly PeriodStart, DateOnly PeriodEnd, decimal PayableDays, int WorkingDays, decimal? NetPayPkr);
+
 /// <summary>Admin only: the latest finalized run and its totals.</summary>
 public sealed record PayrollDashboardAdmin(int RunId, PayPeriod Period, decimal InvoiceUsd, decimal OwnerEarningUsd);
 
@@ -317,6 +320,16 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
             .Where(l => l.RunId == runId && !l.IsOrphaned)
             .OrderBy(l => l.PersonName).ThenBy(l => l.PersonCode)
             .Select(l => new RegisterRow(l.Id, l.PersonCode, l.PersonName, l.BankName, l.Iban, l.NetPayPkr))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>The person's lines in finalized payrolls, newest first. Drafts are never listed.</summary>
+    public async Task<IReadOnlyList<PersonPayslipRow>> PersonPayslipsAsync(int personId, CancellationToken cancellationToken = default) =>
+        await (
+                from l in db.PayrollLines.AsNoTracking()
+                join r in db.PayrollRuns.AsNoTracking() on l.RunId equals r.Id
+                where l.PersonId == personId && !l.IsOrphaned && r.Status == PayrollStatus.Finalized
+                orderby r.PeriodStart descending
+                select new PersonPayslipRow(r.Id, l.Id, r.PeriodStart, r.PeriodEnd, l.PayableDays, l.WorkingDays, l.NetPayPkr))
             .ToListAsync(cancellationToken);
 
     public async Task<PayrollDashboard> DashboardAsync(CancellationToken cancellationToken = default)
