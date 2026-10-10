@@ -172,7 +172,7 @@ Fixed during the pass:
 
 ## Manual checks for the owner
 
-1. On a CompanyRecommended person: Salary & increments → **Set up pay** with $300 and commission 25. The tab shows billed $475.00 per full period and your earning $25.00.
+1. On a CompanyRecommended person: Salary & increments → **Set up pay** with $300 and commission 25. The tab shows billed $300.00 per month, $175.00 per full period (incl. $25.00 commission) and your earning $25.00. (Corrected in M6: an earlier version of this line said $475.00, a typo.)
 2. On a BudgetHire person: try budget $1,000 and pay Rs 196,000, and watch the margin preview ($150.00 at rate 280). Then type pay Rs 300,000: the loss warning appears and saving needs the checkbox.
 3. As a Manager, **Record increment** on that BudgetHire person. As Admin, you see the **Review billing** pill and the dashboard "Billing reviews pending" tile; click **Mark reviewed**.
 4. As a Manager, open the same person and `/salaries`: no billed, budget, commission or review anywhere.

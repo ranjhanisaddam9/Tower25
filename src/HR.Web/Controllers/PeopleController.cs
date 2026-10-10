@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using System.Globalization;
 using HR.Domain.People;
 using HR.Domain.Time;
+using HR.Infrastructure.Absences;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.Pay;
 using HR.Infrastructure.People;
@@ -19,7 +21,7 @@ namespace HR.Web.Controllers;
 /// </summary>
 [Authorize(Policy = Policies.ManagerOrAdmin)]
 [Route("people")]
-public class PeopleController(PersonService people, PayRecordService pay, IClock clock) : Controller
+public class PeopleController(PersonService people, PayRecordService pay, AbsenceService absences, IClock clock) : Controller
 {
     public const string ConflictMessage =
         "Someone else saved changes to this person while you were editing. The form now shows the latest saved values; review the differences below and save again.";
@@ -55,7 +57,7 @@ public class PeopleController(PersonService people, PayRecordService pay, IClock
     }
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Details(int id, string? tab, string? month, int? year, CancellationToken cancellationToken)
     {
         var person = await people.GetAsync(id, cancellationToken);
         if (person is null)
@@ -81,6 +83,15 @@ public class PeopleController(PersonService people, PayRecordService pay, IClock
                 HR.Domain.Payroll.WorkingDays.Count(span.Start, span.End ?? today)))
             .Reverse() // newest first
             .ToList();
+
+        // Only the chosen tab is loaded. Absences are the same for both roles.
+        if (string.Equals(tab, "absences", StringComparison.OrdinalIgnoreCase))
+        {
+            DateOnly? shownMonth = DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var m) ? m : null;
+            var absenceTab = await absences.GetPersonTabAsync(id, shownMonth, year, cancellationToken);
+            return View(new PersonDetailsViewModel(person, defaultLeaving, minRejoin, defaultRejoin, hireCard, history, null, null,
+                absenceTab is null ? null : new PersonAbsenceTabViewModel(absenceTab, today)));
+        }
 
         // Pay tab: the Admin view model carries billing; the Manager one is built from pay fields only.
         AdminPayTabViewModel? adminPay = null;

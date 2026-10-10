@@ -1,0 +1,111 @@
+@model AttendancePage
+@{
+    ViewData["Title"] = "Daily attendance";
+    ViewData["Section"] = "Attendance";
+    var date = Model.Date;
+    var iso = AbsenceDisplay.Iso(date);
+    var statuses = new[] { (AttendancePage.Present, "Present", "bi-check-lg"), ("Half", "Half", "bi-circle-half"), ("Full", "Full", "bi-x-lg") };
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Index" asp-route-period="@AbsenceDisplay.Iso(HR.Domain.Payroll.PayPeriod.For(date).Start)"><i class="bi bi-arrow-left" aria-hidden="true"></i> Absences</a>
+    <form method="get" asp-action="Day" class="day-picker" aria-label="Choose a date">
+        <a class="btn-icon" asp-action="Day" asp-route-date="@AbsenceDisplay.Iso(AttendancePage.PreviousWorkingDay(date))" aria-label="Previous working day" title="Previous working day" data-testid="day-prev">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </a>
+        <div class="form-floating">
+            <input type="date" class="form-control num" id="dayDate" name="date" value="@iso" required />
+            <label for="dayDate">Date</label>
+        </div>
+        <button type="submit" class="btn btn-ghost">Go</button>
+        <a class="btn-icon" asp-action="Day" asp-route-date="@AbsenceDisplay.Iso(AttendancePage.NextWorkingDay(date))" aria-label="Next working day" title="Next working day" data-testid="day-next">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </a>
+        @if (date != Model.Today)
+        {
+            <a class="btn btn-ghost btn-sm-compact" asp-action="Day">Today</a>
+        }
+    </form>
+</div>
+
+<h2 class="day-heading" data-testid="day-heading">
+    <span class="day-heading-weekday">@date.DayOfWeek</span> @DisplayFormat.Date(date)
+</h2>
+
+<div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="day-errors"></div>
+
+@if (Model.Weekend)
+{
+    <div class="glass-alert alert-warning-glass" role="alert" data-testid="day-weekend">
+        <i class="bi bi-calendar-x" aria-hidden="true"></i> @HR.Web.Controllers.AbsencesController.WeekendDayMessage
+        <span class="day-weekend-links">
+            <a asp-action="Day" asp-route-date="@AbsenceDisplay.Iso(AttendancePage.PreviousWorkingDay(date))">Go to @DisplayFormat.Date(AttendancePage.PreviousWorkingDay(date))</a>
+            ·
+            <a asp-action="Day" asp-route-date="@AbsenceDisplay.Iso(AttendancePage.NextWorkingDay(date))">Go to @DisplayFormat.Date(AttendancePage.NextWorkingDay(date))</a>
+        </span>
+    </div>
+}
+else if (Model.Rows.Count == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+            <p class="empty-state-text">Nobody was employed on @DisplayFormat.Date(date).</p>
+            <a class="btn btn-ghost" asp-action="Day">Go to today</a>
+        </div>
+    </section>
+}
+else
+{
+    @if (Model.Locked)
+    {
+        <div class="glass-alert alert-warning-glass" role="status" data-testid="day-locked">
+            <i class="bi bi-lock" aria-hidden="true"></i> This date is part of a finalized payroll, so attendance is read-only.
+        </div>
+    }
+
+
+    <form method="post" asp-action="Day" class="glass-card attendance-card" data-testid="attendance-form">
+        <input type="hidden" name="Date" value="@iso" />
+        <div class="card-heading-row">
+            <h2 class="card-title" id="attendanceHeading">@Model.Rows.Count @(Model.Rows.Count == 1 ? "person" : "people") employed</h2>
+            <span class="text-muted-glass" data-testid="day-absent-count">@Model.AbsentCount absent</span>
+        </div>
+        <ul class="attendance-list" aria-labelledby="attendanceHeading">
+            @for (var i = 0; i < Model.Rows.Count; i++)
+            {
+                var row = Model.Rows[i];
+                var current = Model.StatusFor(row);
+                var groupId = $"att-{row.PersonId}";
+                <li class="attendance-row" data-testid="attendance-row" data-person-id="@row.PersonId">
+                    <input type="hidden" name="Rows[@i].PersonId" value="@row.PersonId" />
+                    <div class="attendance-person">
+                        <span class="cell-primary" id="@groupId-name">@row.PersonName</span>
+                        <span class="cell-sub"><span class="num">@row.PersonCode</span> · @row.Designation</span>
+                    </div>
+                    <fieldset class="segmented" aria-labelledby="@groupId-name" disabled="@Model.Locked">
+                        <legend class="visually-hidden">Attendance for @row.PersonName</legend>
+                        @foreach (var (value, label, icon) in statuses)
+                        {
+                            var id = $"{groupId}-{value}";
+                            <input type="radio" class="segmented-input" name="Rows[@i].Status" id="@id" value="@value" checked="@(current == value)" />
+                            <label class="segmented-option segmented-@value.ToLowerInvariant()" for="@id"><i class="bi @icon" aria-hidden="true"></i> @label</label>
+                        }
+                    </fieldset>
+                    <div class="attendance-note">
+                        <label class="visually-hidden" for="@groupId-note">Note for @row.PersonName</label>
+                        <input type="text" class="form-control" id="@groupId-note" name="Rows[@i].Note" value="@Model.NoteFor(row)" maxlength="300"
+                               placeholder="Note (optional)" disabled="@Model.Locked" />
+                    </div>
+                </li>
+            }
+        </ul>
+        @if (!Model.Locked)
+        {
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary-gradient" data-testid="day-save"><i class="bi bi-check2-circle" aria-hidden="true"></i> Save attendance</button>
+                <span class="form-hint">Only changed rows are saved. Notes are kept for absences only.</span>
+            </div>
+        }
+    </form>
+}

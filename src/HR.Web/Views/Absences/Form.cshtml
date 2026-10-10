@@ -1,0 +1,133 @@
+@using HR.Domain.Absences
+@model AbsenceFormPage
+@{
+    var existing = Model.Existing;
+    ViewData["Title"] = Model.IsEdit ? "Edit absence" : "Add absence";
+    ViewData["Section"] = "Attendance";
+    var form = Model.Form;
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+    var portions = new[] { (AbsencePortion.Full, "Full day", "1.0 day"), (AbsencePortion.Half, "Half day", "0.5 day") };
+    var backToPerson = form.ReturnTo == "person" && form.PersonId is not null;
+}
+
+<div class="page-actions">
+    @if (backToPerson)
+    {
+        <a class="btn btn-ghost" asp-controller="People" asp-action="Details" asp-route-id="@form.PersonId" asp-route-tab="absences" asp-fragment="absences"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to person</a>
+    }
+    else
+    {
+        <a class="btn btn-ghost" asp-action="Index" asp-route-period="@(form.Date is { } d ? AbsenceDisplay.Iso(HR.Domain.Payroll.PayPeriod.For(d).Start) : null)"><i class="bi bi-arrow-left" aria-hidden="true"></i> Absences</a>
+    }
+</div>
+
+<section class="glass-card form-card" aria-labelledby="absenceHeading">
+    @if (existing is not null)
+    {
+        <h2 class="card-title" id="absenceHeading">@existing.PersonName <span class="text-muted-glass num">· @existing.PersonCode</span></h2>
+        <p class="text-muted-glass" data-testid="absence-current">
+            @existing.Date.DayOfWeek @DisplayFormat.Date(existing.Date) ·
+            <span class="pill @AbsenceDisplay.PaidPill(existing.PaidDays, existing.UnpaidDays)">
+                <i class="bi @AbsenceDisplay.PaidIcon(existing.PaidDays, existing.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(existing.PaidDays, existing.UnpaidDays)
+            </span>
+            <span class="num">(@AbsenceDisplay.Split(existing.PaidDays, existing.UnpaidDays))</span>
+        </p>
+        @if (existing.Locked)
+        {
+            <div class="glass-alert alert-warning-glass" role="status" data-testid="absence-locked">
+                <i class="bi bi-lock" aria-hidden="true"></i> @AbsenceRules.LockedMessage
+            </div>
+        }
+        else if (AbsenceDisplay.WouldChangeNote(existing.LaterChangedIfOtherPortion, existing.Date,
+                     $"Changing it to {AbsenceDisplay.PortionLabel(existing.Portion == AbsencePortion.Full ? AbsencePortion.Half : AbsencePortion.Full).ToLowerInvariant()}") is { } changeNote)
+        {
+            <div class="glass-alert alert-warning-glass" role="status" data-testid="later-change-note">
+                <i class="bi bi-info-circle" aria-hidden="true"></i> @changeNote
+            </div>
+        }
+    }
+    else
+    {
+        <h2 class="card-title" id="absenceHeading">New absence</h2>
+        <p class="text-muted-glass">Paid leave (1 day a month) is applied automatically to the month's first absences.</p>
+    }
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="absence-errors"></div>
+
+    @if (existing is null || !existing.Locked)
+    {
+        <form method="post" asp-action="@(Model.IsEdit ? "Edit" : "New")" asp-route-id="@existing?.Id" data-testid="absence-form">
+            <input type="hidden" name="ReturnTo" value="@form.ReturnTo" />
+            @if (existing is not null)
+            {
+                <input type="hidden" name="RowVersion" value="@form.RowVersion" />
+            }
+            else
+            {
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-floating">
+                            <select class="form-select" id="PersonId" name="PersonId" required aria-describedby="PersonId-error">
+                                <option value="">Choose a person</option>
+                                @foreach (var p in Model.People)
+                                {
+                                    <option value="@p.Id" selected="@(p.Id == form.PersonId)">@p.FullName (@p.Code)@(p.IsActive ? "" : " · inactive")</option>
+                                }
+                            </select>
+                            <label for="PersonId">Person</label>
+                        </div>
+                        <span class="field-error" id="PersonId-error">@Error("PersonId")</span>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-floating">
+                            <input type="date" class="form-control num" id="Date" name="Date" value="@(form.Date is { } date ? AbsenceDisplay.Iso(date) : null)"
+                                   max="@AbsenceDisplay.Iso(Model.LatestAllowed)" required aria-describedby="Date-error Date-hint" />
+                            <label for="Date">Date</label>
+                        </div>
+                        <span class="form-hint" id="Date-hint">A working day (Monday to Friday) while the person was employed.</span>
+                        <span class="field-error" id="Date-error">@Error("Date")</span>
+                    </div>
+                </div>
+            }
+
+            <fieldset class="form-section">
+                <legend class="form-section-title">Portion</legend>
+                <div class="segmented segmented-wide">
+                    @foreach (var (value, label, hint) in portions)
+                    {
+                        <input type="radio" class="segmented-input" name="Portion" id="Portion-@value" value="@value" checked="@(form.Portion == value.ToString())" />
+                        <label class="segmented-option" for="Portion-@value">@label <span class="segmented-hint">@hint</span></label>
+                    }
+                </div>
+                <span class="field-error" id="Portion-error">@Error("Portion")</span>
+            </fieldset>
+
+            <div class="form-floating mt-3">
+                <textarea class="form-control form-textarea" id="Note" name="Note" maxlength="300" placeholder="Note" aria-describedby="Note-error">@form.Note</textarea>
+                <label for="Note">Note (optional)</label>
+            </div>
+            <span class="field-error" id="Note-error">@Error("Note")</span>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary-gradient" data-testid="absence-save"><i class="bi bi-check2" aria-hidden="true"></i> @(Model.IsEdit ? "Save changes" : "Add absence")</button>
+            </div>
+        </form>
+
+        @if (existing is not null)
+        {
+            <form method="post" asp-action="Delete" asp-route-id="@existing.Id" class="form-actions form-actions-danger">
+                <input type="hidden" name="returnTo" value="@form.ReturnTo" />
+                @if (AbsenceDisplay.WouldChangeNote(existing.LaterChangedIfDeleted, existing.Date, "Deleting it") is { } deleteNote)
+                {
+                    <p class="form-hint mb-0" data-testid="delete-change-note">@deleteNote</p>
+                }
+                <button type="submit" class="btn btn-danger-solid" data-testid="absence-delete"
+                        data-confirm="@AbsenceDisplay.DeleteConfirm(existing.Date, existing.LaterChangedIfDeleted)"
+                        data-confirm-title="Delete this absence?"
+                        data-confirm-action="Delete">
+                    <i class="bi bi-trash" aria-hidden="true"></i> Delete absence
+                </button>
+            </form>
+        }
+    }
+</section>

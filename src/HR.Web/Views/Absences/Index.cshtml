@@ -1,0 +1,226 @@
+@using HR.Domain.Absences
+@using HR.Infrastructure.Absences
+@using HR.Infrastructure.People
+@model AbsenceListViewModel
+@{
+    ViewData["Title"] = "Absences";
+    ViewData["Section"] = "Attendance";
+    var period = Model.Period;
+    var statuses = new[] { PersonStatusFilter.Active, PersonStatusFilter.Inactive, PersonStatusFilter.All };
+    var paidOptions = new[] { (PaidStatusFilter.All, "Paid and unpaid"), (PaidStatusFilter.Paid, "Paid"), (PaidStatusFilter.Unpaid, "Unpaid"), (PaidStatusFilter.PartlyPaid, "Partly paid") };
+}
+
+<div class="page-actions">
+    <nav class="period-nav" aria-label="Pay period">
+        <a class="btn-icon" asp-action="Index" asp-all-route-data="@Model.RouteFor(1, period.Previous())" aria-label="Previous period" title="Previous period" data-testid="period-prev">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </a>
+        <span class="period-nav-label num" data-testid="period-label">@DisplayFormat.DateRange(period.Start, period.End)</span>
+        <a class="btn-icon" asp-action="Index" asp-all-route-data="@Model.RouteFor(1, period.Next())" aria-label="Next period" title="Next period" data-testid="period-next">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </a>
+        @if (!Model.IsCurrentPeriod)
+        {
+            <a class="btn btn-ghost btn-sm-compact" asp-action="Index">Current period</a>
+        }
+    </nav>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-action="Day"><i class="bi bi-calendar-check" aria-hidden="true"></i> Daily attendance</a>
+        <a class="btn btn-ghost" asp-action="Range"><i class="bi bi-calendar-range" aria-hidden="true"></i> Add a range</a>
+        <a class="btn btn-primary-gradient" asp-action="New"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add absence</a>
+    </div>
+</div>
+
+@if (Model.Result.Locked)
+{
+    <div class="glass-alert alert-warning-glass" role="status" data-testid="period-locked">
+        <i class="bi bi-lock" aria-hidden="true"></i> This period is part of a finalized payroll. Its absences can't be changed.
+    </div>
+}
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter absences">
+    <input type="hidden" name="period" value="@AbsenceDisplay.Iso(period.Start)" />
+    <div class="form-floating filter-search">
+        <input type="search" class="form-control" id="q" name="q" value="@Model.Search" placeholder="Search" maxlength="100" />
+        <label for="q">Search name or code</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="portion" name="portion">
+            <option value="" selected="@(Model.Portion is null)">Full and half</option>
+            <option value="Full" selected="@(Model.Portion == AbsencePortion.Full)">Full days</option>
+            <option value="Half" selected="@(Model.Portion == AbsencePortion.Half)">Half days</option>
+        </select>
+        <label for="portion">Portion</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="paid" name="paid">
+            @foreach (var (value, label) in paidOptions)
+            {
+                <option value="@value" selected="@(value == Model.Paid)">@label</option>
+            }
+        </select>
+        <label for="paid">Paid leave</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="status" name="status">
+            @foreach (var s in statuses)
+            {
+                <option value="@s" selected="@(s == Model.Status)">@s</option>
+            }
+        </select>
+        <label for="status">Person status</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index" asp-route-period="@AbsenceDisplay.Iso(period.Start)">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.Result.Summary.Count > 0)
+{
+    <section class="glass-card absence-summary" aria-labelledby="summaryHeading" data-testid="absence-summary">
+        <h2 class="card-title" id="summaryHeading">Per person this period</h2>
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table">
+                <caption class="visually-hidden">Absence totals per person for @DisplayFormat.DateRange(period.Start, period.End)</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Person</th>
+                        <th scope="col" class="num">Absent</th>
+                        <th scope="col" class="num">Paid leave used</th>
+                        <th scope="col" class="num">Unpaid</th>
+                        <th scope="col" class="num">Payable days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Result.Summary)
+                    {
+                        <tr data-testid="summary-row" data-person-id="@s.PersonId">
+                            <td data-label="Person">
+                                <span class="cell-stack">
+                                    <a asp-controller="People" asp-action="Details" asp-route-id="@s.PersonId" asp-route-tab="absences" asp-fragment="absences" class="cell-primary row-link">@s.PersonName</a>
+                                    <span class="cell-sub num">@s.PersonCode</span>
+                                </span>
+                            </td>
+                            <td data-label="Absent" class="num" data-testid="summary-absent">@AbsenceDisplay.DaysWithUnit(s.AbsentDays)</td>
+                            <td data-label="Paid leave used" class="num" data-testid="summary-paid">@AbsenceDisplay.DaysWithUnit(s.PaidDays)</td>
+                            <td data-label="Unpaid" class="num" data-testid="summary-unpaid">@AbsenceDisplay.DaysWithUnit(s.Days.UnpaidDays)</td>
+                            <td data-label="Payable days" class="num" data-testid="summary-payable">@AbsenceDisplay.Days(s.Days.PayableDays) of @s.Days.WorkingDays</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@if (Model.Rows.TotalCount == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+            @if (Model.HasFilter)
+            {
+                <p class="empty-state-text">No absences match these filters in this period.</p>
+                <a class="btn btn-ghost" asp-action="Index" asp-route-period="@AbsenceDisplay.Iso(period.Start)">Clear filters</a>
+            }
+            else
+            {
+                <p class="empty-state-text">No absences recorded for @DisplayFormat.DateRange(period.Start, period.End).</p>
+                <a class="btn btn-primary-gradient" asp-action="Day"><i class="bi bi-calendar-check" aria-hidden="true"></i> Take today's attendance</a>
+            }
+        </div>
+    </section>
+}
+else
+{
+    <p class="list-count" aria-live="polite" data-testid="absence-count">@Model.Rows.TotalCount @(Model.Rows.TotalCount == 1 ? "absence" : "absences")</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table">
+            <caption class="visually-hidden">Absences for @DisplayFormat.DateRange(period.Start, period.End), page @Model.Rows.Page of @Model.Rows.TotalPages</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Person</th>
+                    <th scope="col">Portion</th>
+                    <th scope="col">Paid leave</th>
+                    <th scope="col">Note</th>
+                    <th scope="col">Added by</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Model.Rows.Items)
+                {
+                    <tr data-testid="absence-row" data-absence-id="@a.Id">
+                        <td data-label="Date" class="num">
+                            <span class="cell-stack">
+                                <span class="cell-primary">@DisplayFormat.Date(a.Date)</span>
+                                <span class="cell-sub">@a.Date.DayOfWeek</span>
+                            </span>
+                        </td>
+                        <td data-label="Person">
+                            <span class="cell-stack">
+                                <a asp-controller="People" asp-action="Details" asp-route-id="@a.PersonId" asp-route-tab="absences" asp-fragment="absences" class="cell-primary row-link">@a.PersonName</a>
+                                <span class="cell-sub num">@a.PersonCode</span>
+                            </span>
+                        </td>
+                        <td data-label="Portion"><span class="pill @(a.Portion == AbsencePortion.Full ? "pill-primary" : "pill-info")" data-testid="absence-portion">@AbsenceDisplay.PortionLabel(a.Portion)</span></td>
+                        <td data-label="Paid leave">
+                            <span class="cell-group">
+                                <span class="pill @AbsenceDisplay.PaidPill(a.PaidDays, a.UnpaidDays)" data-testid="absence-paid">
+                                    <i class="bi @AbsenceDisplay.PaidIcon(a.PaidDays, a.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(a.PaidDays, a.UnpaidDays)
+                                </span>
+                                <span class="cell-sub num" data-testid="absence-split">@AbsenceDisplay.Split(a.PaidDays, a.UnpaidDays)</span>
+                            </span>
+                        </td>
+                        <td data-label="Note" class="cell-wrap">@(a.Note ?? "—")</td>
+                        <td data-label="Added by">@(a.AddedBy ?? "—")</td>
+                        <td data-label="Actions" class="cell-actions">
+                            @if (Model.Result.Locked)
+                            {
+                                <span class="pill pill-neutral"><i class="bi bi-lock" aria-hidden="true"></i> Locked</span>
+                            }
+                            else
+                            {
+                                <span class="cell-group">
+                                    <a class="btn-icon" asp-action="Edit" asp-route-id="@a.Id" aria-label="Edit the absence of @a.PersonName on @DisplayFormat.Date(a.Date)" title="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                    <form method="post" asp-action="Delete" asp-route-id="@a.Id" class="d-inline">
+                                        <button type="submit" class="btn-icon btn-icon-danger" aria-label="Delete the absence of @a.PersonName on @DisplayFormat.Date(a.Date)" title="Delete"
+                                                data-confirm="@AbsenceDisplay.DeleteConfirm(a.Date, a.LaterChangedIfDeleted)"
+                                                data-confirm-title="Delete this absence?"
+                                                data-confirm-action="Delete">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.Rows.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="Absence pages">
+            @if (Model.Rows.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Rows.Page - 1)" rel="prev">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i> Previous
+                </a>
+            }
+            <span class="pager-status">Page @Model.Rows.Page of @Model.Rows.TotalPages</span>
+            @if (Model.Rows.Page < Model.Rows.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.RouteFor(Model.Rows.Page + 1)" rel="next">
+                    Next <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+        </nav>
+    }
+}

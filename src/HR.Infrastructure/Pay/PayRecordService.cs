@@ -185,6 +185,11 @@ public sealed class PayRecordService(
             return new PayResult(PayResultStatus.Invalid, Errors: errors);
         }
 
+        if (await IsLockedAsync(terms.EffectiveFrom, cancellationToken))
+        {
+            return new PayResult(PayResultStatus.Locked, Errors: [new PayError(PayFields.EffectiveFrom, LockedMessage)]);
+        }
+
         if (await DuplicateAsync(personId, terms.EffectiveFrom, exceptId: null, cancellationToken))
         {
             return PayResult.Invalid(PayFields.EffectiveFrom, DuplicateMessage);
@@ -375,6 +380,11 @@ public sealed class PayRecordService(
         if (terms is null)
         {
             return new PayResult(PayResultStatus.Invalid, Errors: errors);
+        }
+
+        if (await IsLockedAsync(terms.EffectiveFrom, cancellationToken))
+        {
+            return new PayResult(PayResultStatus.Locked, Errors: [new PayError(PayFields.EffectiveFrom, LockedMessage)]);
         }
 
         if (records.Any(r => r.EffectiveFrom == terms.EffectiveFrom))

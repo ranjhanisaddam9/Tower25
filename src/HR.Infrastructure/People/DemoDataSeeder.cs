@@ -1,4 +1,6 @@
 using System.Globalization;
+using HR.Domain.Absences;
+using HR.Domain.Payroll;
 using HR.Domain.People;
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
@@ -12,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace HR.Infrastructure.People;
 
 /// <summary>
-/// Development-only demo people (DemoData:Seed = true; never committed as true). Idempotent: people are matched by
+/// Development-only demo people, pay and absences (DemoData:Seed = true; never committed as true). Idempotent: people are matched by
 /// their demo email, so re-running only adds what is missing. CNICs start with 00000 and IBANs use the bank code
 /// TEST, so they are obviously fake; phones are +92 300 0000xxx.
 /// </summary>
@@ -51,6 +53,11 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
         new("Waqas Butt", PersonType.Employee, "Database Administrator", "2024-02-05", null, HireSource.CompanyRecommended),
         new("Laiba Saeed", PersonType.Internee, "Support Intern", "2026-09-16", null, null),
         new("Tariq Mahmood", PersonType.Employee, "Project Coordinator", "2025-05-05", null, HireSource.BudgetHire),
+
+        // SPEC §9 look-alikes (M6): G3 (absences Oct 5 half, Oct 7 full), G2 (joins Thu Oct 8) and G7 (leaves Wed Oct 21).
+        new("Kamran Yousaf", PersonType.Employee, "Solutions Engineer", "2025-06-02", null, HireSource.CompanyRecommended),
+        new("Nadia Haider", PersonType.Employee, "Software Engineer", "2026-10-08", null, HireSource.CompanyRecommended),
+        new("Rizwan Ali", PersonType.Employee, "Integration Engineer", "2025-06-16", "2026-10-21", HireSource.CompanyRecommended),
     ];
 
     public static async Task RunIfEnabledAsync(IServiceProvider services, IConfiguration configuration, CancellationToken cancellationToken = default)
@@ -129,7 +136,79 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
         }
 
         await SeedRateRecordsAsync(cancellationToken);
+        await SeedAbsencesAsync(cancellationToken);
         return added;
+    }
+
+    /// <summary>People whose demo absences are fixed by SPEC §9; nobody else on this list gets random ones.</summary>
+    private static readonly (string FullName, (string Date, AbsencePortion Portion)[] Absences)[] GoldenAbsences =
+    [
+        ("Ayesha Siddiqui", []), // G1: none
+        ("Imran Qureshi", []), // G6: none
+        ("Nadia Haider", []), // G2: none
+        ("Rizwan Ali", []), // G7: none
+        ("Kamran Yousaf", [("2026-10-05", AbsencePortion.Half), ("2026-10-07", AbsencePortion.Full)]), // G3
+        ("Bilal Ahmed", [("2026-10-06", AbsencePortion.Full), ("2026-10-20", AbsencePortion.Full), ("2026-10-27", AbsencePortion.Full)]), // G4/G5
+    ];
+
+    /// <summary>
+    /// The SPEC §9 absences plus a few pseudo-random ones (fixed seed, so every run picks the same dates) for other demo
+    /// people across September–October 2026, on days they were employed. Idempotent: anyone who already has an absence
+    /// is skipped.
+    /// </summary>
+    private async Task SeedAbsencesAsync(CancellationToken cancellationToken)
+    {
+        var emails = People.Select(p => EmailFor(p.FullName)).ToList();
+        var people = await db.People.AsNoTracking()
+            .Where(p => p.Email != null && emails.Contains(p.Email))
+            .OrderBy(p => p.CodeNumber)
+            .Select(p => new
+            {
+                p.Id,
+                p.FullName,
+                HasAbsences = db.Absences.Any(a => a.PersonId == p.Id),
+                Spans = db.EmploymentPeriods.Where(e => e.PersonId == p.Id).Select(e => new EmploymentSpan(e.StartDate, e.EndDate)).ToList(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var now = clock.UtcNow;
+        var added = 0;
+        foreach (var (fullName, absences) in GoldenAbsences)
+        {
+            if (people.SingleOrDefault(p => p.FullName == fullName) is { HasAbsences: false } person)
+            {
+                foreach (var (date, portion) in absences)
+                {
+                    db.Absences.Add(Absence.Create(person.Id, DateOnly.Parse(date, CultureInfo.InvariantCulture), portion, "Demo data", ActorId, now));
+                    added++;
+                }
+            }
+        }
+
+        var first = new DateOnly(2026, 9, 1);
+        foreach (var person in people.Where(p => !p.HasAbsences && GoldenAbsences.All(g => g.FullName != p.FullName)))
+        {
+            // One seed per demo person (their place in the list), so skipping someone never shifts anyone else's dates.
+            var random = new Random(202610 + Array.FindIndex(People, p => p.FullName == person.FullName));
+            var count = random.Next(0, 4); // 0–3 absences each
+            var used = new HashSet<DateOnly>();
+            for (var i = 0; i < count; i++)
+            {
+                var date = first.AddDays(random.Next(0, 61)); // Sep 1 – Oct 31
+                var portion = random.Next(0, 3) == 0 ? AbsencePortion.Half : AbsencePortion.Full;
+                if (WorkingDays.IsWorkingDay(date) && EmploymentCalendar.IsEmployedOn(person.Spans, date) && used.Add(date))
+                {
+                    db.Absences.Add(Absence.Create(person.Id, date, portion, null, ActorId, now));
+                    added++;
+                }
+            }
+        }
+
+        if (added > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            SecurityLog.DemoAbsencesSeeded(_log, added);
+        }
     }
 
     /// <summary>The Manager who "created" demo increments (no such login exists; shown as "—").</summary>
@@ -145,6 +224,9 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
         new("Ayesha Siddiqui", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
         new("Bilal Ahmed", [new("2026-10-01", 1000m, 0m, 196_000m, Domain.Pay.PayCurrency.PKR, ActorId)]),
         new("Imran Qureshi", [new("2026-10-01", 1200m, 0m, 1200m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Kamran Yousaf", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Nadia Haider", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Rizwan Ali", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
         new("Fatima Zahra",
         [
             new("2025-10-01", 800m, 25m, 800m, Domain.Pay.PayCurrency.USD, ActorId),

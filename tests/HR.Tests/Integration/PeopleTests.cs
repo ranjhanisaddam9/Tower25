@@ -206,7 +206,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
     {
         await using (var scope = App.Services.CreateAsyncScope())
         {
-            Assert.Equal(25, await scope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync());
+            Assert.Equal(28, await scope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync());
         }
 
         await using (var db = TestDatabaseFixture.CreateDbContext())
@@ -230,6 +230,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
             "/people?hireSource=Owner", "/people?hireSource=NotAssigned&status=All",
             $"/people/{ownerId}", $"/people/{unassignedId}", $"/people/{inactiveId}",
             "/people/create", $"/people/{ownerId}/edit", $"/people/{unassignedId}/edit",
+            $"/people/{ownerId}?tab=absences", "/absences?status=All", "/absences/day", "/absences/range",
         };
 
         foreach (var url in urls)
@@ -244,7 +245,7 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         }
 
         // The Manager's hire-source query parameter is ignored: the active list is complete.
-        Assert.Contains("21 people", await manager.GetStringAsync("/people?hireSource=Owner"));
+        Assert.Contains("23 people", await manager.GetStringAsync("/people?hireSource=Owner"));
 
         // The same pages do show it to an Admin.
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
@@ -606,13 +607,13 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         await using (var scope = App.Services.CreateAsyncScope())
         {
             var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
-            Assert.Equal(25, await seeder.SeedAsync());
+            Assert.Equal(28, await seeder.SeedAsync());
             Assert.Equal(0, await seeder.SeedAsync());
         }
 
         await using var db = TestDatabaseFixture.CreateDbContext();
         var people = await db.People.ToListAsync();
-        Assert.Equal(25, people.Count);
+        Assert.Equal(28, people.Count);
         Assert.Contains(people, p => p.Type == PersonType.Internee);
         Assert.Contains(people, p => !p.IsActive && p.LeavingDate is not null);
         Assert.All(people, p => Assert.StartsWith("00000-", p.Cnic));

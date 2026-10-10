@@ -205,6 +205,37 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         Assert.Contains("Rs 98,000 per full period", html);
     }
 
+    /// <summary>
+    /// The Admin "Current" card for the SPEC §9 setups (G1 CompanyRecommended, G4 BudgetHire, G6 Owner): billed per month,
+    /// billed per full period and the Company's earning per full period, exactly as rendered.
+    /// </summary>
+    [Theory]
+    [InlineData(HireSource.CompanyRecommended, "$300.00", "$175.00 per full period (incl. $25.00 commission)", "$25.00")]
+    [InlineData(HireSource.BudgetHire, "$1,000.00", "$500.00 per full period", "$150.00")]
+    [InlineData(HireSource.Owner, "$1,200.00", "$600.00 per full period", "$0.00")]
+    public async Task Admin_current_card_renders_the_golden_billing_values(HireSource source, string billedMonthly, string billedPerPeriod, string earning)
+    {
+        await AddExchangeRateAsync(new DateOnly(2026, 1, 1), 280m);
+        var id = await App.CreatePersonAsync("Golden " + source switch { HireSource.CompanyRecommended => "Alpha", HireSource.BudgetHire => "Delta", _ => "Foxtrot" },
+            joined: new DateOnly(2026, 9, 1), source: source);
+        await SeedRecordAsync(id, source switch
+        {
+            HireSource.CompanyRecommended => Cr("2026-10-01", 300m, 25m),
+            HireSource.BudgetHire => Budget("2026-10-01", 1000m, 196_000m),
+            _ => OwnerPay("2026-10-01", 1200m),
+        });
+        var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
+
+        var html = await admin.GetStringAsync($"/people/{id}");
+        var start = html.IndexOf("data-testid=\"pay-current\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The current card is missing.");
+        var card = WebUtility.HtmlDecode(html[start..html.IndexOf("Your earning per full period", start, StringComparison.Ordinal)]);
+        Assert.Contains($"Billed to the Company</span>", card);
+        Assert.Contains($">{billedMonthly} <span class=\"pay-summary-unit\">/ month</span>", card);
+        Assert.Contains($">{billedPerPeriod}</span>", card);
+        Assert.Contains($"data-testid=\"pay-earning\">{earning}<", html);
+    }
+
     // ---------- Manager increments ----------
 
     [Theory]
@@ -436,6 +467,41 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         ok["RowVersion"] = PeopleHelpers.RowVersion(await admin.GetStringAsync($"/people/{id}/pay/{nov1}/edit"));
         Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{id}/pay/{nov1}/edit", $"/people/{id}/pay/{nov1}/edit", ok)).StatusCode);
         Assert.Equal(1350m, (await RecordsAsync(id))[1].PayMonthlyAmount);
+    }
+
+    [Fact]
+    public async Task A_locked_payroll_period_refuses_new_records_for_Admin_and_Manager()
+    {
+        var id = await App.CreatePersonAsync("Locked Create", joined: new DateOnly(2026, 9, 1), source: HireSource.CompanyRecommended);
+        await SeedRecordAsync(id, Cr("2026-09-01", 300m));
+
+        await using var factory = App.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IPayrollLock>();
+            services.AddSingleton<IPayrollLock>(new FakePayrollLock(new DateOnly(2026, 11, 1)));
+        }));
+        var adminUser = await App.CreateUserAsync(AppRoles.Admin);
+        using var admin = factory.CreateHttpsClient();
+        await admin.PostLoginAsync(adminUser.Email, adminUser.Password);
+        var managerUser = await App.CreateUserAsync(AppRoles.Manager);
+        using var manager = factory.CreateHttpsClient();
+        await manager.PostLoginAsync(managerUser.Email, managerUser.Password);
+        var locked = PayRecordService.LockedMessage.Replace("'", "&#x27;", StringComparison.Ordinal);
+
+        var adminNew = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-10", half: "16", salary: "320", commission: "25"));
+        Assert.Equal(HttpStatusCode.OK, adminNew.StatusCode);
+        Assert.Contains(locked, await adminNew.Content.ReadAsStringAsync());
+
+        var managerNew = await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-10", "1", "330"));
+        Assert.Equal(HttpStatusCode.OK, managerNew.StatusCode);
+        Assert.Contains(locked, await managerNew.Content.ReadAsStringAsync());
+
+        Assert.Single(await RecordsAsync(id));
+
+        // The first unlocked period is fine for both.
+        Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-11", half: "1", salary: "320", commission: "25"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-11", "16", "330"))).StatusCode);
+        Assert.Equal(3, (await RecordsAsync(id)).Count);
     }
 
     private sealed class FakePayrollLock(DateOnly lockedBefore) : IPayrollLock

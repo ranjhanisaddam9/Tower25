@@ -84,5 +84,6 @@ public static class DependencyInjection
         services.AddScoped<HR.Domain.Pay.IPayrollLock, Pay.NoPayrollLock>();
         services.AddScoped<Pay.PayRecordService>();
         services.AddScoped<Pay.SalaryOverviewService>();
+        services.AddScoped<Absences.AbsenceService>();
     }
 }

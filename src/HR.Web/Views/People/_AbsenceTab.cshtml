@@ -1,0 +1,157 @@
+@using HR.Domain.Absences
+@model PersonAbsenceTabViewModel
+@{
+    var tab = Model.Tab;
+    var monthLabel = HR.Infrastructure.Absences.AbsenceService.MonthLabel(tab.Month);
+    var period = tab.CurrentPeriod;
+    var days = tab.CurrentPeriodDays;
+    var weekdays = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+}
+
+<div class="pay-toolbar absence-toolbar">
+    <div class="pay-summary absence-facts" data-testid="absence-facts">
+        <div class="pay-summary-item">
+            <span class="pay-summary-label">@(Model.IsCurrentMonth ? "Paid leave this month" : $"Paid leave in {monthLabel}")</span>
+            <span class="pay-summary-value num" data-testid="paid-leave-left">@AbsenceDisplay.Days(tab.PaidLeaveLeft) of 1 day left</span>
+        </div>
+        <div class="pay-summary-item">
+            <span class="pay-summary-label">Payable days this period</span>
+            <span class="pay-summary-value num" data-testid="current-payable">@AbsenceDisplay.Days(days.PayableDays) of @days.WorkingDays</span>
+            <span class="pay-summary-sub num">@DisplayFormat.DateRange(period.Start, period.End) · employed @days.EmployedWorkingDays · unpaid @AbsenceDisplay.Days(days.UnpaidDays)</span>
+        </div>
+    </div>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-controller="Absences" asp-action="Range" asp-route-PersonId="@tab.PersonId"><i class="bi bi-calendar-range" aria-hidden="true"></i> Add a range</a>
+        <a class="btn btn-primary-gradient" asp-controller="Absences" asp-action="New" asp-route-personId="@tab.PersonId" asp-route-returnTo="person"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add absence</a>
+    </div>
+</div>
+
+<div class="calendar-head">
+    <a class="btn-icon" asp-action="Details" asp-route-id="@tab.PersonId" asp-route-tab="absences" asp-route-month="@Model.MonthParam(Model.PreviousMonth)" asp-fragment="absences"
+       aria-label="Previous month" title="Previous month" data-testid="calendar-prev"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+    <h3 class="calendar-title" id="calendarTitle" data-testid="calendar-month">@monthLabel</h3>
+    <a class="btn-icon" asp-action="Details" asp-route-id="@tab.PersonId" asp-route-tab="absences" asp-route-month="@Model.MonthParam(Model.NextMonth)" asp-fragment="absences"
+       aria-label="Next month" title="Next month" data-testid="calendar-next"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+    @if (!Model.IsCurrentMonth)
+    {
+        <a class="btn btn-ghost btn-sm-compact" asp-action="Details" asp-route-id="@tab.PersonId" asp-route-tab="absences" asp-fragment="absences">This month</a>
+    }
+</div>
+
+<div class="absence-calendar" aria-labelledby="calendarTitle" data-testid="absence-calendar">
+    <div class="cal-weekdays" aria-hidden="true">
+        @foreach (var w in weekdays)
+        {
+            <span>@w</span>
+        }
+    </div>
+    <ol class="cal-grid">
+        @foreach (var d in tab.Calendar)
+        {
+            var classes = new List<string> { "cal-day" };
+            if (!d.InMonth) classes.Add("cal-outside");
+            if (d.Weekend) classes.Add("cal-weekend");
+            if (!d.Employed && !d.Weekend) classes.Add("cal-unemployed");
+            if (d.IsToday) classes.Add("cal-today");
+            if (d.Absence is { } a) classes.Add(a.IsFullyPaid ? "cal-paid" : a.IsUnpaid ? "cal-unpaid" : "cal-partly");
+            <li class="@string.Join(' ', classes)" data-testid="cal-day" data-date="@AbsenceDisplay.Iso(d.Date)" data-state="@(d.Absence is { } s ? $"{s.Portion}-{AbsenceDisplay.PaidLabel(s.PaidDays, s.UnpaidDays)}" : d.Weekend ? "weekend" : !d.Employed ? "not-employed" : "working")"
+                aria-current="@(d.IsToday ? "date" : null)">
+                <span class="cal-date num"><span class="visually-hidden">@d.Date.DayOfWeek @DisplayFormat.Date(d.Date)</span><span aria-hidden="true">@d.Date.Day</span></span>
+                @if (d.Absence is { } absence)
+                {
+                    <span class="cal-mark">
+                        <span class="cal-portion">@(absence.Portion == AbsencePortion.Full ? "Full" : "Half")</span>
+                        <span class="cal-paid-label"><i class="bi @AbsenceDisplay.PaidIcon(absence.PaidDays, absence.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(absence.PaidDays, absence.UnpaidDays)</span>
+                    </span>
+                }
+                else if (d.Weekend && d.InMonth)
+                {
+                    <span class="visually-hidden">weekend</span>
+                }
+                else if (!d.Employed && d.InMonth)
+                {
+                    <span class="cal-note">Not employed</span>
+                }
+            </li>
+        }
+    </ol>
+    <ul class="cal-legend" aria-label="Legend">
+        <li><span class="cal-swatch cal-paid" aria-hidden="true"></span> <i class="bi bi-check-circle" aria-hidden="true"></i> Paid</li>
+        <li><span class="cal-swatch cal-partly" aria-hidden="true"></span> <i class="bi bi-circle-half" aria-hidden="true"></i> Partly paid</li>
+        <li><span class="cal-swatch cal-unpaid" aria-hidden="true"></span> <i class="bi bi-x-circle" aria-hidden="true"></i> Unpaid</li>
+        <li><span class="cal-swatch cal-weekend" aria-hidden="true"></span> Weekend</li>
+        <li><span class="cal-swatch cal-unemployed" aria-hidden="true"></span> Not employed</li>
+    </ul>
+</div>
+
+<div class="card-heading-row mt-4">
+    <h3 class="card-title" id="absenceListTitle">Absences in @tab.Year</h3>
+    <nav class="year-filter" aria-label="Year">
+        @foreach (var y in tab.Years)
+        {
+            <a class="pill @(y == tab.Year ? "pill-primary" : "pill-neutral")" asp-action="Details" asp-route-id="@tab.PersonId" asp-route-tab="absences"
+               asp-route-month="@Model.MonthParam(tab.Month)" asp-route-year="@y" asp-fragment="absences" aria-current="@(y == tab.Year ? "true" : null)" data-testid="year-link">@y</a>
+        }
+    </nav>
+</div>
+
+@if (tab.Rows.Count == 0)
+{
+    <div class="empty-state">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+        <p class="empty-state-text">No absences in @tab.Year.</p>
+    </div>
+}
+else
+{
+    <div class="glass-table-wrap glass-table-wrap-inset">
+        <table class="glass-table" aria-labelledby="absenceListTitle">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Portion</th>
+                    <th scope="col">Paid leave</th>
+                    <th scope="col">Note</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in tab.Rows)
+                {
+                    <tr data-testid="person-absence-row">
+                        <td data-label="Date" class="num">@AbsenceDisplay.Weekday(r.Date) @DisplayFormat.Date(r.Date)</td>
+                        <td data-label="Portion"><span class="pill @(r.Portion == AbsencePortion.Full ? "pill-primary" : "pill-info")">@AbsenceDisplay.PortionLabel(r.Portion)</span></td>
+                        <td data-label="Paid leave">
+                            <span class="cell-group">
+                                <span class="pill @AbsenceDisplay.PaidPill(r.PaidDays, r.UnpaidDays)"><i class="bi @AbsenceDisplay.PaidIcon(r.PaidDays, r.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(r.PaidDays, r.UnpaidDays)</span>
+                                <span class="cell-sub num">@AbsenceDisplay.Split(r.PaidDays, r.UnpaidDays)</span>
+                            </span>
+                        </td>
+                        <td data-label="Note" class="cell-wrap">@(r.Note ?? "—")</td>
+                        <td data-label="Actions" class="cell-actions">
+                            @if (r.Locked)
+                            {
+                                <span class="pill pill-neutral"><i class="bi bi-lock" aria-hidden="true"></i> Locked</span>
+                            }
+                            else
+                            {
+                                <span class="cell-group">
+                                    <a class="btn-icon" asp-controller="Absences" asp-action="Edit" asp-route-id="@r.Id" asp-route-returnTo="person"
+                                       aria-label="Edit the absence on @DisplayFormat.Date(r.Date)" title="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                    <form method="post" asp-controller="Absences" asp-action="Delete" asp-route-id="@r.Id" asp-route-returnTo="person" class="d-inline">
+                                        <button type="submit" class="btn-icon btn-icon-danger" aria-label="Delete the absence on @DisplayFormat.Date(r.Date)" title="Delete"
+                                                data-confirm="@AbsenceDisplay.DeleteConfirm(r.Date, r.LaterChangedIfDeleted)"
+                                                data-confirm-title="Delete this absence?"
+                                                data-confirm-action="Delete">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

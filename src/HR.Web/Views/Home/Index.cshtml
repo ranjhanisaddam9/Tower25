@@ -18,7 +18,11 @@
                 Href: "/exchange-rates", TestId: "rate-tile")
             : new StatTileViewModel("USD/PKR rate", "Not set", "bi-currency-exchange", "teal", "Add rate",
                 Href: "/exchange-rates/create", TestId: "rate-tile"),
-        new StatTileViewModel("Pending absences", "—", "bi-calendar-x", "warning", "Absences arrive in M6"),
+        new StatTileViewModel("Absences this period", $"{AbsenceDisplay.Days(Model.Absences.PeriodDays)} {(Model.Absences.PeriodDays == 1m ? "day" : "days")}", "bi-calendar-x", "warning",
+            $"{AbsenceDisplay.Days(Model.Absences.PeriodUnpaidDays)} unpaid", Href: "/absences", TestId: "absences-tile"),
+        new StatTileViewModel("Absent today", Model.Absences.AbsentToday.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-person-dash", "info",
+            !HR.Domain.Payroll.WorkingDays.IsWorkingDay(Model.Today) ? "Not a working day" : Model.Absences.AbsentToday == 0 ? "Everyone is in" : "Take attendance",
+            Href: "/absences/day", TestId: "absent-today-tile"),
     };
 }
 
@@ -43,6 +47,7 @@
     </div>
 
     <partial name="_StatTile" model="tiles[2]" />
+    <partial name="_StatTile" model="tiles[3]" />
 
     <partial name="_StatTile" model="@(new StatTileViewModel("No pay setup", Model.NoPaySetup.ToString(System.Globalization.CultureInfo.InvariantCulture), "bi-cash-stack", "violet", Model.NoPaySetup == 0 ? "Everyone active has pay set up" : "Active people without pay", Href: "/salaries?filter=MissingSetup", TestId: "no-pay-tile"))" />
 

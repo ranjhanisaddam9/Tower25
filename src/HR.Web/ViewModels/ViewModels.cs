@@ -24,7 +24,8 @@ public sealed record DashboardViewModel(
     RateTileViewModel Rate,
     int NoPaySetup,
     int? PendingBillingReviews,
-    int? HireSourceNotAssigned);
+    int? HireSourceNotAssigned,
+    HR.Infrastructure.Absences.AbsenceDashboard Absences);
 
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon);
 

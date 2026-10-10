@@ -97,6 +97,20 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1303, Level = LogLevel.Information, Message = "Audit: {ActorId} marked the billing of rate record {RecordId} for person {PersonId} as reviewed")]
     public static partial void RateRecordReviewed(ILogger logger, string actorId, int recordId, int personId);
 
+    // ---- Absences (audit; never the note) ----
+
+    [LoggerMessage(EventId = 1400, Level = LogLevel.Information, Message = "Audit: {ActorId} added absence {AbsenceId} for person {PersonId} on {Date}: {Portion}")]
+    public static partial void AbsenceCreated(ILogger logger, string actorId, int absenceId, int personId, DateOnly date, string portion);
+
+    [LoggerMessage(EventId = 1401, Level = LogLevel.Information, Message = "Audit: {ActorId} edited absence {AbsenceId} for person {PersonId} on {Date}: {OldPortion} -> {NewPortion}")]
+    public static partial void AbsenceEdited(ILogger logger, string actorId, int absenceId, int personId, DateOnly date, string oldPortion, string newPortion);
+
+    [LoggerMessage(EventId = 1402, Level = LogLevel.Warning, Message = "Audit: {ActorId} deleted absence {AbsenceId} for person {PersonId} on {Date}: {OldPortion} -> none")]
+    public static partial void AbsenceDeleted(ILogger logger, string actorId, int absenceId, int personId, DateOnly date, string oldPortion);
+
+    [LoggerMessage(EventId = 1410, Level = LogLevel.Information, Message = "Demo data: seeded {Count} absences")]
+    public static partial void DemoAbsencesSeeded(ILogger logger, int count);
+
     [LoggerMessage(EventId = 1110, Level = LogLevel.Information, Message = "Demo data: seeded {Count} people")]
     public static partial void DemoDataSeeded(ILogger logger, int count);
 }

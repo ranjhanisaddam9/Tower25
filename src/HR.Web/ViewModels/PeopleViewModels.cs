@@ -179,7 +179,11 @@ public sealed record PersonDetailsViewModel(
     HireSourceCardViewModel? AdminHireSource,
     IReadOnlyList<EmploymentPeriodRowViewModel> EmploymentHistory,
     AdminPayTabViewModel? AdminPay,
-    ManagerPayTabViewModel? ManagerPay);
+    ManagerPayTabViewModel? ManagerPay,
+    PersonAbsenceTabViewModel? Absences = null)
+{
+    public bool ShowAbsences => Absences is not null;
+}
 
 /// <summary>One employment period on the details page. Working days run to today for the current (open) period.</summary>
 public sealed record EmploymentPeriodRowViewModel(DateOnly Start, DateOnly? End, int WorkingDays);

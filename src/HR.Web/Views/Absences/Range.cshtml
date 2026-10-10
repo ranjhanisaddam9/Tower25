@@ -1,0 +1,134 @@
+@using HR.Infrastructure.Absences
+@model RangePage
+@{
+    ViewData["Title"] = "Add a range";
+    ViewData["Section"] = "Attendance";
+    var form = Model.Form;
+    var preview = Model.Preview;
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+
+<div class="page-actions">
+    <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Absences</a>
+</div>
+
+<section class="glass-card form-card form-card-wide" aria-labelledby="rangeHeading">
+    <h2 class="card-title" id="rangeHeading">1. Choose the person and dates</h2>
+    <p class="text-muted-glass">Records a full-day absence on every working day in the range (at most 31 days). Weekends, dates already recorded, dates outside employment and locked dates are skipped.</p>
+
+    <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="range-errors"></div>
+
+    <form method="get" asp-action="Range" data-testid="range-preview-form">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="form-floating">
+                    <select class="form-select" id="PersonId" name="PersonId" required aria-describedby="PersonId-error">
+                        <option value="">Choose a person</option>
+                        @foreach (var p in Model.People)
+                        {
+                            <option value="@p.Id" selected="@(p.Id == form.PersonId)">@p.FullName (@p.Code)@(p.IsActive ? "" : " · inactive")</option>
+                        }
+                    </select>
+                    <label for="PersonId">Person</label>
+                </div>
+                <span class="field-error" id="PersonId-error">@Error("PersonId")</span>
+            </div>
+            <div class="col-6">
+                <div class="form-floating">
+                    <input type="date" class="form-control num" id="From" name="From" value="@(form.From is { } f ? AbsenceDisplay.Iso(f) : null)" required />
+                    <label for="From">From</label>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="form-floating">
+                    <input type="date" class="form-control num" id="To" name="To" value="@(form.To is { } t ? AbsenceDisplay.Iso(t) : null)" required aria-describedby="To-error" />
+                    <label for="To">To</label>
+                </div>
+                <span class="field-error" id="To-error">@Error("To")</span>
+            </div>
+            <div class="col-12">
+                <div class="form-floating">
+                    <input type="text" class="form-control" id="Note" name="Note" value="@form.Note" maxlength="300" placeholder="Note" aria-describedby="Note-error" />
+                    <label for="Note">Note (optional, same for every day)</label>
+                </div>
+                <span class="field-error" id="Note-error">@Error("Note")</span>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-ghost" data-testid="range-preview"><i class="bi bi-eye" aria-hidden="true"></i> Preview</button>
+        </div>
+    </form>
+</section>
+
+@if (preview is not null)
+{
+    var toAdd = preview.ToAdd.ToList();
+    <section class="glass-card mt-4" aria-labelledby="previewHeading" data-testid="range-preview-panel">
+        <h2 class="card-title" id="previewHeading">2. Check and confirm</h2>
+        <p class="text-muted-glass">
+            @preview.Person.FullName (<span class="num">@preview.Person.Code</span>), @DisplayFormat.DateRange(preview.From, preview.To):
+            <strong data-testid="range-will-add">@toAdd.Count @(toAdd.Count == 1 ? "day" : "days")</strong> will be added.
+            Paid/unpaid is shown after the month's paid leave is applied.
+        </p>
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table">
+                <caption class="visually-hidden">What happens on each date</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Paid leave</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var day in preview.Days)
+                    {
+                        var adds = day.Outcome == RangeOutcome.WillAdd;
+                        <tr data-testid="range-day" data-date="@AbsenceDisplay.Iso(day.Date)" data-outcome="@day.Outcome" class="@(adds ? null : "row-muted")">
+                            <td data-label="Date" class="num">@AbsenceDisplay.Weekday(day.Date) @DisplayFormat.Date(day.Date)</td>
+                            <td data-label="Outcome">
+                                <span class="pill @(adds ? "pill-primary" : "pill-neutral")">
+                                    <i class="bi @(adds ? "bi-plus-circle" : "bi-dash-circle")" aria-hidden="true"></i> @AbsenceDisplay.OutcomeLabel(day.Outcome)
+                                </span>
+                            </td>
+                            <td data-label="Paid leave">
+                                @if (adds)
+                                {
+                                    <span class="cell-group">
+                                        <span class="pill @AbsenceDisplay.PaidPill(day.PaidDays, day.UnpaidDays)">
+                                            <i class="bi @AbsenceDisplay.PaidIcon(day.PaidDays, day.UnpaidDays)" aria-hidden="true"></i> @AbsenceDisplay.PaidLabel(day.PaidDays, day.UnpaidDays)
+                                        </span>
+                                        <span class="cell-sub num">@AbsenceDisplay.Split(day.PaidDays, day.UnpaidDays)</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted-glass">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (toAdd.Count > 0)
+        {
+            <form method="post" asp-action="Range" class="form-actions" data-testid="range-confirm-form">
+                <input type="hidden" name="PersonId" value="@preview.Person.Id" />
+                <input type="hidden" name="From" value="@AbsenceDisplay.Iso(preview.From)" />
+                <input type="hidden" name="To" value="@AbsenceDisplay.Iso(preview.To)" />
+                <input type="hidden" name="Note" value="@form.Note" />
+                @foreach (var day in toAdd)
+                {
+                    <input type="hidden" name="Dates" value="@AbsenceDisplay.Iso(day.Date)" />
+                }
+                <button type="submit" class="btn btn-primary-gradient" data-testid="range-confirm"><i class="bi bi-check2-circle" aria-hidden="true"></i> Add @toAdd.Count @(toAdd.Count == 1 ? "absence" : "absences")</button>
+            </form>
+        }
+        else
+        {
+            <p class="text-muted-glass mb-0" data-testid="range-nothing">Nothing to add in this range.</p>
+        }
+    </section>
+}
