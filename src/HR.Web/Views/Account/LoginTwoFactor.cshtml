@@ -1,0 +1,31 @@
+@model TwoFactorLoginViewModel
+@{
+    ViewData["Title"] = "Two-factor sign-in";
+    Layout = "_AuthLayout";
+}
+
+<p class="auth-lead">Open your authenticator app and enter the 6-digit code for HR Payroll.</p>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="glass-alert alert-danger-glass" role="alert" data-testid="login-error">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div asp-validation-summary="All" class="validation-summary-plain"></div>
+    </div>
+}
+
+<form method="post" asp-controller="Account" asp-action="LoginTwoFactor" novalidate class="auth-form" data-testid="two-factor-form">
+    <input type="hidden" asp-for="ReturnUrl" />
+    <div class="form-floating mb-3">
+        <input asp-for="Code" class="form-control num code-input" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="12" autofocus />
+        <label asp-for="Code"></label>
+    </div>
+    <button type="submit" class="btn btn-primary-gradient w-100">
+        <i class="bi bi-shield-check" aria-hidden="true"></i> Verify and sign in
+    </button>
+</form>
+
+<p class="auth-footnote">
+    Lost your phone? <a asp-action="LoginRecovery" asp-route-returnUrl="@Model.ReturnUrl">Use a recovery code</a>.
+    Wrong codes count towards the same lockout as wrong passwords.
+</p>

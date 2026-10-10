@@ -23,7 +23,9 @@ public sealed record ManagerSummary(
     bool IsActive,
     bool MustChangePassword,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? LastLoginAt);
+    DateTimeOffset? LastLoginAt,
+    bool TwoFactorEnabled = false,
+    bool RequireTwoFactor = false);
 
 public enum ManagerResultStatus
 {
@@ -49,6 +51,7 @@ public sealed class ManagerService(
     UserManager<ApplicationUser> userManager,
     ITemporaryPasswordGenerator passwordGenerator,
     IClock clock,
+    AuditWriter audit,
     ILoggerFactory loggerFactory)
 {
     public const int DefaultPageSize = 20;
@@ -81,7 +84,7 @@ public sealed class ManagerService(
             .OrderBy(u => u.FullName).ThenBy(u => u.Email)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(u => new ManagerSummary(u.Id, u.FullName, u.Email!, u.IsActive, u.MustChangePassword, u.CreatedAt, u.LastLoginAt))
+            .Select(u => new ManagerSummary(u.Id, u.FullName, u.Email!, u.IsActive, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, u.TwoFactorEnabled, u.RequireTwoFactor))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ManagerSummary>(items, page, pageSize, total);
@@ -90,7 +93,7 @@ public sealed class ManagerService(
     public Task<ManagerSummary?> FindAsync(string id, CancellationToken cancellationToken = default) =>
         ManagersQuery()
             .Where(u => u.Id == id)
-            .Select(u => new ManagerSummary(u.Id, u.FullName, u.Email!, u.IsActive, u.MustChangePassword, u.CreatedAt, u.LastLoginAt))
+            .Select(u => new ManagerSummary(u.Id, u.FullName, u.Email!, u.IsActive, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, u.TwoFactorEnabled, u.RequireTwoFactor))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<ManagerResult> CreateAsync(string fullName, string email, string actorId, CancellationToken cancellationToken = default)
@@ -121,6 +124,7 @@ public sealed class ManagerService(
             return Failure(created);
         }
 
+        db.Audit(AuditEvents.ManagerCreated, actorId, "User", user.Id, "Created a Manager account");
         var roleAdded = await userManager.AddToRoleAsync(user, AppRoles.Manager);
         if (!roleAdded.Succeeded)
         {
@@ -167,6 +171,7 @@ public sealed class ManagerService(
             }
         }
 
+        db.Audit(AuditEvents.ManagerEdited, actorId, "User", user.Id, emailChanged ? "Edited: FullName, Email" : "Edited: FullName");
         var updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
@@ -183,6 +188,7 @@ public sealed class ManagerService(
         if (!active && string.Equals(id, actorId, StringComparison.Ordinal))
         {
             SecurityLog.SelfDeactivationBlocked(_log, actorId);
+            await audit.WriteAsync(AuditEvents.SelfDeactivationBlocked, actorId, "User", actorId, "Tried to deactivate their own account", cancellationToken);
             return new ManagerResult(ManagerResultStatus.CannotChangeSelf);
         }
 
@@ -198,6 +204,7 @@ public sealed class ManagerService(
         }
 
         user.IsActive = active;
+        db.Audit(active ? AuditEvents.ManagerActivated : AuditEvents.ManagerDeactivated, actorId, "User", user.Id, active ? "Activated" : "Deactivated (sessions ended)");
         var updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
@@ -245,6 +252,7 @@ public sealed class ManagerService(
         user.MustChangePassword = true;
         user.AccessFailedCount = 0;
         user.LockoutEnd = null;
+        db.Audit(AuditEvents.ManagerPasswordReset, actorId, "User", user.Id, "Password reset to a temporary one; must change at next sign-in");
         var updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
@@ -257,6 +265,60 @@ public sealed class ManagerService(
         await transaction.CommitAsync(cancellationToken);
         SecurityLog.ManagerPasswordReset(_log, actorId, user.Id);
         return new ManagerResult(ManagerResultStatus.Success, user.Id, temporaryPassword);
+    }
+
+    /// <summary>Admin only: makes two-factor sign-in compulsory (or optional again) for a Manager.</summary>
+    public async Task<ManagerResult> SetRequireTwoFactorAsync(string id, bool required, string actorId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindManagerEntityAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return new ManagerResult(ManagerResultStatus.NotFound);
+        }
+
+        if (user.RequireTwoFactor == required)
+        {
+            return new ManagerResult(ManagerResultStatus.Success, user.Id);
+        }
+
+        user.RequireTwoFactor = required;
+        db.Audit(AuditEvents.ManagerTwoFactorRequirementChanged, actorId, "User", user.Id, required ? "Two-factor sign-in required" : "Two-factor sign-in optional");
+        var updated = await userManager.UpdateAsync(user);
+        if (!updated.Succeeded)
+        {
+            return Failure(updated);
+        }
+
+        SecurityLog.TwoFactorRequirementChanged(_log, actorId, user.Id, required);
+        return new ManagerResult(ManagerResultStatus.Success, user.Id);
+    }
+
+    /// <summary>
+    /// Admin only, for a Manager who lost their authenticator: turns two-factor off, discards the key and recovery codes
+    /// and ends their sessions. If two-factor is required they enrol again at their next sign-in.
+    /// </summary>
+    public async Task<ManagerResult> ResetTwoFactorAsync(string id, string actorId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindManagerEntityAsync(id, cancellationToken);
+        if (user is null)
+        {
+            return new ManagerResult(ManagerResultStatus.NotFound);
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await userManager.SetTwoFactorEnabledAsync(user, false);
+        await userManager.ResetAuthenticatorKeyAsync(user);
+        await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 0); // no recovery codes left
+        db.Audit(AuditEvents.ManagerTwoFactorReset, actorId, "User", user.Id, "Two-factor reset by the Admin; sessions ended");
+        var stamp = await userManager.UpdateSecurityStampAsync(user);
+        if (!stamp.Succeeded)
+        {
+            return Failure(stamp);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        SecurityLog.TwoFactorReset(_log, actorId, user.Id);
+        return new ManagerResult(ManagerResultStatus.Success, user.Id);
     }
 
     private IQueryable<ApplicationUser> ManagersQuery()

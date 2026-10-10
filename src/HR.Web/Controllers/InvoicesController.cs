@@ -47,7 +47,7 @@ public class InvoicesController(InvoiceService invoices, SettingsService setting
         }
 
         var filters = ExcelExports.InvoiceFilters(details);
-        return downloads.Send(this, ExcelExports.Invoice(downloads.Context(User, "Invoice", filters), details.Invoice), "Invoice", filters);
+        return await downloads.SendAsync(this, ExcelExports.Invoice(downloads.Context(User, "Invoice", filters), details.Invoice), "Invoice", filters);
     }
 
     /// <summary>The A4 invoice as "&lt;number&gt;.pdf", from the invoice's own snapshot only.</summary>
@@ -60,7 +60,7 @@ public class InvoicesController(InvoiceService invoices, SettingsService setting
             return NotFound();
         }
 
-        return downloads.Send(this, PdfDocuments.Invoice(details.Invoice, details.IsOverdue, details.ReplacesNumber), "Invoice", ExcelExports.InvoiceFilters(details));
+        return await downloads.SendAsync(this, PdfDocuments.Invoice(details.Invoice, details.IsOverdue, details.ReplacesNumber), "Invoice", ExcelExports.InvoiceFilters(details));
     }
 
     [HttpPost("{id:int}/paid")]

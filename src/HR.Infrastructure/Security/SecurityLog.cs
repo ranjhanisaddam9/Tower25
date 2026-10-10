@@ -134,6 +134,38 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1604, Level = LogLevel.Warning, Message = "Audit: {ActorId} voided invoice {InvoiceId} ({Number}) of payroll {RunId}")]
     public static partial void InvoiceVoided(ILogger logger, string actorId, int invoiceId, string number, int runId);
 
+    // ---- Two-factor, rate limits and server commands (M10) ----
+
+    [LoggerMessage(EventId = 1007, Level = LogLevel.Warning, Message = "Security: {Limit} rate limit exceeded for {Partition}")]
+    public static partial void RequestRateLimited(ILogger logger, string limit, string partition);
+
+    [LoggerMessage(EventId = 1016, Level = LogLevel.Warning, Message = "Security: {ActorId} set two-factor required = {Required} for user {TargetUserId}")]
+    public static partial void TwoFactorRequirementChanged(ILogger logger, string actorId, string targetUserId, bool required);
+
+    [LoggerMessage(EventId = 1017, Level = LogLevel.Warning, Message = "Security: {ActorId} reset the two-factor sign-in of user {TargetUserId}")]
+    public static partial void TwoFactorReset(ILogger logger, string actorId, string targetUserId);
+
+    [LoggerMessage(EventId = 1030, Level = LogLevel.Information, Message = "Security: user {UserId} enrolled an authenticator")]
+    public static partial void TwoFactorEnabled(ILogger logger, string userId);
+
+    [LoggerMessage(EventId = 1031, Level = LogLevel.Warning, Message = "Security: two-factor code rejected for user {UserId} from {ClientIp}")]
+    public static partial void TwoFactorFailed(ILogger logger, string userId, string clientIp);
+
+    [LoggerMessage(EventId = 1032, Level = LogLevel.Warning, Message = "Security: user {UserId} signed in with a recovery code ({Left} left)")]
+    public static partial void RecoveryCodeUsed(ILogger logger, string userId, int left);
+
+    [LoggerMessage(EventId = 1033, Level = LogLevel.Information, Message = "Security: user {UserId} generated new recovery codes")]
+    public static partial void RecoveryCodesGenerated(ILogger logger, string userId);
+
+    [LoggerMessage(EventId = 1034, Level = LogLevel.Warning, Message = "Security: {ActorId} turned two-factor off for user {UserId}")]
+    public static partial void TwoFactorDisabled(ILogger logger, string actorId, string userId);
+
+    [LoggerMessage(EventId = 1040, Level = LogLevel.Warning, Message = "Security: admin-reset command run on the server for user {UserId}")]
+    public static partial void AdminResetCommand(ILogger logger, string userId);
+
+    [LoggerMessage(EventId = 1041, Level = LogLevel.Warning, Message = "Security: audit-purge command removed {Count} audit rows older than {Before}")]
+    public static partial void AuditPurged(ILogger logger, int count, DateTimeOffset before);
+
     // ---- Exports (M9; who, which report, filters and the row count: never row contents or search text) ----
 
     [LoggerMessage(EventId = 1700, Level = LogLevel.Information, Message = "Audit: {ActorId} exported {Report} as {Format}: {RowCount} rows, filters {Filters}")]

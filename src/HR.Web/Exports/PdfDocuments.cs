@@ -320,7 +320,9 @@ public static class PdfDocuments
         page.Size(PageSizes.A4);
         page.Margin(40);
         page.PageColor(Colors.White);
-        page.DefaultTextStyle(s => s.FontFamily(PdfSetup.FontFamily).FontSize(9.5f).FontColor(Ink));
+        // Plus Jakarta Sans' contextual alternates ("calt") swap a hyphen between figures for a dash glyph whose text
+        // mapping is U+2212, so "T25-2026-0001" would copy as "T25−2026−0001". Off: hyphens stay U+002D.
+        page.DefaultTextStyle(s => s.FontFamily(PdfSetup.FontFamily).FontSize(9.5f).FontColor(Ink).DisableFontFeature(FontFeatures.ContextualAlternates));
         if (watermark is not null)
         {
             page.Foreground().AlignCenter().AlignMiddle().Text(watermark).FontSize(54).Bold().FontColor("#FECACA");

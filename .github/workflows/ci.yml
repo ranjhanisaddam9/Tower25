@@ -1,0 +1,41 @@
+# CI (M10): locked restore, warnings-as-errors build, unit tests and a vulnerable-package gate.
+# Integration tests need SQL Server (HRPayroll_Test on .\SQLEXPRESS) and run locally; see README "Test".
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore (locked)
+        run: dotnet restore HRPayroll.sln --locked-mode
+
+      - name: Build (warnings are errors)
+        run: dotnet build HRPayroll.sln --no-restore --configuration Release -warnaserror
+
+      - name: Unit tests
+        run: dotnet test tests/HR.Tests/HR.Tests.csproj --no-build --configuration Release --filter "FullyQualifiedName~HR.Tests.Unit"
+
+      - name: Vulnerable packages (direct and transitive)
+        shell: pwsh
+        run: |
+          $report = dotnet list HRPayroll.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Output $report
+          if ($report -match 'has the following vulnerable packages') { throw 'Vulnerable NuGet packages found.' }

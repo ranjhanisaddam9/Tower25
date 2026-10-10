@@ -31,7 +31,7 @@ Dependencies point inward only: Web → Infrastructure → Domain.
 - Dates are `DateOnly`; timestamps are `DateTimeOffset` stored in UTC. "Today" comes from an injectable `IClock` using Asia/Karachi. Never call `DateTime.Now` in domain or services.
 - Business math lives in `HR.Domain` as pure, deterministic classes (e.g. `PayPeriod`, `WorkingDays`, `PaidLeaveAllocator`, `PayrollCalculator`). Controllers stay thin: validate, call a service, map to a view model.
 - Never bind entities directly to forms or views; use view models (prevents over-posting). Separate view models for Admin and Manager wherever Admin-only data exists, so Admin-only fields are never even loaded for a Manager.
-- Authorization through named policies (`AdminOnly`, `ManagerOrAdmin`) on controllers or actions. Default policy: authenticated. `[AllowAnonymous]` only on login, error and static pages.
+- Authorization through named policies (`AdminOnly`, `ManagerOrAdmin`) on controllers or actions. Default policy: authenticated. `[AllowAnonymous]` only on login (including the two-factor step), error and static pages, plus `/health` (owner-approved in M10: answers only "Healthy"/"Unhealthy", rate-limited). Every new endpoint needs an entry in the authorization-matrix test.
 - Rate records and exchange rates may be corrected; every change is audited. Finalized payroll data is immutable and keeps its own snapshot of every amount and rate.
 - Display formats: USD `$1,234.56`; PKR `Rs 1,234,567` (whole rupees, en-PK grouping); dates `08 Oct 2026`. Money columns right-aligned with tabular figures.
 - Every migration gets a meaningful name. Never edit a migration that's already committed; add a new one.
@@ -39,10 +39,11 @@ Dependencies point inward only: Web → Infrastructure → Domain.
 ## Security baseline (must hold at every milestone)
 - HTTPS redirection and HSTS (non-development).
 - Global `AutoValidateAntiforgeryTokenAttribute`; every state-changing action is POST (never GET).
-- Security headers on every response: `Content-Security-Policy` (`default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, microphone, geolocation off), `X-Frame-Options: DENY`.
+- Security headers on every response: `Content-Security-Policy` (`default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, microphone, geolocation off), `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`; no `Server` or `X-Powered-By` header.
 - Therefore: **no inline `<script>`, no inline `style=""` attributes, no `on*=` handlers, no CDN links**. All CSS/JS/fonts/icons are self-hosted under `wwwroot`.
 - Razor encoding only; never `Html.Raw` on user data. EF parameterized queries only; no string-built SQL.
-- Auth cookies HttpOnly, Secure, SameSite=Lax. Production error pages reveal nothing (no stack traces, no exception text).
+- Cookies `__Host-` prefixed, HttpOnly, Secure, SameSite=Lax. Two-factor sign-in required for Admins.
+- Every security or business event goes to `SecurityLog` (ILogger) and to the append-only `AuditLog` table via `db.Audit(...)` before `SaveChanges` (same transaction); summaries never hold PII, notes or reasons. Production error pages reveal nothing (no stack traces, no exception text).
 - Log security events (login success/failure, lockout, role changes, payroll finalize/reopen) without logging passwords or tokens.
 
 ## UI design system: "Aurora Glass"

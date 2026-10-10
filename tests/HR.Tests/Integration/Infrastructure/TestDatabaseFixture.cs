@@ -56,6 +56,10 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
         // Identity's user-role, claim, login and token rows cascade from users.
         await db.Users.ExecuteDeleteAsync();
         // The person-code sequence is deliberately NOT reset: codes are never reused, even across tests.
+
+        // The audit log is append-only (trigger); the test database owner switches the trigger off to empty it.
+        await db.Database.ExecuteSqlRawAsync(
+            "DISABLE TRIGGER [dbo].[TR_AuditLog_AppendOnly] ON [dbo].[AuditLog]; DELETE FROM [dbo].[AuditLog]; ENABLE TRIGGER [dbo].[TR_AuditLog_AppendOnly] ON [dbo].[AuditLog];");
     }
 
     public async Task DisposeAsync()

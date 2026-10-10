@@ -100,6 +100,32 @@ After the first successful sign-in and password change, you can remove the seed 
 dotnet user-secrets remove "Seed:Admin:Password" --project src/HR.Web
 ```
 
+### Two-factor sign-in
+
+Admins must use two-factor sign-in (TOTP).
+1. On the first sign-in, after the password change, the app shows only the setup page. Scan the QR code with an authenticator app (Microsoft Authenticator, Google Authenticator, …) or type the key.
+2. Enter a code to confirm.
+3. Store the 10 recovery codes somewhere safe. They are shown once; each works once instead of an authenticator code.
+
+Managers can turn two-factor on from the user menu. The Admin can require it for a Manager, or reset it, on the Manager's edit page.
+
+### Emergency Admin recovery
+
+If an Admin loses both the authenticator and the recovery codes, or is locked out, run this **on the machine that hosts the app** (there is no web route for it). Keep the quotes around the email:
+
+```bash
+dotnet run --project src/HR.Web -- admin-reset --email "admin@example.com"
+```
+
+The command:
+- prints a new temporary password once;
+- clears two-factor and the lockout;
+- forces a password change at the next sign-in, after which two-factor must be set up again;
+- ends that user's sessions;
+- writes an audit log entry.
+
+Stop the running app first, because the build can't replace files it has locked. On a published server, run `HR.Web.exe admin-reset --email "…"` instead.
+
 Fonts and icons (Plus Jakarta Sans, Bootstrap Icons) are self-hosted under `src/HR.Web/wwwroot/lib` and committed.
 To re-download them after editing `libman.json`, run `libman restore` from `src/HR.Web`.
 
@@ -127,6 +153,15 @@ dotnet test HRPayroll.sln
 - **Unit tests** need nothing external.
 - **Integration tests** use `HRPayroll_Test` on `.\SQLEXPRESS`. The shared fixture creates and migrates it once per run, clears its data before each test, and drops it at the end. They never touch `HRPayroll`.
 - To point the tests at a different server, set `HRPAYROLL_TEST_CONNECTION` (the database name must stay `HRPayroll_Test`).
+- **CI** (`.github/workflows/ci.yml`) runs a locked restore, a warnings-as-errors Release build, the unit tests and a vulnerable-package check. It doesn't run the integration tests (no SQL Server there), so run `dotnet test` locally before pushing.
+
+## Security, audit and logs
+
+- The security review is in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
+- **Audit log:** every sign-in event, data change, payroll finalize or reopen, and export is written to the append-only `AuditLog` table. Admins can browse, filter and export it at `/admin/audit`.
+- **File log:** set `Logging:File:Path` (for example `C:\HRPayroll\logs\hr-.json`) to get rolling daily JSON log files, 30 kept. It's empty by default, which means console logging only.
+- **Health:** `/health` answers `Healthy` or `Unhealthy` (database connectivity) and needs no sign-in.
+- **Data Protection keys** (they keep sign-ins valid across restarts) are stored in `DataProtection:KeysPath`, by default `%LOCALAPPDATA%\HRPayroll\DataProtection-Keys`, and are encrypted with DPAPI.
 
 ## Migrations
 
@@ -153,10 +188,21 @@ Never commit secrets. In production, supply settings through environment variabl
 | Allowed host names | `AllowedHosts` |
 | First Admin (only used while no Admin exists) | `Seed__Admin__Email`, `Seed__Admin__FullName`, `Seed__Admin__Password` |
 
-Behind a reverse proxy, the login rate limit (10 per minute per client IP) needs forwarded headers configured so it sees the real client IP. That is planned for the M10 deployment guide.
+| Data Protection key folder | `DataProtection__KeysPath` |
+| JSON log file path | `Logging__File__Path` |
+| Audit retention in days (0 = keep forever) | `Audit__RetentionDays` |
+
+Behind a reverse proxy, the rate limits (10 logins per minute per IP; 120 POSTs and 30 exports per minute per user) need forwarded headers configured so they see the real client IP. Deployment (IIS, backups, a deployment guide) is deferred for now; the app runs locally.
 
 ## Exports and third-party licences
 
 - **Excel** files are written with [ClosedXML](https://github.com/ClosedXML/ClosedXML) (MIT).
 - **PDF** files are written with [QuestPDF](https://www.questpdf.com) under its **Community licence**, set in code (`QuestPDF.Settings.License = LicenseType.Community`). The Community licence is free for organisations with **less than USD 1M annual gross revenue**. Above that, a paid QuestPDF licence is required; check the current terms on questpdf.com before relying on this.
 - The PDF font is **Plus Jakarta Sans** (static TTFs from the official repository, github.com/tokotype/PlusJakartaSans), embedded from `src/HR.Infrastructure/Fonts` under the SIL Open Font License 1.1 (`Fonts/OFL.txt`).
+- **Two-factor QR codes** are drawn with [QRCoder](https://github.com/codebude/QRCoder) (MIT).
+- **Logging** uses [Serilog](https://serilog.net) (Apache 2.0).
+- **Web assets:**
+  - Bootstrap 5.3.3 (MIT)
+  - Bootstrap Icons 1.13.1 (MIT)
+  - Plus Jakarta Sans via @fontsource 5.2.8 (OFL 1.1)
+  - jQuery 3.7.1 and jQuery Validation (MIT).

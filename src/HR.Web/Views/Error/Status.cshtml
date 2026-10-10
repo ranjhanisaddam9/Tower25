@@ -13,6 +13,10 @@
         <h2 class="card-title" id="errorHeading">@Model.Title</h2>
     }
     <p class="empty-state-text">@Model.Message</p>
+    @if (Model.CorrelationId is { } correlationId)
+    {
+        <p class="error-reference">Reference: <code class="num" data-testid="correlation-id">@correlationId</code></p>
+    }
     @if (signedIn)
     {
         <a class="btn btn-primary-gradient" asp-controller="Home" asp-action="Index">

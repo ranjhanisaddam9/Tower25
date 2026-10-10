@@ -64,7 +64,7 @@ public class ManagersController(ManagerService managers) : Controller
             return NotFound();
         }
 
-        return View(new ManagerEditViewModel(manager.Id, manager.IsActive, new ManagerFormViewModel { FullName = manager.FullName, Email = manager.Email }));
+        return View(new ManagerEditViewModel(manager.Id, manager.IsActive, new ManagerFormViewModel { FullName = manager.FullName, Email = manager.Email }, manager.TwoFactorEnabled, manager.RequireTwoFactor));
     }
 
     [HttpPost("{id}/edit")]
@@ -88,7 +88,7 @@ public class ManagersController(ManagerService managers) : Controller
             AddErrors(result);
         }
 
-        return View(new ManagerEditViewModel(manager.Id, manager.IsActive, form));
+        return View(new ManagerEditViewModel(manager.Id, manager.IsActive, form, manager.TwoFactorEnabled, manager.RequireTwoFactor));
     }
 
     [HttpPost("{id}/deactivate")]
@@ -115,6 +115,50 @@ public class ManagersController(ManagerService managers) : Controller
         }
 
         return View("TemporaryPassword", new TemporaryPasswordViewModel(manager.FullName, manager.Email, result.TemporaryPassword!, IsReset: true));
+    }
+
+    /// <summary>Makes two-factor sign-in compulsory (or optional) for this Manager: they enrol at their next request.</summary>
+    [HttpPost("{id}/two-factor/require")]
+    public async Task<IActionResult> RequireTwoFactor(string id, bool required, CancellationToken cancellationToken)
+    {
+        var result = await managers.SetRequireTwoFactorAsync(id, required, ActorId, cancellationToken);
+        if (result.Status == ManagerResultStatus.NotFound)
+        {
+            return NotFound();
+        }
+
+        if (result.Succeeded)
+        {
+            TempData.ToastSuccess(required ? "Two-factor sign-in is now required for this Manager." : "Two-factor sign-in is now optional for this Manager.");
+        }
+        else
+        {
+            TempData.ToastError("The change could not be saved. Please try again.");
+        }
+
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+    /// <summary>For a Manager who lost their phone: two-factor off, key and recovery codes discarded, sessions ended.</summary>
+    [HttpPost("{id}/two-factor/reset")]
+    public async Task<IActionResult> ResetTwoFactor(string id, CancellationToken cancellationToken)
+    {
+        var result = await managers.ResetTwoFactorAsync(id, ActorId, cancellationToken);
+        if (result.Status == ManagerResultStatus.NotFound)
+        {
+            return NotFound();
+        }
+
+        if (result.Succeeded)
+        {
+            TempData.ToastSuccess("Two-factor sign-in was reset. The Manager has been signed out and sets it up again at the next sign-in if it's required.");
+        }
+        else
+        {
+            TempData.ToastError("The reset could not be saved. Please try again.");
+        }
+
+        return RedirectToAction(nameof(Edit), new { id });
     }
 
     private async Task<IActionResult> SetActive(string id, bool active, CancellationToken cancellationToken)

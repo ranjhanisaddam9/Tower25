@@ -5,8 +5,9 @@ namespace HR.Web.Security;
 
 public static class CookieSecurity
 {
-    public const string AntiforgeryCookieName = "hr.af";
-    public const string TempDataCookieName = "hr.tempdata";
+    /// <summary>__Host- prefixed (Secure, Path=/, no Domain), like the auth cookie (M10).</summary>
+    public const string AntiforgeryCookieName = "__Host-hr.af";
+    public const string TempDataCookieName = "__Host-hr.tempdata";
 
     /// <summary>All cookies: HttpOnly, Secure, SameSite=Lax (CLAUDE.md security baseline).</summary>
     public static IServiceCollection AddSecureCookies(this IServiceCollection services)
@@ -24,6 +25,7 @@ public static class CookieSecurity
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.Path = "/";
         });
 
         services.Configure<CookieTempDataProviderOptions>(options =>
@@ -32,6 +34,7 @@ public static class CookieSecurity
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.Path = "/";
             options.Cookie.IsEssential = true;
         });
 

@@ -87,7 +87,7 @@ public class AbsencesController(AbsenceService absences, IClock clock) : Control
             filters.Add(new(Downloads.SearchFilterName, search));
         }
 
-        return downloads.Send(this, ExcelExports.Absences(downloads.Context(User, "Absences", filters), range), "Absences", filters);
+        return await downloads.SendAsync(this, ExcelExports.Absences(downloads.Context(User, "Absences", filters), range), "Absences", filters);
     }
 
     // ===================== Single add / edit / delete =====================

@@ -21,6 +21,10 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
             headers.XFrameOptions = "DENY";
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
             headers["Permissions-Policy"] = PermissionsPolicy;
+            headers["Cross-Origin-Opener-Policy"] = "same-origin";
+            headers["Cross-Origin-Resource-Policy"] = "same-origin";
+            headers.Remove("Server");
+            headers.Remove("X-Powered-By");
             return Task.CompletedTask;
         }, context);
 

@@ -1,0 +1,52 @@
+@model TwoFactorSetupViewModel
+@{
+    ViewData["Title"] = "Set up two-factor sign-in";
+    ViewData["Section"] = "Account";
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+
+<section class="glass-card form-card" aria-labelledby="setupHeading" data-testid="two-factor-setup">
+    <h2 class="card-title" id="setupHeading">Protect your account with an authenticator app</h2>
+
+    @if (Model.Required)
+    {
+        <div class="glass-alert alert-warning-glass" role="status" data-testid="two-factor-required">
+            <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+            <p class="mb-0">Two-factor sign-in is required for your account. Finish this step to continue.</p>
+        </div>
+    }
+
+    <ol class="setup-steps">
+        <li>
+            <p>Install an authenticator app on your phone, such as Microsoft Authenticator, Google Authenticator or Authy.</p>
+        </li>
+        <li>
+            <p>Scan this QR code with the app, or type the key in by hand.</p>
+            <div class="setup-qr">
+                <img src="@Model.QrCodeDataUri" width="220" height="220" alt="QR code for adding HR Payroll to your authenticator app. The same key is shown in text next to it." data-testid="qr-code" />
+                <div>
+                    <p class="text-muted-glass mb-1">Key (spaces don't matter)</p>
+                    <code class="setup-key num" data-testid="manual-key">@Model.FormattedKey</code>
+                </div>
+            </div>
+        </li>
+        <li>
+            <p>Enter the 6-digit code the app shows to finish.</p>
+            <form method="post" asp-action="TwoFactorSetup" novalidate class="setup-form">
+                <div class="form-floating">
+                    <input asp-for="Form.Code" name="Code" id="Code" class="form-control num code-input" inputmode="numeric" autocomplete="one-time-code"
+                           placeholder="123456" maxlength="12" aria-describedby="Code-error" />
+                    <label for="Code">Code from the app</label>
+                </div>
+                <span class="field-error" id="Code-error" data-testid="setup-error">@(Error("Code"))</span>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-shield-check" aria-hidden="true"></i> Turn on two-factor sign-in</button>
+                    @if (!Model.Required)
+                    {
+                        <a class="btn btn-ghost" asp-action="Security">Cancel</a>
+                    }
+                </div>
+            </form>
+        </li>
+    </ol>
+</section>

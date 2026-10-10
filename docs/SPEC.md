@@ -95,7 +95,7 @@ For Owner lines, Final OwnerEarningUsd = InvoiceUsd and Final OwnerEarningPkr = 
 
 1. **Draft**: generated for one period (unique per period). Includes every person with at least one employed working day. Can be regenerated; regenerating keeps adjustments.
 2. **Review**: add or edit adjustments, adjust the proposed exchange rate.
-3. **Finalize**: snapshot everything onto the lines (rates, days, amounts, exchange rate, who/when). A finalized payroll is read-only forever; later changes to people, rates or exchange rates never alter it. Only Admin can reopen a finalized payroll, with a mandatory reason recorded in the audit log.
+3. **Finalize**: snapshot everything onto the lines (rates, days, amounts, exchange rate, who/when). A finalized payroll is read-only forever; later changes to people, rates or exchange rates never alter it. Only Admin can reopen a finalized payroll, with a mandatory reason recorded in the payroll's own history (shown on the run page); the audit log records who reopened which run and when, but never the reason text.
 
 Outputs: payroll register (PKR, Manager and Admin), payslips per person (PKR with USD reference), company invoice (Admin), owner income (Admin).
 
@@ -170,4 +170,5 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 - 2026-10-09: Employment periods replace single joining/leaving dates; Owner rule relaxed to at most one active Owner.
 - 2026-10-10: extra days; adjustments pass through at cost; deductions credit the Company; active status follows leaving date.
 - 2026-10-10 (M8): the Owner line's earning is its whole invoiced amount; owner income = Σ final OwnerEarning over all lines; deductions may not exceed pay (NegativeNetPay blocks finalize); people added after a finalized period need a confirmation (arrears paid in the current payroll); invoice and settings rules (§7).
+- 2026-10-10 (M10): the reopen reason lives in the payroll history, not the audit log (§6); two-factor sign-in required for Admins; durable append-only audit log.
 - 2026-10-10 (M9): short and over payments on paid invoices; outstanding includes shortfalls, overpayments shown as "received in excess" (§7).

@@ -160,7 +160,7 @@ public sealed record PayrollResult(
 /// (after re-checking the draft against a fresh calculation inside a serializable transaction), reopen (Admin, latest
 /// only) and delete drafts. Manager queries never select billing columns. Audit events 15xx never contain notes.
 /// </summary>
-public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateService rates, HR.Infrastructure.Invoices.InvoiceService invoices, ILoggerFactory loggerFactory)
+public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateService rates, HR.Infrastructure.Invoices.InvoiceService invoices, AuditWriter audit, ILoggerFactory loggerFactory)
 {
     public const string NotDraftMessage = "This payroll is finalized, so it can't be changed. An administrator can reopen it.";
     public const string DataChangedMessage = "Data changed since this draft was calculated. The draft has been recalculated; review the changes and finalize again.";
@@ -376,6 +376,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         var run = PayrollRun.Create(period, proposed?.UsdToPkr, proposed?.Id, actorId, clock.UtcNow);
         db.PayrollRuns.Add(run);
         await ApplyAsync(run, cancellationToken);
+        db.Audit(AuditEvents.PayrollGenerated, actorId, "PayrollRun", () => run.Id, $"Generated {Iso(period.Start)}: {run.Lines.Count(l => !l.IsOrphaned)} lines, rate {RateText(run.ExchangeRate)}");
 
         try
         {
@@ -408,6 +409,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
 
         var changes = await ApplyAsync(run, cancellationToken);
         run.MarkRegenerated(actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PayrollRegenerated, actorId, "PayrollRun", run.Id, $"Regenerated {Iso(run.PeriodStart)}: {run.Lines.Count(l => !l.IsOrphaned)} lines, {changes.Select(c => c.PersonCode).Distinct().Count()} changed, {run.Lines.Count(l => l.IsOrphaned)} orphaned");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -476,6 +478,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         var old = run.ExchangeRate;
         run.SetRate(newRate, entryId, trimmed, actorId, clock.UtcNow);
         await ApplyAsync(run, cancellationToken);
+        db.Audit(AuditEvents.PayrollRateChanged, actorId, "PayrollRun", run.Id, $"Rate of {Iso(run.PeriodStart)}: {RateText(old)} -> {RateText(newRate)} ({(entryId is null ? "override" : "history")})");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -514,6 +517,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         var old = line!.ExtraDays;
         line.SetExtraDays(value, note);
         await ApplyAsync(run!, cancellationToken);
+        db.Audit(AuditEvents.PayrollExtraDaysChanged, actorId, "PayrollLine", lineId, $"Run {runId}, person {line.PersonId}: extra days {old.ToString("0.##", CultureInfo.InvariantCulture)} -> {value.ToString("0.##", CultureInfo.InvariantCulture)}");
         if (await SaveAsync(cancellationToken) is { } saveFailure)
         {
             return saveFailure;
@@ -538,6 +542,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
 
         var adjustment = line!.AddAdjustment(type!.Value, amount!.Value, currency!.Value, note, actorId, clock.UtcNow);
         await ApplyAsync(run!, cancellationToken);
+        db.Audit(AuditEvents.PayrollAdjustmentAdded, actorId, "PayrollAdjustment", () => adjustment.Id, $"Run {runId}, line {lineId}: {Describe(adjustment.Type, adjustment.Amount, adjustment.Currency)}");
         if (await SaveAsync(cancellationToken) is { } saveFailure)
         {
             return saveFailure;
@@ -575,6 +580,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         db.Entry(adjustment).Property(a => a.RowVersion).OriginalValue = rowVersion;
         adjustment.Update(type!.Value, amount!.Value, currency!.Value, note, actorId, clock.UtcNow);
         await ApplyAsync(run!, cancellationToken);
+        db.Audit(AuditEvents.PayrollAdjustmentEdited, actorId, "PayrollAdjustment", adjustmentId, $"Run {runId}, line {lineId}: {old} -> {Describe(adjustment.Type, adjustment.Amount, adjustment.Currency)}");
         if (await SaveAsync(cancellationToken) is { } saveFailure)
         {
             return saveFailure;
@@ -602,6 +608,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         line.RemoveAdjustment(adjustment);
         db.PayrollAdjustments.Remove(adjustment);
         await ApplyAsync(run!, cancellationToken);
+        db.Audit(AuditEvents.PayrollAdjustmentDeleted, actorId, "PayrollAdjustment", adjustmentId, $"Run {runId}, line {lineId}: deleted {old}");
         if (await SaveAsync(cancellationToken) is { } saveFailure)
         {
             return saveFailure;
@@ -619,6 +626,21 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
     /// recalculated, saved, and the per-line differences are returned (status <see cref="PayrollResultStatus.DataChanged"/>).
     /// </summary>
     public async Task<PayrollResult> FinalizeAsync(int runId, string actorId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await FinalizeCoreAsync(runId, actorId, cancellationToken);
+        }
+        catch (Exception ex) when (Data.SqlErrors.IsDeadlock(ex))
+        {
+            // A double submit: two serializable finalizes collide and SQL Server picks one as the deadlock victim. Its
+            // transaction was rolled back whole; the other one wins. Nothing partial is left behind.
+            db.ChangeTracker.Clear();
+            return new PayrollResult(PayrollResultStatus.Conflict, runId, [new PayrollError(string.Empty, ConflictMessage)]);
+        }
+    }
+
+    private async Task<PayrollResult> FinalizeCoreAsync(int runId, string actorId, CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var run = await LoadRunAsync(runId, cancellationToken);
@@ -657,6 +679,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         if (refusal is not null)
         {
             SecurityLog.PayrollFinalizeRefused(_log, actorId, run.Id, refusal);
+            await audit.WriteAsync(AuditEvents.PayrollFinalizeRefused, actorId, "PayrollRun", run.Id, $"Finalize of {Iso(run.PeriodStart)} refused: {refusal}", cancellationToken);
             return PayrollResult.Refused(refusal) with { Id = run.Id };
         }
 
@@ -665,6 +688,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         if (changes.Count > 0)
         {
             run.MarkRegenerated(actorId, clock.UtcNow);
+            db.Audit(AuditEvents.PayrollFinalizeRefused, actorId, "PayrollRun", run.Id, $"Finalize of {Iso(run.PeriodStart)} refused: data changed since the draft was calculated; draft recalculated");
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             SecurityLog.PayrollFinalizeRefused(_log, actorId, run.Id, "data changed since the draft was calculated");
@@ -672,6 +696,8 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         }
 
         run.Finalize(actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PayrollFinalized, actorId, "PayrollRun", run.Id,
+            $"Finalized {Iso(run.PeriodStart)}: {run.Lines.Count} lines, net pay {run.Lines.Sum(l => l.NetPayPkr ?? 0m).ToString("0", CultureInfo.InvariantCulture)} PKR, rate {RateText(run.ExchangeRate)}");
 
         // M8: the company invoice is issued in the same transaction (when Settings allow; otherwise it stays pending).
         var invoice = await invoices.AddForRunAsync(run, actorId, cancellationToken);
@@ -728,6 +754,8 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         }
 
         run.Reopen(trimmed, actorId, clock.UtcNow);
+        // The reason stays in the payroll's own history (SPEC §6), never in the audit log.
+        db.Audit(AuditEvents.PayrollReopened, actorId, "PayrollRun", run.Id, $"Reopened {Iso(run.PeriodStart)} (reason recorded in the payroll history)");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -760,6 +788,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         }
 
         db.PayrollRuns.Remove(run);
+        db.Audit(AuditEvents.PayrollDeleted, actorId, "PayrollRun", runId, $"Deleted draft {Iso(run.PeriodStart)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -923,6 +952,8 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
 
     private static string Describe(AdjustmentType type, decimal amount, PayCurrency currency) =>
         $"{type} {amount.ToString(currency == PayCurrency.PKR ? "0" : "0.00", CultureInfo.InvariantCulture)} {currency}";
+
+    private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static string RateText(decimal? rate) => rate?.ToString("0.0000", CultureInfo.InvariantCulture) ?? "none";
 

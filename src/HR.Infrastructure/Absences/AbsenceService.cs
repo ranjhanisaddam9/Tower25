@@ -399,6 +399,7 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
 
         var absence = Absence.Create(personId, date, portion, note, actorId, clock.UtcNow);
         db.Absences.Add(absence);
+        db.Audit(AuditEvents.AbsenceCreated, actorId, "Absence", () => absence.Id, $"Person {personId}, {Iso(date)}: {portion}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -436,6 +437,7 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
         var old = absence.Portion;
         db.Entry(absence).Property(a => a.RowVersion).OriginalValue = rowVersion;
         absence.Update(portion, note, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.AbsenceEdited, actorId, "Absence", absence.Id, $"Person {absence.PersonId}, {Iso(absence.Date)}: {old} -> {portion}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -461,6 +463,7 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
 
         var month = await MonthDaysAsync(absence.PersonId, absence.Date, cancellationToken);
         db.Absences.Remove(absence);
+        db.Audit(AuditEvents.AbsenceDeleted, actorId, "Absence", absence.Id, $"Person {absence.PersonId}, {Iso(absence.Date)}: {absence.Portion} -> none");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -573,6 +576,21 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
             return new AbsenceResult(AbsenceResultStatus.Success);
         }
 
+        foreach (var a in added)
+        {
+            db.Audit(AuditEvents.AbsenceCreated, actorId, "Absence", () => a.Id, $"Person {a.PersonId}, {Iso(date)}: {a.Portion} (daily sheet)");
+        }
+
+        foreach (var (a, old) in changed)
+        {
+            db.Audit(AuditEvents.AbsenceEdited, actorId, "Absence", a.Id, $"Person {a.PersonId}, {Iso(date)}: {old} -> {a.Portion} (daily sheet)");
+        }
+
+        foreach (var a in removed)
+        {
+            db.Audit(AuditEvents.AbsenceDeleted, actorId, "Absence", a.Id, $"Person {a.PersonId}, {Iso(date)}: {a.Portion} -> none (daily sheet)");
+        }
+
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (await SaveAsync(cancellationToken, DayConflictMessage) is { } failure)
         {
@@ -680,6 +698,11 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
         var now = clock.UtcNow;
         var added = dates.Order().Select(d => Absence.Create(personId, d, AbsencePortion.Full, note, actorId, now)).ToList();
         db.Absences.AddRange(added);
+        foreach (var a in added)
+        {
+            db.Audit(AuditEvents.AbsenceCreated, actorId, "Absence", () => a.Id, $"Person {personId}, {Iso(a.Date)}: {a.Portion} (range)");
+        }
+
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (await SaveAsync(cancellationToken, RangeChangedMessage) is { } failure)
         {
@@ -810,6 +833,8 @@ public sealed class AbsenceService(AppDbContext db, IClock clock, IPayrollLock p
             .Count(a => a.Date > date && a.Date.Month == date.Month && a.Date.Year == date.Year
                 && old.TryGetValue(a.Date, out var o) && (o.PaidDays, o.UnpaidDays) != (a.PaidDays, a.UnpaidDays));
     }
+
+    private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static (DateOnly Start, DateOnly End) MonthOf(DateOnly date) =>
         (new DateOnly(date.Year, date.Month, 1), new DateOnly(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)));

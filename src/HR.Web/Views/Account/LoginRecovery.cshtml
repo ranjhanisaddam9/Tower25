@@ -1,0 +1,31 @@
+@model RecoveryCodeLoginViewModel
+@{
+    ViewData["Title"] = "Sign in with a recovery code";
+    Layout = "_AuthLayout";
+}
+
+<p class="auth-lead">Enter one of the recovery codes you saved when you set up two-factor sign-in. Each code works once.</p>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="glass-alert alert-danger-glass" role="alert" data-testid="login-error">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div asp-validation-summary="All" class="validation-summary-plain"></div>
+    </div>
+}
+
+<form method="post" asp-controller="Account" asp-action="LoginRecovery" novalidate class="auth-form" data-testid="recovery-form">
+    <input type="hidden" asp-for="ReturnUrl" />
+    <div class="form-floating mb-3">
+        <input asp-for="RecoveryCode" class="form-control num" autocomplete="off" placeholder="ABCD-1234" maxlength="32" autofocus />
+        <label asp-for="RecoveryCode"></label>
+    </div>
+    <button type="submit" class="btn btn-primary-gradient w-100">
+        <i class="bi bi-key" aria-hidden="true"></i> Sign in
+    </button>
+</form>
+
+<p class="auth-footnote">
+    <a asp-action="LoginTwoFactor" asp-route-returnUrl="@Model.ReturnUrl">Back to the authenticator code</a>.
+    No codes left? Ask the administrator to reset your two-factor sign-in.
+</p>

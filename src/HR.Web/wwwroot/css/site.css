@@ -1849,3 +1849,85 @@
         white-space: nowrap;
     }
 }
+
+/* ===================== Security (M10): two-factor, audit log, alerts, error reference ===================== */
+
+.setup-steps {
+    padding-left: 1.25rem;
+    margin: 0;
+}
+
+.setup-steps > li {
+    margin-bottom: 1.25rem;
+}
+
+.setup-qr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 1.5rem;
+}
+
+.setup-qr img {
+    width: 220px;
+    height: 220px;
+    max-width: 100%;
+    border-radius: 12px;
+    background: #FFFFFF; /* scanners need the quiet zone light in both themes */
+    padding: 8px;
+}
+
+.setup-key {
+    display: inline-block;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    word-break: break-word;
+    color: var(--text);
+}
+
+.setup-form {
+    max-width: 320px;
+}
+
+.code-input {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2em;
+}
+
+.recovery-code-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+    gap: 0.5rem 1.5rem;
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.recovery-code-list code {
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.audit-ip {
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.audit-summary {
+    min-width: 16rem;
+    word-break: break-word;
+}
+
+.security-alert ul {
+    padding-left: 1.1rem;
+}
+
+.error-reference {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+.error-reference code {
+    color: var(--text);
+    word-break: break-all;
+}

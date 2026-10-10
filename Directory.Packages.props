@@ -9,10 +9,14 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreVersion)" />
     <!-- Exports (M9): .xlsx and PDF. QuestPDF runs under its Community licence (see README). -->
-    <PackageVersion Include="ClosedXML" Version="0.105.0" />
-    <PackageVersion Include="QuestPDF" Version="2026.8.0" />
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
+    <PackageVersion Include="QuestPDF" Version="2026.9.1" />
+    <!-- Security (M10): authenticator QR codes and structured file logging. -->
+    <PackageVersion Include="QRCoder" Version="1.8.0" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- Test tooling -->
     <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />

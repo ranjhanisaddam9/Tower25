@@ -61,6 +61,8 @@ public sealed class SettingsService(AppDbContext db, IClock clock, ILoggerFactor
             return new SettingsResult(SettingsResultStatus.Success, ChangedFields: changed);
         }
 
+        // Field names only, never values (bank details are in here).
+        db.Audit(AuditEvents.SettingsChanged, actorId, "Settings", AppSettings.SingletonId, "Changed: " + string.Join(", ", changed));
         try
         {
             await db.SaveChangesAsync(cancellationToken);

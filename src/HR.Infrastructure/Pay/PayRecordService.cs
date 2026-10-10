@@ -204,6 +204,7 @@ public sealed class PayRecordService(
         var record = RateRecord.Create(personId, terms, note, needsBillingReview: false, actorId, clock.UtcNow);
         db.RateRecords.Add(record);
         await RederiveChangeTypesAsync(personId, record, markCorrection: false, rate, cancellationToken);
+        db.Audit(AuditEvents.RateRecordCreated, actorId, "RateRecord", () => record.Id, $"Person {personId} ({record.ChangeType}): {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -269,6 +270,7 @@ public sealed class PayRecordService(
         // An Admin edit settles any pending billing review for this record.
         record.Update(terms, note, needsBillingReview: false, actorId, clock.UtcNow);
         await RederiveChangeTypesAsync(personId, record, markCorrection, rate, cancellationToken);
+        db.Audit(AuditEvents.RateRecordEdited, actorId, "RateRecord", record.Id, $"Person {personId} ({record.ChangeType}): {Describe(old)} -> {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -287,6 +289,7 @@ public sealed class PayRecordService(
         }
 
         record.MarkReviewed(actorId, clock.UtcNow);
+        db.Audit(AuditEvents.RateRecordReviewed, actorId, "RateRecord", record.Id, $"Person {personId}: billing reviewed");
         await db.SaveChangesAsync(cancellationToken);
         SecurityLog.RateRecordReviewed(_log, actorId, record.Id, personId);
         return new PayResult(PayResultStatus.Success, record.Id);
@@ -396,6 +399,7 @@ public sealed class PayRecordService(
         var record = RateRecord.Create(personId, terms, note, needsBillingReview: source == HireSource.BudgetHire, actorId, clock.UtcNow);
         db.RateRecords.Add(record);
         await RederiveChangeTypesAsync(personId, record, markCorrection: false, rate, cancellationToken);
+        db.Audit(AuditEvents.RateRecordCreated, actorId, "RateRecord", () => record.Id, $"Person {personId} ({record.ChangeType}): {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -459,6 +463,7 @@ public sealed class PayRecordService(
         db.Entry(record).Property(r => r.RowVersion).OriginalValue = rowVersion;
         record.Update(terms, note, needsBillingReview: record.NeedsBillingReview || source == HireSource.BudgetHire, actorId, clock.UtcNow);
         await RederiveChangeTypesAsync(personId, record, markCorrection: false, (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr, cancellationToken);
+        db.Audit(AuditEvents.RateRecordEdited, actorId, "RateRecord", record.Id, $"Person {personId} ({record.ChangeType}): {Describe(old)} -> {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -490,6 +495,7 @@ public sealed class PayRecordService(
         var old = record.Terms;
         db.RateRecords.Remove(record);
         await RederiveChangeTypesAsync(personId, null, markCorrection: false, (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr, cancellationToken);
+        db.Audit(AuditEvents.RateRecordDeleted, actorId, "RateRecord", recordId, $"Person {personId}: deleted {Describe(old)}");
         await db.SaveChangesAsync(cancellationToken);
         SecurityLog.RateRecordDeleted(_log, actorId, recordId, personId, Describe(old));
         return new PayResult(PayResultStatus.Success, recordId);

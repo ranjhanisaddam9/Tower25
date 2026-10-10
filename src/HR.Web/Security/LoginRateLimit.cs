@@ -13,12 +13,19 @@ public static class LoginRateLimit
     public const int PermitLimit = 10;
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
 
-    /// <summary>Registers every rate-limit policy (login and change password) and the shared 429 handling.</summary>
-    public static IServiceCollection AddLoginRateLimit(this IServiceCollection services)
+    /// <summary>
+    /// Registers every rate-limit policy (login, change password, health), the global POST and export limits (M10) and
+    /// the shared 429 handling.
+    /// </summary>
+    public static IServiceCollection AddLoginRateLimit(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.GlobalLimiter = Hardening.GlobalLimiter(configuration);
+
+            options.AddPolicy(Hardening.HealthPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter("health:" + ClientIp.Of(context), _ => FixedWindow(60, Window)));
 
             options.AddPolicy(PolicyName, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
@@ -31,7 +38,7 @@ public static class LoginRateLimit
                     ChangePasswordRateLimit.PartitionKey(context),
                     _ => FixedWindow(ChangePasswordRateLimit.PermitLimit, ChangePasswordRateLimit.Window)));
 
-            options.OnRejected = (context, _) =>
+            options.OnRejected = async (context, _) =>
             {
                 var http = context.HttpContext;
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -41,17 +48,26 @@ public static class LoginRateLimit
 
                 var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(SecurityLog.Category);
                 var policy = http.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+                var ip = ClientIp.Of(http);
                 if (policy == ChangePasswordRateLimit.PolicyName)
                 {
-                    SecurityLog.ChangePasswordRateLimited(logger, ChangePasswordRateLimit.PartitionKey(http), ClientIp.Of(http));
+                    SecurityLog.ChangePasswordRateLimited(logger, ChangePasswordRateLimit.PartitionKey(http), ip);
+                    await Hardening.AuditRejectionAsync(http, AuditEvents.ChangePasswordRateLimited, "cp:" + ChangePasswordRateLimit.PartitionKey(http), "Change-password rate limit exceeded");
                 }
-                else
+                else if (policy == PolicyName)
                 {
-                    SecurityLog.LoginRateLimited(logger, ClientIp.Of(http));
+                    SecurityLog.LoginRateLimited(logger, ip);
+                    await Hardening.AuditRejectionAsync(http, AuditEvents.LoginRateLimited, "login:" + ip, "Sign-in rate limit exceeded");
+                }
+                else if (policy != Hardening.HealthPolicy)
+                {
+                    var limit = Hardening.IsExport(http.Request) ? "export" : "request";
+                    SecurityLog.RequestRateLimited(logger, limit, Hardening.Partition(http));
+                    await Hardening.AuditRejectionAsync(http, AuditEvents.RequestRateLimited, limit + ":" + Hardening.Partition(http),
+                        limit == "export" ? "Export rate limit exceeded (30 per minute)" : "Request rate limit exceeded (120 changes per minute)");
                 }
 
                 // No body here: the status-code page middleware renders the friendly /error/429 page.
-                return ValueTask.CompletedTask;
             };
         });
 

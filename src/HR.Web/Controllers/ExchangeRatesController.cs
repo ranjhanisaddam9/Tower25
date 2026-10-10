@@ -30,7 +30,7 @@ public class ExchangeRatesController(ExchangeRateService rates, IClock clock) : 
     {
         var list = await rates.ListAsync(1, HR.Infrastructure.Exports.ExportLimits.MaxRows, cancellationToken);
         IReadOnlyList<HR.Infrastructure.Exports.ExportFilter> filters = [new("Entries", "All")];
-        return downloads.Send(this, HR.Web.Exports.ExcelExports.ExchangeRates(downloads.Context(User, "Exchange rates", filters), list.Items, clock.Today),
+        return await downloads.SendAsync(this, HR.Web.Exports.ExcelExports.ExchangeRates(downloads.Context(User, "Exchange rates", filters), list.Items, clock.Today),
             "Exchange rates", filters);
     }
 

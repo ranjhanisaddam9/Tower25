@@ -25,6 +25,9 @@ public sealed class HrWebApplicationFactory(string environment) : WebApplication
 
     public CapturedLogs Logs { get; } = new();
 
+    /// <summary>The Data Protection key folder shared by every test host in this run (so cookies survive "restarts").</summary>
+    public static string KeysPath { get; } = Path.Combine(Path.GetTempPath(), "HRPayroll-Tests", "keys");
+
     public AdjustableTimeProvider Time { get; } = new();
 
     /// <summary>A unique fake client IP, so the per-IP login rate limit never couples unrelated tests.</summary>
@@ -46,6 +49,8 @@ public sealed class HrWebApplicationFactory(string environment) : WebApplication
                 ["https_port"] = "443",
                 // Never seed the real Admin (from the developer's user secrets) into the test database.
                 [AdminSeeder.PasswordKey] = string.Empty,
+                // Test keys never mix with a developer's real key ring.
+                ["DataProtection:KeysPath"] = KeysPath,
             });
         });
 

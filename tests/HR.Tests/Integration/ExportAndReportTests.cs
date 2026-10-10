@@ -217,8 +217,8 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
     {
         using var document = PdfDocument.Open(pdf);
         var pages = document.GetPages().ToList();
-        // The font maps "-" and "−" to one glyph, so extraction may return either; compare with ASCII hyphens.
-        return (string.Join("\n", pages.Select(p => string.Join(" ", p.GetWords().Select(w => w.Text)))).Replace('−', '-'), pages.Count);
+        // Exact text: no normalisation (M10 fixed the dash substitution at the source).
+        return (string.Join("\n", pages.Select(p => string.Join(" ", p.GetWords().Select(w => w.Text)))), pages.Count);
     }
 
     private static void AssertNoBillingData(string url, string text, IEnumerable<decimal> numbers)
@@ -516,7 +516,15 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
         Assert.Equal(invoice.Number + ".pdf", name);
         var (text, pages) = PdfText(bytes);
         Assert.Equal(1, pages);
-        Assert.True(text.Contains(invoice.Number, StringComparison.Ordinal), text);
+        // Exact extracted text: hyphen-minus in the number, the grouped IBAN, and the dates as printed.
+        var words = text.Split([' ', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        Assert.Contains(invoice.Number, words); // e.g. "TWR-2026-0001", U+002D only
+        Assert.Matches("^[A-Z0-9]+-2026-\\d{4}$", invoice.Number);
+        Assert.Contains("PK36 SCBL 0000 0011 2345 6702", text, StringComparison.Ordinal);
+        Assert.Contains("Period 01–15 Oct 2026", text, StringComparison.Ordinal); // the en dash is the intended range dash
+        Assert.Contains($"Issue date {DisplayFormat.Date(invoice.IssueDate)}", text, StringComparison.Ordinal);
+        Assert.Contains($"Due date {DisplayFormat.Date(invoice.DueDate)}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain('−', text); // no minus signs anywhere
         Assert.Contains("Client Corp", text, StringComparison.Ordinal);
         Assert.Contains("Tower Staffing", text, StringComparison.Ordinal);
         foreach (var line in invoice.Lines)

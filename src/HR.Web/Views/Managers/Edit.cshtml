@@ -29,6 +29,37 @@
     </form>
 </section>
 
+<section class="glass-card form-card mt-4" aria-labelledby="twoFactorHeading" data-testid="manager-two-factor">
+    <h2 class="card-title" id="twoFactorHeading">Two-factor sign-in</h2>
+    <dl class="detail-list">
+        <dt>Status</dt>
+        <dd>
+            <span class="pill @(Model.TwoFactorEnabled ? "pill-success" : "pill-neutral")" data-testid="manager-2fa-status">@(Model.TwoFactorEnabled ? "On" : "Off")</span>
+            <span class="pill @(Model.RequireTwoFactor ? "pill-info" : "pill-neutral")">@(Model.RequireTwoFactor ? "Required" : "Optional")</span>
+        </dd>
+    </dl>
+    <div class="access-actions">
+        <form method="post" asp-action="RequireTwoFactor" asp-route-id="@Model.Id">
+            <input type="hidden" name="required" value="@(Model.RequireTwoFactor ? "false" : "true")" />
+            <button type="submit" class="btn btn-ghost">
+                <i class="bi @(Model.RequireTwoFactor ? "bi-shield" : "bi-shield-lock")" aria-hidden="true"></i>
+                @(Model.RequireTwoFactor ? "Make optional" : "Require two-factor sign-in")
+            </button>
+        </form>
+        @if (Model.TwoFactorEnabled)
+        {
+            <form method="post" asp-action="ResetTwoFactor" asp-route-id="@Model.Id">
+                <button type="submit" class="btn btn-ghost"
+                        data-confirm="Their authenticator and recovery codes stop working and they are signed out. If two-factor is required they set it up again at the next sign-in."
+                        data-confirm-title="Reset two-factor sign-in?"
+                        data-confirm-action="Reset">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset two-factor
+                </button>
+            </form>
+        }
+    </div>
+</section>
+
 <section class="glass-card form-card mt-4" aria-labelledby="accessHeading">
     <h2 class="card-title" id="accessHeading">Access</h2>
     <div class="access-actions">

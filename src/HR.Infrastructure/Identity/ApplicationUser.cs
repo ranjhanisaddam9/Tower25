@@ -19,4 +19,10 @@ public class ApplicationUser : IdentityUser
 
     /// <summary>Last successful sign-in, stored in UTC.</summary>
     public DateTimeOffset? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// Set by the Admin for a Manager (M10): the Manager must enrol in two-factor sign-in before using the app.
+    /// Admins always need two-factor, whatever this says.
+    /// </summary>
+    public bool RequireTwoFactor { get; set; }
 }

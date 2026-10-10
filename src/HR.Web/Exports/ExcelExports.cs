@@ -396,6 +396,24 @@ public static class ExcelExports
         return Xlsx(new SpreadsheetBuilder(context).AddSheet("Salary changes", columns, rows), "salary-changes", Iso(from), Iso(to));
     }
 
+    public static ExportFile AuditLog(ExportContext context, IReadOnlyList<HR.Infrastructure.Security.AuditRow> rows, DateTimeOffset now)
+    {
+        var columns = new List<ExportColumn<HR.Infrastructure.Security.AuditRow>>
+        {
+            new("Id", CellKind.Integer, r => r.Id),
+            new("At (Asia/Karachi)", CellKind.Date, r => r.At),
+            new("Actor", CellKind.Text, r => r.ActorName ?? r.ActorUserId ?? "system"),
+            new("Actor id", CellKind.Text, r => r.ActorUserId),
+            new("IP", CellKind.Text, r => r.ActorIp),
+            new("Event id", CellKind.Integer, r => r.EventId),
+            new("Event", CellKind.Text, r => r.EventName),
+            new("Entity", CellKind.Text, r => r.EntityType),
+            new("Entity id", CellKind.Text, r => r.EntityId),
+            new("Summary", CellKind.Text, r => r.Summary),
+        };
+        return Xlsx(new SpreadsheetBuilder(context).AddSheet("Audit log", columns, rows), "audit-log", Iso(HR.Domain.Time.PakistanTime.ToKarachiDate(now)));
+    }
+
     public static ExportFile Headcount(ExportContext context, IReadOnlyList<HeadcountMonth> months, DateOnly today)
     {
         var columns = new List<ExportColumn<HeadcountMonth>>

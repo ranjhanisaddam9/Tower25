@@ -28,7 +28,7 @@ public class OwnerIncomeController(OwnerIncomeService income) : Controller
             new("Selection", model.SelectionLabel),
             new("Draft payroll", draft ? "Included separately (projected)" : "Not included"),
         ];
-        return downloads.Send(this, HR.Web.Exports.ExcelExports.OwnerIncome(downloads.Context(User, "Owner income", filters), model), "Owner income", filters);
+        return await downloads.SendAsync(this, HR.Web.Exports.ExcelExports.OwnerIncome(downloads.Context(User, "Owner income", filters), model), "Owner income", filters);
     }
 
     private async Task<OwnerIncomeViewModel> LoadAsync(string? view, string? at, bool draft, CancellationToken cancellationToken)

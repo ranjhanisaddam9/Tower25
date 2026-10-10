@@ -28,6 +28,10 @@ public static class DependencyInjection
 
             options.UseSqlServer(connectionString, sql =>
                 sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+
+            // Explicit transactions roll back as a whole on failure (we never retry inside one), so the MARS
+            // "savepoints disabled" notice is noise.
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.SqlServerEventId.SavepointsDisabledBecauseOfMARS));
         });
 
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
@@ -63,6 +67,8 @@ public static class DependencyInjection
                 options.SignIn.RequireConfirmedPhoneNumber = false;
             })
             .AddEntityFrameworkStores<AppDbContext>()
+            // TOTP authenticator apps (M10). No other token providers: there is no email/SMS flow to abuse.
+            .AddTokenProvider<AuthenticatorTokenProvider<ApplicationUser>>(TokenOptions.DefaultAuthenticatorProvider)
             .AddSignInManager<AppSignInManager>()
             .AddClaimsPrincipalFactory<AppUserClaimsPrincipalFactory>();
 
@@ -90,6 +96,9 @@ public static class DependencyInjection
         services.AddScoped<Pay.SalaryOverviewService>();
         services.AddScoped<Absences.AbsenceService>();
         services.AddScoped<Reports.ReportService>();
+        services.AddScoped<Security.AuditWriter>();
+        services.AddScoped<Security.AuditQueryService>();
+        services.AddScoped<Security.ServerCommands>();
 
         // PDF exports: Community licence and the embedded font, registered once per process.
         Exports.PdfSetup.Configure();

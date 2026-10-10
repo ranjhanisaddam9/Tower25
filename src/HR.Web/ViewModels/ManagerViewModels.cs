@@ -31,7 +31,7 @@ public sealed class ManagerFormViewModel
     public string Email { get; set; } = string.Empty;
 }
 
-public sealed record ManagerEditViewModel(string Id, bool IsActive, ManagerFormViewModel Form);
+public sealed record ManagerEditViewModel(string Id, bool IsActive, ManagerFormViewModel Form, bool TwoFactorEnabled = false, bool RequireTwoFactor = false);
 
 /// <summary>Shown exactly once, straight from the POST that generated the password. Never stored or logged.</summary>
 public sealed record TemporaryPasswordViewModel(string FullName, string Email, string TemporaryPassword, bool IsReset);

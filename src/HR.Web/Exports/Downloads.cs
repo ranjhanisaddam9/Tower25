@@ -31,16 +31,19 @@ public sealed class Downloads(IClock clock, ILoggerFactory loggerFactory)
 
     public DateTimeOffset Now => clock.UtcNow;
 
-    public FileContentResult Send(ControllerBase controller, ExportFile file, string report, IReadOnlyList<ExportFilter> filters)
+    public async Task<FileContentResult> SendAsync(ControllerBase controller, ExportFile file, string report, IReadOnlyList<ExportFilter> filters)
     {
         var headers = controller.Response.Headers;
         headers.CacheControl = "no-store";
         headers.Pragma = "no-cache";
         headers.XContentTypeOptions = "nosniff";
 
-        var actor = controller.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
+        var actor = controller.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var format = file.ContentType == ExportContentTypes.Pdf ? "pdf" : "xlsx";
-        SecurityLog.Exported(_log, actor, report, format, file.RowCount, Describe(filters));
+        var described = Describe(filters);
+        SecurityLog.Exported(_log, actor ?? "unknown", report, format, file.RowCount, described);
+        await controller.HttpContext.RequestServices.GetRequiredService<AuditWriter>().WriteAsync(AuditEvents.Exported, actor, "Export", report,
+            $"{report} as {format}: {file.RowCount} rows; filters {described}", controller.HttpContext.RequestAborted);
         return controller.File(file.Content, file.ContentType, file.FileName);
     }
 

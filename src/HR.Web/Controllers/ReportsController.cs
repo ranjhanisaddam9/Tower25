@@ -52,7 +52,7 @@ public class ReportsController(ReportService reports, AbsenceService absences, D
         var file = IsAdmin
             ? ExcelExports.PayrollHistoryAdmin(context, await reports.AdminPayrollHistoryAsync(cancellationToken: cancellationToken), clock.Today)
             : ExcelExports.PayrollHistory(context, await reports.PayrollHistoryAsync(cancellationToken: cancellationToken), clock.Today);
-        return downloads.Send(this, file, "Payroll history", filters);
+        return await downloads.SendAsync(this, file, "Payroll history", filters);
     }
 
     // ===================== Salary changes =====================
@@ -85,7 +85,7 @@ public class ReportsController(ReportService reports, AbsenceService absences, D
         var file = IsAdmin
             ? ExcelExports.SalaryChangesAdmin(context, await reports.AdminSalaryChangesAsync(start, end, cancellationToken), start, end)
             : ExcelExports.SalaryChanges(context, await reports.SalaryChangesAsync(start, end, cancellationToken), start, end);
-        return downloads.Send(this, file, "Salary changes", filters);
+        return await downloads.SendAsync(this, file, "Salary changes", filters);
     }
 
     // ===================== Absence summary =====================
@@ -114,7 +114,7 @@ public class ReportsController(ReportService reports, AbsenceService absences, D
 
         IReadOnlyList<ExportFilter> filters = [new("Dates", DisplayFormat.DateRange(start, end)), new("People", "All")];
         var file = ExcelExports.AbsenceSummary(downloads.Context(User, "Absence summary", filters), await SummaryAsync(start, end, cancellationToken));
-        return downloads.Send(this, file, "Absence summary", filters);
+        return await downloads.SendAsync(this, file, "Absence summary", filters);
     }
 
     // ===================== Headcount =====================
@@ -128,7 +128,7 @@ public class ReportsController(ReportService reports, AbsenceService absences, D
     {
         IReadOnlyList<ExportFilter> filters = [new("Months", "Last 12")];
         var file = ExcelExports.Headcount(downloads.Context(User, "Headcount", filters), await reports.HeadcountAsync(cancellationToken), clock.Today);
-        return downloads.Send(this, file, "Headcount", filters);
+        return await downloads.SendAsync(this, file, "Headcount", filters);
     }
 
     // ===================== Helpers =====================

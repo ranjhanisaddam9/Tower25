@@ -18,6 +18,7 @@ public sealed class AdminSeeder(
     RoleManager<IdentityRole> roleManager,
     IConfiguration configuration,
     IClock clock,
+    AuditWriter audit,
     ILoggerFactory loggerFactory)
 {
     public const string EmailKey = "Seed:Admin:Email";
@@ -61,12 +62,14 @@ public sealed class AdminSeeder(
         if (PasswordComesFromAppSettingsFile())
         {
             SecurityLog.AdminSeedSkipped(_log, $"{PasswordKey} was found in an appsettings file; it may only come from user secrets or an environment variable");
+            await audit.WriteAsync(AuditEvents.AdminSeedSkipped, null, null, null, "Admin seeding refused: the password was found in an appsettings file", cancellationToken);
             return;
         }
 
         if (await userManager.Users.AnyAsync(u => u.NormalizedEmail == userManager.NormalizeEmail(email), cancellationToken))
         {
             SecurityLog.AdminSeedSkipped(_log, "a user with the configured Admin email already exists but is not an Admin");
+            await audit.WriteAsync(AuditEvents.AdminSeedSkipped, null, null, null, "Admin seeding skipped: the configured email belongs to a non-Admin user", cancellationToken);
             return;
         }
 
@@ -98,6 +101,7 @@ public sealed class AdminSeeder(
         }
 
         SecurityLog.AdminSeeded(_log, admin.Id);
+        await audit.WriteAsync(AuditEvents.AdminSeeded, null, "User", admin.Id, "Seeded the first Admin from configuration", cancellationToken);
     }
 
     private async Task EnsureRoleAsync(string role)

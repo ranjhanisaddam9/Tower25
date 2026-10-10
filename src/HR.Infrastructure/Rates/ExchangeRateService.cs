@@ -139,6 +139,7 @@ public sealed class ExchangeRateService(AppDbContext db, IClock clock, ILoggerFa
 
         var rate = ExchangeRate.Create(input.EffectiveFrom!.Value, input.UsdToPkr!.Value, input.Note, actorId, clock.UtcNow);
         db.ExchangeRates.Add(rate);
+        db.Audit(AuditEvents.ExchangeRateCreated, actorId, "ExchangeRate", () => rate.Id, $"Added {Iso(rate.EffectiveFrom)} = {Rate(rate.UsdToPkr)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure;
@@ -176,6 +177,8 @@ public sealed class ExchangeRateService(AppDbContext db, IClock clock, ILoggerFa
         var (oldDate, oldRate) = (rate.EffectiveFrom, rate.UsdToPkr);
         db.Entry(rate).Property(r => r.RowVersion).OriginalValue = rowVersion;
         rate.Update(input.EffectiveFrom!.Value, input.UsdToPkr!.Value, input.Note, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.ExchangeRateEdited, actorId, "ExchangeRate", rate.Id,
+            $"Edited {Iso(oldDate)} = {Rate(oldRate)} -> {Iso(rate.EffectiveFrom)} = {Rate(rate.UsdToPkr)}");
 
         try
         {
@@ -203,10 +206,15 @@ public sealed class ExchangeRateService(AppDbContext db, IClock clock, ILoggerFa
         }
 
         db.ExchangeRates.Remove(rate);
+        db.Audit(AuditEvents.ExchangeRateDeleted, actorId, "ExchangeRate", id, $"Deleted {Iso(rate.EffectiveFrom)} = {Rate(rate.UsdToPkr)}");
         await db.SaveChangesAsync(cancellationToken);
         SecurityLog.ExchangeRateDeleted(_log, actorId, id, rate.EffectiveFrom, rate.UsdToPkr);
         return new RateResult(RateResultStatus.Success, id);
     }
+
+    private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Rate(decimal rate) => rate.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Validation, duplicate date and the >5% rule. Null when the input may be saved.</summary>
     private async Task<RateResult?> CheckAsync(RateInput input, int? exceptId, bool largeChangeConfirmed, CancellationToken cancellationToken)

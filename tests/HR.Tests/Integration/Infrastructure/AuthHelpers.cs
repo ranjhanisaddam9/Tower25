@@ -6,12 +6,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace HR.Tests.Integration.Infrastructure;
 
-public sealed record TestUser(string Id, string Email, string Password);
+public sealed record TestUser(string Id, string Email, string Password, string? AuthenticatorKey = null);
 
-/// <summary>Creates users directly and drives the real cookie login flow through HTTP.</summary>
+/// <summary>
+/// Creates users directly and drives the real cookie login flow through HTTP. Admins need two-factor sign-in (M10), so
+/// Admin test users are enrolled with an authenticator key and <see cref="PostLoginAsync"/> completes the second step
+/// with a real TOTP code, exactly as a person with an authenticator app would.
+/// </summary>
 public static partial class AuthHelpers
 {
     public const string DefaultPassword = "Correct-Horse-42";
+
+    /// <summary>Authenticator keys of enrolled test users, by email (the login helper answers the code step with them).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Keys = new(StringComparer.OrdinalIgnoreCase);
 
     public static async Task<TestUser> CreateUserAsync(
         this HrWebApplicationFactory factory,
@@ -20,7 +27,8 @@ public static partial class AuthHelpers
         string password = DefaultPassword,
         bool mustChangePassword = false,
         bool isActive = true,
-        string? fullName = null)
+        string? fullName = null,
+        bool? enrolTwoFactor = null)
     {
         email ??= $"{role.ToLowerInvariant()}.{Guid.NewGuid():N}@example.test";
         await using var scope = factory.Services.CreateAsyncScope();
@@ -38,8 +46,35 @@ public static partial class AuthHelpers
         };
         AssertSucceeded(await users.CreateAsync(user, password));
         AssertSucceeded(await users.AddToRoleAsync(user, role));
+
+        if (enrolTwoFactor ?? role == AppRoles.Admin)
+        {
+            var key = await EnrolAsync(users, user);
+            return new TestUser(user.Id, email, password, key);
+        }
+
         return new TestUser(user.Id, email, password);
     }
+
+    /// <summary>Enrols an existing user in two-factor sign-in (as the setup page would) and remembers the key.</summary>
+    public static async Task<string> EnrolTwoFactorAsync(this HrWebApplicationFactory factory, string userId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return await EnrolAsync(users, (await users.FindByIdAsync(userId))!);
+    }
+
+    private static async Task<string> EnrolAsync(UserManager<ApplicationUser> users, ApplicationUser user)
+    {
+        AssertSucceeded(await users.ResetAuthenticatorKeyAsync(user));
+        var key = (await users.GetAuthenticatorKeyAsync(user))!;
+        AssertSucceeded(await users.SetTwoFactorEnabledAsync(user, true));
+        Keys[user.Email!] = key;
+        return key;
+    }
+
+    /// <summary>Forgets a user's key (e.g. after an Admin reset their two-factor), so login stops at the code step.</summary>
+    public static void ForgetAuthenticator(string email) => Keys.TryRemove(email, out _);
 
     public static async Task<ApplicationUser> GetUserAsync(this HrWebApplicationFactory factory, string id)
     {
@@ -73,7 +108,30 @@ public static partial class AuthHelpers
             form["ReturnUrl"] = returnUrl;
         }
 
-        return await client.PostAsync("/account/login", new FormUrlEncodedContent(form));
+        var response = await client.PostAsync("/account/login", new FormUrlEncodedContent(form));
+
+        // Two-factor accounts: answer the code step like an authenticator app would.
+        if (response.StatusCode == HttpStatusCode.Redirect
+            && response.Headers.Location?.OriginalString.StartsWith("/account/login-2fa", StringComparison.Ordinal) == true
+            && Keys.TryGetValue(email, out var key))
+        {
+            return await client.PostTwoFactorCodeAsync(Totp.Code(key), response.Headers.Location.OriginalString);
+        }
+
+        return response;
+    }
+
+    /// <summary>Posts an authenticator code to the second sign-in step.</summary>
+    public static async Task<HttpResponseMessage> PostTwoFactorCodeAsync(this HttpClient client, string code, string page = "/account/login-2fa")
+    {
+        var token = await client.GetAntiforgeryTokenAsync(page);
+        var query = page.Contains('?', StringComparison.Ordinal) ? page[page.IndexOf('?', StringComparison.Ordinal)..] : string.Empty;
+        return await client.PostAsync("/account/login-2fa" + query, new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Code"] = code,
+            ["ReturnUrl"] = System.Web.HttpUtility.ParseQueryString(query).Get("returnUrl") ?? string.Empty,
+            ["__RequestVerificationToken"] = token,
+        }));
     }
 
     /// <summary>Posts a form, taking a fresh antiforgery token from <paramref name="tokenPage"/> first.</summary>

@@ -1,0 +1,33 @@
+@model RecoveryCodesViewModel
+@{
+    ViewData["Title"] = "Recovery codes";
+    ViewData["Section"] = "Account";
+}
+
+<section class="glass-card form-card" aria-labelledby="codesHeading" data-testid="recovery-codes">
+    <div class="card-heading-row">
+        <span class="stat-icon tone-success" aria-hidden="true"><i class="bi bi-shield-check"></i></span>
+        <h2 class="card-title mb-0" id="codesHeading">@(Model.JustEnrolled ? "Two-factor sign-in is on" : "New recovery codes")</h2>
+    </div>
+
+    <div class="glass-alert alert-warning-glass" role="note">
+        <i class="bi bi-eye-slash" aria-hidden="true"></i>
+        <p class="mb-0"><strong>These codes are shown only once.</strong> Print them or write them down and keep them somewhere safe, away from your phone. Each code signs you in once if you lose your phone.@(Model.JustEnrolled ? "" : " Your old codes no longer work.")</p>
+    </div>
+
+    <ol class="recovery-code-list num" id="recoveryCodes">
+        @foreach (var code in Model.Codes)
+        {
+            <li><code data-testid="recovery-code">@code</code></li>
+        }
+    </ol>
+
+    <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-copy-target="recoveryCodes" aria-describedby="copyStatus">
+            <i class="bi bi-clipboard" aria-hidden="true"></i> <span class="copy-label">Copy</span>
+        </button>
+        <button type="button" class="btn btn-ghost" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+        <a class="btn btn-primary-gradient" href="/">I've saved them, continue</a>
+        <span class="visually-hidden" id="copyStatus" aria-live="polite"></span>
+    </div>
+</section>

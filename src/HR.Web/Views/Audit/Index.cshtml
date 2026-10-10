@@ -1,0 +1,122 @@
+@using HR.Infrastructure.Security
+@model AuditPageViewModel
+@{
+    ViewData["Title"] = "Audit log";
+    ViewData["Section"] = "Administration";
+    var q = Model.Query;
+}
+
+<div class="page-actions">
+    <p class="page-lead mb-0">
+        Every security and business event, append-only. Summaries never contain passwords, identity numbers, bank details,
+        phone numbers, notes or reasons. Retention: <strong data-testid="retention">@(Model.RetentionDays > 0 ? $"{Model.RetentionDays} days" : "keep forever")</strong>.
+    </p>
+    <a class="btn btn-ghost" href="@HR.Web.Exports.ExportLinks.For("/admin/audit/export", ("from", q.From), ("to", q.To), ("user", q.UserId), ("eventId", q.EventId), ("entity", q.EntityType))" data-testid="export-link">
+        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> Export
+    </a>
+</div>
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter the audit log">
+    <div class="form-floating filter-select">
+        <input type="date" class="form-control num" id="from" name="from" value="@(q.From is { } f ? ReportDisplay.Iso(f) : null)" />
+        <label for="from">From</label>
+    </div>
+    <div class="form-floating filter-select">
+        <input type="date" class="form-control num" id="to" name="to" value="@(q.To is { } t ? ReportDisplay.Iso(t) : null)" />
+        <label for="to">To</label>
+    </div>
+    <div class="form-floating filter-select filter-select-wide">
+        <select class="form-select" id="user" name="user">
+            <option value="" selected="@(q.UserId is null)">All users</option>
+            @foreach (var (id, name) in Model.Options.Users)
+            {
+                <option value="@id" selected="@(id == q.UserId)">@name</option>
+            }
+        </select>
+        <label for="user">User</label>
+    </div>
+    <div class="form-floating filter-select filter-select-wide">
+        <select class="form-select" id="eventId" name="eventId">
+            <option value="" selected="@(q.EventId is null)">All events</option>
+            @foreach (var e in AuditEvents.All)
+            {
+                <option value="@e.Id" selected="@(e.Id == q.EventId)">@e.Id · @e.Name</option>
+            }
+        </select>
+        <label for="eventId">Event</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="entity" name="entity">
+            <option value="" selected="@(q.EntityType is null)">All entities</option>
+            @foreach (var type in Model.Options.EntityTypes)
+            {
+                <option value="@type" selected="@(type == q.EntityType)">@type</option>
+            }
+        </select>
+        <label for="entity">Entity</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.Rows.TotalCount == 0)
+{
+    <div class="glass-card empty-state" data-testid="audit-empty">
+        <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-journal-check"></i></span>
+        <p class="empty-state-text">No audit entries match these filters.</p>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear filters</a>
+        }
+    </div>
+}
+else
+{
+    <p class="text-muted-glass" data-testid="audit-count">@Model.Rows.TotalCount @(Model.Rows.TotalCount == 1 ? "entry" : "entries"), newest first</p>
+    <div class="glass-table-wrap">
+        <table class="glass-table" data-testid="audit-table">
+            <caption class="visually-hidden">Audit entries, newest first</caption>
+            <thead>
+                <tr>
+                    <th scope="col">When</th>
+                    <th scope="col">Who</th>
+                    <th scope="col">Event</th>
+                    <th scope="col">Entity</th>
+                    <th scope="col">Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows.Items)
+                {
+                    <tr data-testid="audit-row">
+                        <td data-label="When" class="num">@DisplayFormat.DateTime(row.At)</td>
+                        <td data-label="Who">@(row.ActorName ?? (row.ActorUserId is null ? "System" : row.ActorUserId))<span class="audit-ip num">@row.ActorIp</span></td>
+                        <td data-label="Event"><span class="pill pill-neutral num">@row.EventId</span> @row.EventName</td>
+                        <td data-label="Entity">@(row.EntityType is null ? "—" : $"{row.EntityType} {row.EntityId}")</td>
+                        <td data-label="Summary" class="audit-summary">@row.Summary</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.Rows.TotalPages > 1)
+    {
+        <nav class="pager" aria-label="Audit pages">
+            @if (Model.Rows.Page > 1)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.Route(Model.Rows.Page - 1)" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i> Newer</a>
+            }
+            <span class="pager-status">Page @Model.Rows.Page of @Model.Rows.TotalPages</span>
+            @if (Model.Rows.Page < Model.Rows.TotalPages)
+            {
+                <a class="btn btn-ghost" asp-action="Index" asp-all-route-data="@Model.Route(Model.Rows.Page + 1)" rel="next">Older <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+            }
+        </nav>
+    }
+}

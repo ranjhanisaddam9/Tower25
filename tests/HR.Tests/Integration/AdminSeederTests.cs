@@ -118,6 +118,7 @@ public class AdminSeederTests(TestDatabaseFixture fixture) : IntegrationTest(fix
             services.GetRequiredService<RoleManager<IdentityRole>>(),
             configuration,
             services.GetRequiredService<IClock>(),
+            services.GetRequiredService<HR.Infrastructure.Security.AuditWriter>(),
             loggerFactory);
 
         await seeder.SeedAsync();

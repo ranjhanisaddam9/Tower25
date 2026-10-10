@@ -90,11 +90,11 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
             var hireFilter = ParseHireSource(hireSource);
             filters.Add(new("Hire source", hireFilter == HireSourceFilter.All ? "All" : hireFilter.ToString()));
             var adminRows = await people.ExportForAdminAsync(query, hireFilter, cancellationToken);
-            return downloads.Send(this, ExcelExports.PeopleAdmin(downloads.Context(User, "People", filters), adminRows, clock.Today), "People", filters);
+            return await downloads.SendAsync(this, ExcelExports.PeopleAdmin(downloads.Context(User, "People", filters), adminRows, clock.Today), "People", filters);
         }
 
         var rows = await people.ExportAsync(query, cancellationToken);
-        return downloads.Send(this, ExcelExports.People(downloads.Context(User, "People", filters), rows, clock.Today), "People", filters);
+        return await downloads.SendAsync(this, ExcelExports.People(downloads.Context(User, "People", filters), rows, clock.Today), "People", filters);
     }
 
     [HttpGet("{id:int}")]

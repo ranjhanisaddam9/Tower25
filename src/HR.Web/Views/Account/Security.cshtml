@@ -1,0 +1,50 @@
+@model HR.Infrastructure.Identity.TwoFactorStatus
+@{
+    ViewData["Title"] = "Sign-in security";
+    ViewData["Section"] = "Account";
+}
+
+<section class="glass-card form-card" aria-labelledby="securityHeading" data-testid="security-page">
+    <h2 class="card-title" id="securityHeading">Two-factor sign-in</h2>
+    <dl class="detail-list">
+        <dt>Status</dt>
+        <dd>
+            <span class="pill @(Model.Enabled ? "pill-success" : "pill-warning")" data-testid="two-factor-status">@(Model.Enabled ? "On" : "Off")</span>
+            @if (Model.Required)
+            {
+                <span class="pill pill-info">Required for your account</span>
+            }
+        </dd>
+        @if (Model.Enabled)
+        {
+            <dt>Recovery codes left</dt>
+            <dd class="num" data-testid="codes-left">@Model.RecoveryCodesLeft of 10</dd>
+        }
+    </dl>
+
+    <div class="form-actions">
+        @if (!Model.Enabled)
+        {
+            <a class="btn btn-primary-gradient" asp-action="TwoFactorSetup"><i class="bi bi-shield-plus" aria-hidden="true"></i> Set up two-factor sign-in</a>
+        }
+        else
+        {
+            <form method="post" asp-action="RegenerateRecoveryCodes" class="d-inline">
+                <button type="submit" class="btn btn-ghost" data-confirm="Your current recovery codes will stop working and 10 new ones are shown once."
+                        data-confirm-title="Generate new recovery codes?" data-confirm-action="Generate">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i> New recovery codes
+                </button>
+            </form>
+            @if (!Model.Required)
+            {
+                <form method="post" asp-action="DisableTwoFactor" class="d-inline">
+                    <button type="submit" class="btn btn-ghost" data-confirm="Sign-in will need only your password. You can turn two-factor on again any time."
+                            data-confirm-title="Turn off two-factor sign-in?" data-confirm-action="Turn off">
+                        <i class="bi bi-shield-x" aria-hidden="true"></i> Turn off
+                    </button>
+                </form>
+            }
+        }
+        <a class="btn btn-ghost" asp-controller="Account" asp-action="ChangePassword"><i class="bi bi-key" aria-hidden="true"></i> Change password</a>
+    </div>
+</section>

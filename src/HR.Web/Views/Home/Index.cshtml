@@ -26,6 +26,35 @@
     };
 }
 
+@if (Model.Alerts is { Any: true } alerts)
+{
+    <div class="glass-alert alert-danger-glass security-alert" role="alert" data-testid="security-alert">
+        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+        <div>
+            <p class="mb-1"><strong>Security activity in the last 24 hours</strong></p>
+            <ul class="mb-1">
+                @if (alerts.FailedLogins >= HR.Infrastructure.Security.SecurityAlerts.FailedLoginThreshold)
+                {
+                    <li>@alerts.FailedLogins failed sign-ins</li>
+                }
+                @if (alerts.Lockouts > 0)
+                {
+                    <li>@alerts.Lockouts @(alerts.Lockouts == 1 ? "account lockout" : "account lockouts")</li>
+                }
+                @if (alerts.TwoFactorFailures >= HR.Infrastructure.Security.SecurityAlerts.TwoFactorFailureThreshold)
+                {
+                    <li>@alerts.TwoFactorFailures rejected two-factor codes</li>
+                }
+                @if (alerts.PayrollReopens > 0)
+                {
+                    <li>@alerts.PayrollReopens @(alerts.PayrollReopens == 1 ? "payroll reopened" : "payrolls reopened")</li>
+                }
+            </ul>
+            <a asp-controller="Audit" asp-action="Index" asp-route-from="@Model.Today.AddDays(-1).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">Review the audit log</a>
+        </div>
+    </div>
+}
+
 <p class="page-lead">Today is <time datetime="@Model.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@DisplayFormat.Date(Model.Today)</time> (Asia/Karachi).</p>
 
 <section class="stat-grid" aria-label="Key figures">

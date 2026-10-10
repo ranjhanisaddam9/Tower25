@@ -117,6 +117,8 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
         var invoice = Invoice.Issue(InvoiceMath.Number(settings.InvoicePrefix, issueDate.Year, counter.Next()), run.Id, run.PeriodStart, run.PeriodEnd,
             issueDate, settings.PaymentTermsDays, InvoiceParties.From(settings), lines, replaces, actorId, clock.UtcNow);
         db.Invoices.Add(invoice);
+        db.Audit(AuditEvents.InvoiceIssued, actorId, "Invoice", () => invoice.Id,
+            $"Issued {invoice.Number} for payroll {run.Id} ({invoice.PeriodStart:yyyy-MM-dd}): {invoice.TotalUsd.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} USD{(replaces is { } r ? $", replaces invoice {r}" : "")}");
         return invoice;
     }
 
@@ -141,6 +143,7 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
         }
 
         invoice.Void(reason, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.InvoiceVoided, actorId, "Invoice", invoice.Id, $"Voided {invoice.Number} of payroll {runId} (reason recorded on the invoice)");
         return (null, invoice);
     }
 
@@ -148,6 +151,20 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
 
     /// <summary>Issues the pending invoice of a finalized run once Settings are complete (the "Issue invoice" button).</summary>
     public async Task<InvoiceResult> IssuePendingAsync(int runId, string actorId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await IssuePendingCoreAsync(runId, actorId, cancellationToken);
+        }
+        catch (Exception ex) when (Data.SqlErrors.IsDeadlock(ex) || Data.SqlErrors.IsUniqueViolation(ex))
+        {
+            // A double click: the other request issued it (one invoice per run is also enforced by a unique index).
+            db.ChangeTracker.Clear();
+            return new InvoiceResult(InvoiceResultStatus.Refused, Message: "This payroll already has an invoice.");
+        }
+    }
+
+    private async Task<InvoiceResult> IssuePendingCoreAsync(int runId, string actorId, CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var run = await db.PayrollRuns.Include(r => r.Lines).SingleOrDefaultAsync(r => r.Id == runId, cancellationToken);
@@ -220,6 +237,8 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
 
         db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = rowVersion;
         invoice.MarkPaid(date, amount, note, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.InvoicePaid, actorId, "Invoice", invoice.Id,
+            $"Marked {invoice.Number} paid: {amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} USD on {date:yyyy-MM-dd} (total {invoice.TotalUsd.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)})");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure with { Id = id };
@@ -249,6 +268,7 @@ public sealed class InvoiceService(AppDbContext db, IClock clock, ILoggerFactory
 
         db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = rowVersion;
         invoice.MarkUnpaid(actorId, clock.UtcNow);
+        db.Audit(AuditEvents.InvoiceUnpaid, actorId, "Invoice", invoice.Id, $"Marked {invoice.Number} unpaid");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
             return failure with { Id = id };

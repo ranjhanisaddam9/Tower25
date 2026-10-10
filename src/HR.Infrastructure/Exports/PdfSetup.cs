@@ -26,13 +26,13 @@ public static class PdfSetup
             QuestPDF.Settings.License = LicenseType.Community;
 
             // A name with a character the font lacks falls back to an installed font instead of failing the download.
-            QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
+            QuestPDF.Settings.ThrowOnMissingTextGlyphs = false;
 
             var assembly = typeof(PdfSetup).Assembly;
             foreach (var resource in assembly.GetManifestResourceNames().Where(n => n.StartsWith("HR.Infrastructure.Fonts.", StringComparison.Ordinal) && n.EndsWith(".ttf", StringComparison.Ordinal)))
             {
                 using var stream = assembly.GetManifestResourceStream(resource)!;
-                FontManager.RegisterFont(stream);
+                FontManager.RegisterFontFromStream(stream);
             }
 
             _configured = true;

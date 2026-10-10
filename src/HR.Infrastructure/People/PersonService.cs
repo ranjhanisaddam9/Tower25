@@ -271,6 +271,8 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         var codeNumber = await db.NextPersonCodeNumberAsync(cancellationToken);
         var person = Person.Create(codeNumber, normalized, actorId, clock.UtcNow);
         db.People.Add(person);
+        db.Audit(AuditEvents.PersonCreated, actorId, "Person", () => person.Id, $"Created {person.Code} ({person.Type}), joining {Iso(person.JoiningDate)}");
+        QueueLateAddition(actorId, person, createUncovered);
 
         var failure = await SaveAsync(cancellationToken);
         if (failure is not null)
@@ -279,7 +281,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonCreated(_log, actorId, person.Id, person.Code);
-        AuditLateAddition(actorId, person, createUncovered);
+        LogLateAddition(actorId, person, createUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -361,7 +363,10 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
 
         // The version the user saw is the one EF checks in the UPDATE's WHERE clause.
         db.Entry(person).Property(p => p.RowVersion).OriginalValue = rowVersion;
+        var before = Snapshot(person);
         person.UpdateDetails(normalized, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PersonEdited, actorId, "Person", person.Id, $"Edited {person.Code}: {ChangedFields(before, Snapshot(person))}");
+        QueueLateAddition(actorId, person, updateUncovered);
 
         var failure = await SaveAsync(cancellationToken, conflictId: id);
         if (failure is not null)
@@ -370,7 +375,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonEdited(_log, actorId, person.Id, person.Code);
-        AuditLateAddition(actorId, person, updateUncovered);
+        LogLateAddition(actorId, person, updateUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -404,6 +409,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         person.Deactivate(leavingDate.Value, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PersonDeactivated, actorId, "Person", person.Id, $"Deactivated {person.Code}: leaving date {Iso(leavingDate.Value)}");
         var failure = await SaveAsync(cancellationToken, conflictId: id);
         if (failure is not null)
         {
@@ -460,6 +466,8 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         var (previousJoining, previousLeaving) = person.Reactivate(rejoiningDate.Value, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PersonReactivated, actorId, "Person", person.Id, $"Reactivated {person.Code} from {Iso(rejoiningDate.Value)} (previous period {Iso(previousJoining)} to {Iso(previousLeaving)})");
+        QueueLateAddition(actorId, person, rejoinUncovered);
         var failure = await SaveAsync(cancellationToken, conflictId: id, ownerMessage: revealHireSource
             ? "Another active person already has the Owner hire source."
             : "This person can't be reactivated right now. Please ask the administrator.", ownerField: RejoiningDateField);
@@ -469,7 +477,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonReactivated(_log, actorId, person.Id, person.Code, rejoiningDate.Value, previousJoining, previousLeaving);
-        AuditLateAddition(actorId, person, rejoinUncovered);
+        LogLateAddition(actorId, person, rejoinUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -504,6 +512,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         person.CancelLeaving(clock.Today, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PersonLeavingCancelled, actorId, "Person", person.Id, $"Cancelled the leaving date {Iso(leaving)} of {person.Code}");
         var failure = await SaveAsync(cancellationToken, conflictId: id);
         if (failure is not null)
         {
@@ -574,12 +583,35 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         : uncovered.Count > 0 && !confirmed ? PersonResult.Invalid(ConfirmLateAdditionField, LateAdditionMessage(uncovered))
         : null;
 
-    private void AuditLateAddition(string actorId, Person person, List<PayPeriod> uncovered)
+    private void QueueLateAddition(string actorId, Person person, List<PayPeriod> uncovered)
+    {
+        if (uncovered.Count > 0)
+        {
+            db.Audit(AuditEvents.PersonLateAdditionConfirmed, actorId, "Person", () => person.Id, $"Late addition of {person.Code} confirmed for finalized payroll(s) {PeriodsText(uncovered)}");
+        }
+    }
+
+    private void LogLateAddition(string actorId, Person person, List<PayPeriod> uncovered)
     {
         if (uncovered.Count > 0)
         {
             SecurityLog.PersonLateAdditionConfirmed(_log, actorId, person.Id, person.Code, PeriodsText(uncovered));
         }
+    }
+
+    private static string Iso(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "none";
+
+    /// <summary>The audited fields of a person (compared only: the audit log gets the names of changed fields, never values).</summary>
+    private static Dictionary<string, string?> Snapshot(Person p) => new()
+    {
+        ["FullName"] = p.FullName, ["Type"] = p.Type.ToString(), ["Designation"] = p.Designation, ["Email"] = p.Email, ["Phone"] = p.Phone,
+        ["Cnic"] = p.Cnic, ["BankName"] = p.BankName, ["Iban"] = p.Iban, ["JoiningDate"] = Iso(p.JoiningDate), ["Notes"] = p.Notes,
+    };
+
+    private static string ChangedFields(Dictionary<string, string?> before, Dictionary<string, string?> after)
+    {
+        var changed = before.Keys.Where(k => !string.Equals(before[k], after[k], StringComparison.Ordinal)).ToList();
+        return changed.Count == 0 ? "no field changed" : string.Join(", ", changed);
     }
 
     /// <summary>Admin only. At most one active person may have the Owner source (SPEC §2).</summary>
@@ -619,6 +651,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         person.SetHireSource(source, actorId, clock.UtcNow);
+        db.Audit(AuditEvents.PersonHireSourceChanged, actorId, "Person", person.Id, $"Hire source of {person.Code}: {previous?.ToString() ?? "none"} -> {source?.ToString() ?? "none"}");
         var failure = await SaveAsync(cancellationToken, conflictId: id,
             ownerMessage: "Another active person already has the Owner hire source.", ownerField: nameof(Person.HireSource));
         if (failure is not null)

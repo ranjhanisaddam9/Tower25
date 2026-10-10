@@ -69,10 +69,10 @@ public class SalariesController(SalaryOverviewService salaries) : Controller
         if (isAdmin)
         {
             var (page, totals) = await salaries.ListForAdminAsync(query, cancellationToken);
-            return downloads.Send(this, ExcelExports.SalariesAdmin(downloads.Context(User, "Salaries", filters), page.Items, totals, clock.Today), "Salaries", filters);
+            return await downloads.SendAsync(this, ExcelExports.SalariesAdmin(downloads.Context(User, "Salaries", filters), page.Items, totals, clock.Today), "Salaries", filters);
         }
 
         var rows = await salaries.ListAsync(query, cancellationToken);
-        return downloads.Send(this, ExcelExports.Salaries(downloads.Context(User, "Salaries", filters), rows.Items, clock.Today), "Salaries", filters);
+        return await downloads.SendAsync(this, ExcelExports.Salaries(downloads.Context(User, "Salaries", filters), rows.Items, clock.Today), "Salaries", filters);
     }
 }

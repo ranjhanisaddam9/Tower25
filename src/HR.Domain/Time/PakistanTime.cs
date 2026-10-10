@@ -11,6 +11,13 @@ public static class PakistanTime
     public static DateOnly ToKarachiDate(DateTimeOffset instant) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
+    /// <summary>Midnight at the start of <paramref name="date"/> in Karachi, as a UTC instant.</summary>
+    public static DateTimeOffset StartOfDayUtc(DateOnly date)
+    {
+        var local = date.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, Zone.GetUtcOffset(local)).ToUniversalTime();
+    }
+
     private static TimeZoneInfo ResolveZone()
     {
         // IANA id works on Linux and on Windows with ICU; the Windows id is the fallback.

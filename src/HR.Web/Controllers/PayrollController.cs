@@ -365,7 +365,7 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
         var file = IsAdmin
             ? ExcelExports.RunLinesAdmin(context, run, lines, await payroll.BillingAsync(id, cancellationToken: cancellationToken))
             : ExcelExports.RunLines(context, run, lines);
-        return downloads.Send(this, file, "Payroll", filters);
+        return await downloads.SendAsync(this, file, "Payroll", filters);
     }
 
     /// <summary>The bank-upload sheet: full IBANs and net pay (PKR), with a total.</summary>
@@ -380,7 +380,7 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
 
         var filters = ExcelExports.RunFilters(run);
         var file = ExcelExports.Register(downloads.Context(User, "Payroll register", filters), run, await payroll.RegisterAsync(id, cancellationToken));
-        return downloads.Send(this, file, "Payroll register", filters);
+        return await downloads.SendAsync(this, file, "Payroll register", filters);
     }
 
     [HttpGet("{id:int}/register/pdf")]
@@ -394,7 +394,7 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
 
         var file = PdfDocuments.Register(run, await payroll.RegisterAsync(id, cancellationToken), (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
             ExportFileName.Build("pdf", "register", Iso(run.Period.Start), run.IsDraft ? "draft" : null));
-        return downloads.Send(this, file, "Payroll register", ExcelExports.RunFilters(run));
+        return await downloads.SendAsync(this, file, "Payroll register", ExcelExports.RunFilters(run));
     }
 
     [HttpGet("{id:int}/lines/{lineId:int}/payslip/pdf")]
@@ -409,7 +409,7 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
 
         var file = PdfDocuments.Payslips(run, [detail], (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
             ExportFileName.Build("pdf", "payslip", detail.Line.PersonCode, Iso(run.Period.Start), run.IsDraft ? "draft" : null));
-        return downloads.Send(this, file, "Payslip", [.. ExcelExports.RunFilters(run), new("Person", detail.Line.PersonCode)]);
+        return await downloads.SendAsync(this, file, "Payslip", [.. ExcelExports.RunFilters(run), new("Person", detail.Line.PersonCode)]);
     }
 
     [HttpGet("{id:int}/payslips/pdf")]
@@ -430,7 +430,7 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
 
         var file = PdfDocuments.Payslips(run, details, (await settings.GetAsync(cancellationToken)).PayslipIssuerName,
             ExportFileName.Build("pdf", "payslips", Iso(run.Period.Start), run.IsDraft ? "draft" : null));
-        return downloads.Send(this, file, "All payslips", ExcelExports.RunFilters(run));
+        return await downloads.SendAsync(this, file, "All payslips", ExcelExports.RunFilters(run));
     }
 
     private static string Iso(DateOnly date) => date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
