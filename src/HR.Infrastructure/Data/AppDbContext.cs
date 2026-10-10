@@ -31,6 +31,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
 
     public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
 
+    public DbSet<HR.Domain.Settings.AppSettings> Settings => Set<HR.Domain.Settings.AppSettings>();
+
+    public DbSet<HR.Domain.Invoices.Invoice> Invoices => Set<HR.Domain.Invoices.Invoice>();
+
     /// <summary>Takes the next person-code number. Sequence values are never rolled back, so codes are never reused.</summary>
     public async Task<int> NextPersonCodeNumberAsync(CancellationToken cancellationToken = default)
     {

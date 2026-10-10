@@ -5,7 +5,7 @@ namespace HR.Domain.Pay;
 /// <summary>Amounts for one FULL pay period (f = 1), rounded exactly as SPEC §5 does.</summary>
 /// <param name="PayUsd">Null when pay is in PKR and there is no exchange rate.</param>
 /// <param name="PayPkr">Null when pay is in USD and there is no exchange rate.</param>
-/// <param name="EarningUsd">BilledUsd − PayUsd; null when PayUsd is unknown.</param>
+/// <param name="EarningUsd">BilledUsd − PayUsd (null when PayUsd is unknown); for an Owner the whole BilledUsd.</param>
 public sealed record FullPeriodAmounts(
     decimal SalaryPartUsd,
     decimal CommissionUsd,
@@ -20,7 +20,7 @@ public static class PayMath
     /// SPEC §5 with f = 1: SalaryPart = round2(billed/2), Commission = round2(commission), BilledUsd = their sum;
     /// USD pay: PayUsd = round2(pay/2), PayPkr = round0(PayUsd × rate); PKR pay: PayPkr = round0(pay/2), PayUsd = round2(PayPkr / rate).
     /// </summary>
-    public static FullPeriodAmounts FullPeriod(PayTerms terms, decimal? usdToPkr)
+    public static FullPeriodAmounts FullPeriod(PayTerms terms, decimal? usdToPkr, HR.Domain.People.HireSource? source = null)
     {
         var salaryPart = Money.RoundUsd(terms.BilledMonthlyUsd / 2);
         var commission = Money.RoundUsd(terms.CommissionPerPeriodUsd);
@@ -40,7 +40,9 @@ public static class PayMath
             payUsd = rate is { } r ? Money.RoundUsd(payPkr.Value / r) : null;
         }
 
-        return new FullPeriodAmounts(salaryPart, commission, billed, payUsd, payPkr, payUsd is { } p ? billed - p : null);
+        // SPEC §5: the Owner's whole billed amount is his income.
+        decimal? earning = source == HR.Domain.People.HireSource.Owner ? billed : payUsd is { } p ? billed - p : null;
+        return new FullPeriodAmounts(salaryPart, commission, billed, payUsd, payPkr, earning);
     }
 
     /// <summary>Pay per full period in its own currency: round2 (USD) or round0 (PKR) of half the monthly amount.</summary>
@@ -73,6 +75,13 @@ public interface IPayrollLock
 
     /// <summary>The start of the latest locked period, or null when nothing is locked.</summary>
     Task<DateOnly?> LatestLockedPeriodStartAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether the locked period's finalized payroll includes this person (they have a line in it). Changing their days
+    /// there would alter what was paid. The default assumes yes whenever the period is locked.
+    /// </summary>
+    Task<bool> IsLockedForPersonAsync(int personId, DateOnly periodStart, CancellationToken cancellationToken = default) =>
+        IsLockedAsync(periodStart, cancellationToken);
 }
 
 public static class PayrollLockExtensions

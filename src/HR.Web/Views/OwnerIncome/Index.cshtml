@@ -1,0 +1,234 @@
+@using HR.Domain.Payroll
+@model OwnerIncomeViewModel
+@{
+    ViewData["Title"] = "Owner income";
+    ViewData["Section"] = "Billing";
+    var r = Model.Report;
+    var k = r.Kpis;
+    var chart = Model.Chart;
+    var views = new[] { (IncomeView.Period, "Period"), (IncomeView.Month, "Month"), (IncomeView.Year, "Year") };
+    var rows = new (string Label, Func<IncomeBreakdown, decimal> Usd, Func<IncomeBreakdown, decimal> Pkr, string Css)[]
+    {
+        ("Own salary", b => b.SalaryUsd, b => b.SalaryPkr, "chart-salary"),
+        ("Commission", b => b.CommissionUsd, b => b.CommissionPkr, "chart-commission"),
+        ("Margin", b => b.MarginUsd, b => b.MarginPkr, "chart-margin"),
+    };
+}
+
+<p class="page-lead">Your income from finalized payrolls: your own salary line, commission on Company-recommended people and margin on budget hires.</p>
+
+<section class="stat-grid" aria-label="Key figures (finalized payrolls)">
+    <partial name="_StatTile" model="@(new StatTileViewModel("This month", DisplayFormat.Usd(k.ThisMonth.TotalUsd), "bi-calendar-month", "indigo", DisplayFormat.Pkr(k.ThisMonth.TotalPkr), TestId: "kpi-month"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Year to date", DisplayFormat.Usd(k.YearToDate.TotalUsd), "bi-calendar3", "violet", DisplayFormat.Pkr(k.YearToDate.TotalPkr), TestId: "kpi-ytd"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Last 12 months", DisplayFormat.Usd(k.Last12Months.TotalUsd), "bi-graph-up-arrow", "teal", DisplayFormat.Pkr(k.Last12Months.TotalPkr), TestId: "kpi-12m"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Average per period", DisplayFormat.Usd(k.AveragePerPeriodUsd), "bi-bar-chart", "info", $"{DisplayFormat.Pkr(k.AveragePerPeriodPkr)} · over {k.PeriodsInLast12Months} {(k.PeriodsInLast12Months == 1 ? "period" : "periods")}", TestId: "kpi-average"))" />
+</section>
+
+<div class="glass-card income-controls">
+    <nav class="income-views" aria-label="Group by">
+        @foreach (var (view, label) in views)
+        {
+            <a class="pill @(view == Model.View ? "pill-primary" : "pill-neutral")" asp-action="Index" asp-all-route-data="@Model.Route(view, Model.Anchor)"
+               aria-current="@(view == Model.View ? "page" : null)" data-testid="view-@view.ToString().ToLowerInvariant()">@label</a>
+        }
+    </nav>
+    <nav class="period-nav" aria-label="Selection">
+        <a class="btn-icon" asp-action="Index" asp-all-route-data="@Model.Route(Model.View, OwnerIncomeAggregator.Step(Model.View, Model.Anchor, -1))" aria-label="Previous" title="Previous" data-testid="income-prev">
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </a>
+        <span class="period-nav-label" data-testid="income-selection">@Model.SelectionLabel</span>
+        <a class="btn-icon" asp-action="Index" asp-all-route-data="@Model.Route(Model.View, OwnerIncomeAggregator.Step(Model.View, Model.Anchor, 1))" aria-label="Next" title="Next" data-testid="income-next">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </a>
+    </nav>
+    <form method="get" asp-action="Index" class="income-draft">
+        <input type="hidden" name="view" value="@Model.View" />
+        <input type="hidden" name="at" value="@Model.Iso(Model.Anchor)" />
+        <div class="form-check form-check-strong mb-0">
+            <input class="form-check-input" type="checkbox" id="draft" name="draft" value="true" checked="@Model.IncludeDraft" />
+            <label class="form-check-label" for="draft">Include current draft (projected)</label>
+        </div>
+        <button type="submit" class="btn btn-ghost btn-sm-compact">Update</button>
+    </form>
+</div>
+
+<div class="income-grid">
+    <section class="glass-card" aria-labelledby="breakdownHeading" data-testid="income-breakdown">
+        <h2 class="card-title" id="breakdownHeading">@Model.SelectionLabel</h2>
+        <p class="text-muted-glass">@r.FinalizedPeriodsInSelection finalized @(r.FinalizedPeriodsInSelection == 1 ? "period" : "periods")@(r.DraftPeriods.Count > 0 ? $" · draft: {string.Join(", ", r.DraftPeriods.Select(p => DisplayFormat.DateRange(p, PayPeriod.For(p).End)))}" : "")</p>
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table">
+                <caption class="visually-hidden">Income by source for @Model.SelectionLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Source</th>
+                        <th scope="col" class="money">USD</th>
+                        <th scope="col" class="money">PKR</th>
+                        @if (r.DraftSelection is not null)
+                        {
+                            <th scope="col" class="money">Draft (projected) USD</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in rows)
+                    {
+                        <tr data-testid="breakdown-row">
+                            <th scope="row" data-label="Source"><span class="legend-swatch @row.Css" aria-hidden="true"></span> @row.Label</th>
+                            <td data-label="USD" class="money num">@DisplayFormat.Usd(row.Usd(r.Selection))</td>
+                            <td data-label="PKR" class="money num">@DisplayFormat.Pkr(row.Pkr(r.Selection))</td>
+                            @if (r.DraftSelection is { } draftSelection)
+                            {
+                                <td data-label="Draft (projected) USD" class="money num">@DisplayFormat.Usd(row.Usd(draftSelection))</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row" data-label="Source">Total</th>
+                        <td data-label="USD" class="money num" data-testid="selection-total-usd"><strong>@DisplayFormat.Usd(r.Selection.TotalUsd)</strong></td>
+                        <td data-label="PKR" class="money num" data-testid="selection-total-pkr">@DisplayFormat.Pkr(r.Selection.TotalPkr)</td>
+                        @if (r.DraftSelection is { } draftTotal)
+                        {
+                            <td data-label="Draft (projected) USD" class="money num" data-testid="selection-draft-usd">@DisplayFormat.Usd(draftTotal.TotalUsd)</td>
+                        }
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="glass-card" aria-labelledby="chartHeading">
+        <h2 class="card-title" id="chartHeading">@chart.Year by month</h2>
+        <svg class="income-chart" viewBox="0 0 @OwnerIncomeChart.Width @OwnerIncomeChart.Height" role="img" aria-labelledby="chartTitle chartDesc" data-testid="income-chart">
+            <title id="chartTitle">Owner income by month, @chart.Year</title>
+            <desc id="chartDesc">Stacked bars in US dollars for each month: own salary, commission and margin@(chart.Draft is not null ? ", with the draft payroll on top" : ""). The same numbers are in the table below the chart.</desc>
+            <defs>
+                <pattern id="draftHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect class="chart-draft-bg" width="6" height="6" />
+                    <line class="chart-draft-line" x1="0" y1="0" x2="0" y2="6" />
+                </pattern>
+            </defs>
+            @for (var g = 0; g <= 4; g++)
+            {
+                var value = chart.AxisMax * g / 4m;
+                var y = OwnerIncomeChart.Top + chart.PlotHeight - chart.Scale(value);
+                <g class="chart-gridline">
+                    <line class="chart-grid" x1="@OwnerIncomeChart.Left" x2="@(OwnerIncomeChart.Width - OwnerIncomeChart.Right)" y1="@chart.F(y)" y2="@chart.F(y)" />
+                    <text class="chart-label" x="@(OwnerIncomeChart.Left - 8)" y="@chart.F(y + 4)" text-anchor="end">@DisplayFormat.Usd(value).Replace(".00", "", StringComparison.Ordinal)</text>
+                </g>
+            }
+            @for (var m = 1; m <= 12; m++)
+            {
+                var baseY = (decimal)(OwnerIncomeChart.Top + chart.PlotHeight);
+                <g class="chart-month">
+                    @foreach (var (css, label, usd) in chart.Segments(m))
+                    {
+                        var h = chart.Scale(Math.Max(0m, usd));
+                        if (h <= 0m)
+                        {
+                            continue;
+                        }
+
+                        baseY -= h;
+                        <rect class="@css" x="@chart.F(chart.BarX(m))" y="@chart.F(baseY)" width="@chart.F(chart.BarWidth)" height="@chart.F(h)">
+                            <title>@OwnerIncomeChart.MonthLong(m): @label @DisplayFormat.Usd(usd)</title>
+                        </rect>
+                    }
+                    <text class="chart-label" x="@chart.F(chart.BarX(m) + chart.BarWidth / 2)" y="@(OwnerIncomeChart.Height - 12)" text-anchor="middle">@OwnerIncomeChart.MonthShort(m)</text>
+                </g>
+            }
+            <line class="chart-axis" x1="@OwnerIncomeChart.Left" x2="@(OwnerIncomeChart.Width - OwnerIncomeChart.Right)" y1="@(OwnerIncomeChart.Top + chart.PlotHeight)" y2="@(OwnerIncomeChart.Top + chart.PlotHeight)" />
+        </svg>
+        <ul class="chart-legend" aria-label="Legend">
+            <li><span class="legend-swatch chart-salary" aria-hidden="true"></span> Own salary</li>
+            <li><span class="legend-swatch chart-commission" aria-hidden="true"></span> Commission</li>
+            <li><span class="legend-swatch chart-margin" aria-hidden="true"></span> Margin</li>
+            @if (chart.Draft is not null)
+            {
+                <li><span class="legend-swatch chart-draft-swatch" aria-hidden="true"></span> Draft (projected)</li>
+            }
+        </ul>
+        <details class="chart-data">
+            <summary>Show the numbers</summary>
+            <div class="glass-table-wrap glass-table-wrap-inset">
+                <table class="glass-table" data-testid="chart-table">
+                    <caption class="visually-hidden">Owner income by month, @chart.Year, in USD</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Month</th>
+                            <th scope="col" class="money">Own salary</th>
+                            <th scope="col" class="money">Commission</th>
+                            <th scope="col" class="money">Margin</th>
+                            <th scope="col" class="money">Total</th>
+                            @if (chart.Draft is not null)
+                            {
+                                <th scope="col" class="money">Draft (projected)</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (month, monthIncome) in chart.Finalized)
+                        {
+                            <tr data-testid="chart-row">
+                                <th scope="row" data-label="Month">@OwnerIncomeChart.MonthLong(month)</th>
+                                <td data-label="Own salary" class="money num">@DisplayFormat.Usd(monthIncome.SalaryUsd)</td>
+                                <td data-label="Commission" class="money num">@DisplayFormat.Usd(monthIncome.CommissionUsd)</td>
+                                <td data-label="Margin" class="money num">@DisplayFormat.Usd(monthIncome.MarginUsd)</td>
+                                <td data-label="Total" class="money num">@DisplayFormat.Usd(monthIncome.TotalUsd)</td>
+                                @if (chart.Draft is not null)
+                                {
+                                    <td data-label="Draft (projected)" class="money num">@DisplayFormat.Usd(chart.DraftUsd(month))</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+</div>
+
+<section class="glass-card mt-4" aria-labelledby="contributorsHeading">
+    <h2 class="card-title" id="contributorsHeading">Contributors · @Model.SelectionLabel</h2>
+    @if (r.Contributors.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+            <p class="empty-state-text">No finalized payroll in this selection yet.</p>
+            <a class="btn btn-ghost" asp-controller="Payroll" asp-action="Index">Go to payroll</a>
+        </div>
+    }
+    else
+    {
+        <div class="glass-table-wrap glass-table-wrap-inset">
+            <table class="glass-table" data-testid="contributors">
+                <caption class="visually-hidden">Who the income came from, largest first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Person</th>
+                        <th scope="col">Source</th>
+                        <th scope="col" class="num">Periods</th>
+                        <th scope="col" class="money">USD</th>
+                        <th scope="col" class="money">PKR</th>
+                        <th scope="col" class="money">Share</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in r.Contributors)
+                    {
+                        <tr data-testid="contributor-row">
+                            <td data-label="Person"><a asp-controller="People" asp-action="Details" asp-route-id="@c.PersonId" class="cell-primary row-link">@c.PersonName</a></td>
+                            <td data-label="Source"><span class="pill @HireSourceDisplay.PillClass(c.Source)">@HireSourceDisplay.Label(c.Source)</span></td>
+                            <td data-label="Periods" class="num">@c.Periods</td>
+                            <td data-label="USD" class="money num">@DisplayFormat.Usd(c.EarningUsd)</td>
+                            <td data-label="PKR" class="money num">@DisplayFormat.Pkr(c.EarningPkr)</td>
+                            <td data-label="Share" class="money num">@c.SharePercent.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

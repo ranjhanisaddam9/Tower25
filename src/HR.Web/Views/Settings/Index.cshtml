@@ -1,0 +1,125 @@
+@model SettingsPage
+@{
+    ViewData["Title"] = "Settings";
+    ViewData["Section"] = "Administration";
+    var f = Model.Form;
+    var sections = new (string Title, string Id, string? Lead, SettingsField[] Fields)[]
+    {
+        ("Your business", "business", "Printed in the From block of every invoice.", new[]
+        {
+            new SettingsField("BusinessName", "Business name (required for invoices)", f.BusinessName, Autocomplete: "organization"),
+            new SettingsField("BusinessAddress", "Address", f.BusinessAddress, Multiline: true),
+            new SettingsField("BusinessEmail", "Email", f.BusinessEmail, "email", Autocomplete: "email"),
+            new SettingsField("BusinessPhone", "Phone", f.BusinessPhone, "tel", Autocomplete: "tel"),
+        }),
+        ("Bank account for payments", "bank", "Shown under Payment details on invoices.", new[]
+        {
+            new SettingsField("BankName", "Bank name", f.BankName),
+            new SettingsField("BankAccountTitle", "Account title", f.BankAccountTitle),
+            new SettingsField("BankAccountNumber", "Account number or IBAN", f.BankAccountNumber, Hint: "A Pakistani IBAN (starting with PK) is checked and grouped."),
+            new SettingsField("BankSwift", "SWIFT / BIC", f.BankSwift, Hint: "8 or 11 letters and digits."),
+        }),
+        ("Client company", "client", "Printed in the Bill To block.", new[]
+        {
+            new SettingsField("ClientName", "Company name (required for invoices)", f.ClientName),
+            new SettingsField("ClientAddress", "Address", f.ClientAddress, Multiline: true),
+            new SettingsField("ClientContactPerson", "Contact person", f.ClientContactPerson),
+            new SettingsField("ClientEmail", "Email", f.ClientEmail, "email"),
+        }),
+    };
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+
+@if (!Model.CanIssueInvoices)
+{
+    <div class="glass-alert alert-warning-glass" role="status" data-testid="settings-incomplete">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Invoices can't be issued until the business name and the client company name are set.
+    </div>
+}
+
+<div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="settings-errors"></div>
+
+<form method="post" asp-action="Index" class="settings-form" data-testid="settings-form">
+    <input type="hidden" name="RowVersion" value="@f.RowVersion" />
+
+    @foreach (var group in sections)
+    {
+        <section class="glass-card form-card form-card-wide mb-4" aria-labelledby="@(group.Id)Heading">
+            <h2 class="card-title" id="@(group.Id)Heading">@group.Title</h2>
+            @if (group.Lead is { } lead)
+            {
+                <p class="text-muted-glass">@lead</p>
+            }
+            <div class="row g-3">
+                @foreach (var field in group.Fields)
+                {
+                    var error = Error(field.Name);
+                    var describedBy = string.Join(' ', new[] { error is null ? null : field.Name + "-error", field.Hint is null ? null : field.Name + "-hint" }.Where(x => x is not null));
+                    <div class="@(field.Multiline ? "col-12" : "col-md-6")">
+                        <div class="form-floating">
+                            @if (field.Multiline)
+                            {
+                                <textarea class="form-control form-textarea @(error is null ? null : "input-validation-error")" id="@field.Name" name="@field.Name" placeholder="@field.Label"
+                                          maxlength="@HR.Domain.Settings.SettingsRules.MaxLengths[field.Name]" aria-describedby="@(describedBy.Length == 0 ? null : describedBy)">@field.Value</textarea>
+                            }
+                            else
+                            {
+                                <input class="form-control @(error is null ? null : "input-validation-error")" type="@field.Type" id="@field.Name" name="@field.Name" value="@field.Value" placeholder="@field.Label"
+                                       maxlength="@HR.Domain.Settings.SettingsRules.MaxLengths[field.Name]" autocomplete="@field.Autocomplete" aria-describedby="@(describedBy.Length == 0 ? null : describedBy)" />
+                            }
+                            <label for="@field.Name">@field.Label</label>
+                        </div>
+                        @if (field.Hint is { } hint)
+                        {
+                            <span class="form-hint" id="@(field.Name)-hint">@hint</span>
+                        }
+                        <span class="field-error" id="@(field.Name)-error">@error</span>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="glass-card form-card form-card-wide mb-4" aria-labelledby="invoiceHeading">
+        <h2 class="card-title" id="invoiceHeading">Invoices and payslips</h2>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="form-floating">
+                    <input class="form-control" id="InvoicePrefix" name="InvoicePrefix" value="@f.InvoicePrefix" maxlength="10" placeholder="Prefix" aria-describedby="InvoicePrefix-hint InvoicePrefix-error" />
+                    <label for="InvoicePrefix">Invoice number prefix</label>
+                </div>
+                <span class="form-hint" id="InvoicePrefix-hint">Numbers look like @(f.InvoicePrefix ?? "INV")-2026-0001.</span>
+                <span class="field-error" id="InvoicePrefix-error">@Error("InvoicePrefix")</span>
+            </div>
+            <div class="col-md-4">
+                <div class="form-floating">
+                    <input class="form-control num" type="number" min="0" max="120" step="1" id="PaymentTermsDays" name="PaymentTermsDays" value="@f.PaymentTermsDays" placeholder="Days" aria-describedby="PaymentTermsDays-error" />
+                    <label for="PaymentTermsDays">Payment terms (days)</label>
+                </div>
+                <span class="field-error" id="PaymentTermsDays-error">@Error("PaymentTermsDays")</span>
+            </div>
+            <div class="col-md-4">
+                <div class="form-floating">
+                    <input class="form-control" id="PayslipIssuerName" name="PayslipIssuerName" value="@f.PayslipIssuerName" maxlength="100" required placeholder="Issuer" aria-describedby="PayslipIssuerName-error" />
+                    <label for="PayslipIssuerName">Payslip issuer name</label>
+                </div>
+                <span class="field-error" id="PayslipIssuerName-error">@Error("PayslipIssuerName")</span>
+            </div>
+            <div class="col-12">
+                <div class="form-floating">
+                    <textarea class="form-control form-textarea" id="InvoiceFooter" name="InvoiceFooter" maxlength="500" placeholder="Footer" aria-describedby="InvoiceFooter-error">@f.InvoiceFooter</textarea>
+                    <label for="InvoiceFooter">Invoice footer note</label>
+                </div>
+                <span class="field-error" id="InvoiceFooter-error">@Error("InvoiceFooter")</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary-gradient" data-testid="settings-save"><i class="bi bi-check2" aria-hidden="true"></i> Save settings</button>
+        @if (Model.UpdatedAt is { } updated)
+        {
+            <span class="form-hint">Last saved @DisplayFormat.DateTime(updated).</span>
+        }
+    </div>
+</form>

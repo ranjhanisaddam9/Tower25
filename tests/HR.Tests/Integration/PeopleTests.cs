@@ -584,13 +584,15 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
 
         var adminHtml = await admin.GetStringAsync("/");
-        Assert.Contains("Owner Income (coming soon)", adminHtml);
-        Assert.Contains("Invoices (coming soon)", adminHtml);
+        Assert.Contains("href=\"/owner-income\"", adminHtml);
+        Assert.Contains("href=\"/invoices\"", adminHtml);
+        Assert.Contains("href=\"/admin/settings\"", adminHtml);
         Assert.Contains("href=\"/people\"", adminHtml);
 
         var managerHtml = await manager.GetStringAsync("/");
         Assert.DoesNotContain("Owner Income", managerHtml);
         Assert.DoesNotContain("Invoices", managerHtml);
+        Assert.DoesNotContain("/admin/settings", managerHtml);
         Assert.Contains("href=\"/people\"", managerHtml);
     }
 

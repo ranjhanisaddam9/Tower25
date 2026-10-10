@@ -1,0 +1,212 @@
+@using HR.Domain.Invoices
+@model InvoiceViewModel
+@{
+    var inv = Model.Invoice;
+    var d = Model.Details;
+    ViewData["Title"] = "Invoice " + inv.Number;
+    ViewData["Section"] = "Billing";
+    string? Error(string key) => ViewData.ModelState[key]?.Errors.FirstOrDefault()?.ErrorMessage;
+    static IEnumerable<string> LinesOf(string? text) => (text ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
+<div class="page-actions no-print">
+    <a class="btn btn-ghost" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> All invoices</a>
+    <div class="action-group">
+        <a class="btn btn-ghost" asp-controller="Payroll" asp-action="Run" asp-route-id="@inv.RunId"><i class="bi bi-receipt" aria-hidden="true"></i> Payroll</a>
+        <button type="button" class="btn btn-ghost" data-print><i class="bi bi-printer" aria-hidden="true"></i> Print</button>
+        @if (inv.Status == InvoiceStatus.Paid)
+        {
+            <form method="post" asp-action="MarkUnpaid" asp-route-id="@inv.Id" class="d-inline">
+                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(inv.RowVersion)" />
+                <button type="submit" class="btn btn-ghost" data-testid="mark-unpaid"
+                        data-confirm="The payment recorded on @DisplayFormat.Date(inv.PaidDate!.Value) will be removed and the invoice becomes unpaid again."
+                        data-confirm-title="Mark this invoice unpaid?"
+                        data-confirm-action="Mark unpaid">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Mark unpaid
+                </button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (inv.Status == InvoiceStatus.Void)
+{
+    <div class="glass-alert alert-warning-glass" role="status" data-testid="void-banner">
+        <i class="bi bi-slash-circle" aria-hidden="true"></i> <strong>Void</strong> since @DisplayFormat.DateTime(inv.VoidedAt!.Value): the payroll was reopened (@inv.VoidReason).
+        @if (d.ReplacedById is { } replacement)
+        {
+            <a asp-action="Details" asp-route-id="@replacement" data-testid="replacement-link">Replaced by @d.ReplacedByNumber</a>
+        }
+        else
+        {
+            <span>A replacement is issued when the payroll is finalized again.</span>
+        }
+    </div>
+}
+
+<article class="invoice-doc glass-card" aria-labelledby="invoiceTitle" data-testid="invoice">
+    <header class="invoice-head">
+        <div class="invoice-from" data-testid="invoice-from">
+            <p class="invoice-label">From</p>
+            <p class="invoice-party">@inv.BusinessName</p>
+            @foreach (var line in LinesOf(inv.BusinessAddress))
+            {
+                <span class="invoice-line">@line</span>
+            }
+            @if (inv.BusinessEmail is { } email)
+            {
+                <span class="invoice-line">@email</span>
+            }
+            @if (inv.BusinessPhone is { } phone)
+            {
+                <span class="invoice-line">@phone</span>
+            }
+        </div>
+        <div class="invoice-meta">
+            <h2 class="invoice-title" id="invoiceTitle">Invoice</h2>
+            <dl class="invoice-facts">
+                <div><dt>Number</dt><dd class="num" data-testid="invoice-number">@inv.Number</dd></div>
+                <div><dt>Issue date</dt><dd class="num">@DisplayFormat.Date(inv.IssueDate)</dd></div>
+                <div><dt>Due date</dt><dd class="num">@DisplayFormat.Date(inv.DueDate)</dd></div>
+                <div><dt>Period</dt><dd class="num">@DisplayFormat.DateRange(inv.PeriodStart, inv.PeriodEnd)</dd></div>
+                <div><dt>Status</dt><dd><span class="pill @InvoiceDisplay.Pill(inv.Status, d.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(inv.Status, d.IsOverdue)</span></dd></div>
+            </dl>
+            @if (d.ReplacesNumber is { } replaces)
+            {
+                <p class="invoice-note">Replaces @replaces (void).</p>
+            }
+        </div>
+    </header>
+
+    <div class="invoice-to" data-testid="invoice-to">
+        <p class="invoice-label">Bill to</p>
+        <p class="invoice-party">@inv.ClientName</p>
+        @if (inv.ClientContactPerson is { } contact)
+        {
+            <span class="invoice-line">Attn: @contact</span>
+        }
+        @foreach (var line in LinesOf(inv.ClientAddress))
+        {
+            <span class="invoice-line">@line</span>
+        }
+        @if (inv.ClientEmail is { } clientEmail)
+        {
+            <span class="invoice-line">@clientEmail</span>
+        }
+    </div>
+
+    <table class="invoice-table" data-testid="invoice-lines">
+        <caption class="visually-hidden">Invoice lines, one per person</caption>
+        <thead>
+            <tr>
+                <th scope="col" class="num">#</th>
+                <th scope="col">Name</th>
+                <th scope="col">Designation</th>
+                <th scope="col" class="num">Days</th>
+                <th scope="col" class="money">Salary (USD)</th>
+                <th scope="col" class="money">Extras (USD)</th>
+                <th scope="col" class="money">Amount (USD)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in inv.Lines.OrderBy(l => l.Position))
+            {
+                <tr data-testid="invoice-line">
+                    <td class="num" data-label="#">@line.Position</td>
+                    <td data-label="Name">@line.Name</td>
+                    <td data-label="Designation">@line.Designation</td>
+                    <td class="num" data-label="Days">@line.DaysText</td>
+                    <td class="money num" data-label="Salary (USD)">@DisplayFormat.Usd(line.SalaryUsd)</td>
+                    <td class="money num" data-label="Extras (USD)">@(line.ExtrasUsd == 0m ? "—" : DisplayFormat.Usd(line.ExtrasUsd))</td>
+                    <td class="money num" data-label="Amount (USD)" data-testid="invoice-line-amount">@DisplayFormat.Usd(line.AmountUsd)</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th scope="row" colspan="6">Total (USD)</th>
+                <td class="money num" data-testid="invoice-total"><strong>@DisplayFormat.Usd(inv.TotalUsd)</strong></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    @if (inv.BankName is not null || inv.BankAccountNumber is not null)
+    {
+        <section class="invoice-payment" aria-labelledby="paymentHeading">
+            <h3 class="invoice-label" id="paymentHeading">Payment details</h3>
+            <dl class="invoice-facts">
+                @if (inv.BankName is { } bank)
+                {
+                    <div><dt>Bank</dt><dd>@bank</dd></div>
+                }
+                @if (inv.BankAccountTitle is { } title)
+                {
+                    <div><dt>Account title</dt><dd>@title</dd></div>
+                }
+                @if (inv.BankAccountNumber is { } account)
+                {
+                    <div><dt>Account / IBAN</dt><dd class="num">@(account.StartsWith("PK", StringComparison.Ordinal) && account.Length == 24 ? HR.Domain.People.PakistaniIban.Format(account) : account)</dd></div>
+                }
+                @if (inv.BankSwift is { } swift)
+                {
+                    <div><dt>SWIFT</dt><dd class="num">@swift</dd></div>
+                }
+            </dl>
+        </section>
+    }
+
+    @if (inv.Footer is { } footer)
+    {
+        <footer class="invoice-footer">
+            @foreach (var line in LinesOf(footer))
+            {
+                <span class="invoice-line">@line</span>
+            }
+        </footer>
+    }
+</article>
+
+@if (inv.Status == InvoiceStatus.Paid)
+{
+    <section class="glass-card mt-4 no-print" aria-labelledby="paidHeading" data-testid="paid-info">
+        <h2 class="card-title" id="paidHeading">Payment received</h2>
+        <p class="mb-0 num">@DisplayFormat.Usd(inv.AmountReceivedUsd!.Value) on @DisplayFormat.Date(inv.PaidDate!.Value)@(inv.PaymentNote is { } note ? $" · {note}" : "")</p>
+    </section>
+}
+else if (inv.Status == InvoiceStatus.Issued)
+{
+    <section class="glass-card mt-4 no-print" aria-labelledby="payHeading" id="pay">
+        <h2 class="card-title" id="payHeading">Record the payment</h2>
+        <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert"></div>
+        <form method="post" asp-action="MarkPaid" asp-route-id="@inv.Id" data-testid="mark-paid-form">
+            <input type="hidden" name="RowVersion" value="@Convert.ToBase64String(inv.RowVersion)" />
+            <div class="row g-3">
+                <div class="col-sm-4">
+                    <div class="form-floating">
+                        <input type="date" class="form-control num" id="PaidDate" name="PaidDate" required value="@(Model.PaidForm.PaidDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" aria-describedby="PaidDate-error" />
+                        <label for="PaidDate">Date received</label>
+                    </div>
+                    <span class="field-error" id="PaidDate-error">@Error("PaidDate")</span>
+                </div>
+                <div class="col-sm-4">
+                    <div class="form-floating">
+                        <input type="number" class="form-control num" id="AmountReceivedUsd" name="AmountReceivedUsd" step="0.01" min="0.01" required
+                               value="@Model.PaidForm.AmountReceivedUsd?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" aria-describedby="AmountReceivedUsd-error" />
+                        <label for="AmountReceivedUsd">Amount received (USD)</label>
+                    </div>
+                    <span class="field-error" id="AmountReceivedUsd-error">@Error("AmountReceivedUsd")</span>
+                </div>
+                <div class="col-sm-4">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="PaymentNote" name="PaymentNote" maxlength="300" value="@Model.PaidForm.PaymentNote" placeholder="Note" aria-describedby="PaymentNote-error" />
+                        <label for="PaymentNote">Note (optional)</label>
+                    </div>
+                    <span class="field-error" id="PaymentNote-error">@Error("PaymentNote")</span>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary-gradient" data-testid="mark-paid"><i class="bi bi-check2-circle" aria-hidden="true"></i> Mark paid</button>
+            </div>
+        </form>
+    </section>
+}

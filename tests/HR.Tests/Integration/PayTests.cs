@@ -212,7 +212,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     [Theory]
     [InlineData(HireSource.CompanyRecommended, "$300.00", "$175.00 per full period (incl. $25.00 commission)", "$25.00")]
     [InlineData(HireSource.BudgetHire, "$1,000.00", "$500.00 per full period", "$150.00")]
-    [InlineData(HireSource.Owner, "$1,200.00", "$600.00 per full period", "$0.00")]
+    [InlineData(HireSource.Owner, "$1,200.00", "$600.00 per full period", "$600.00")] // M8: the Owner earns his whole billed amount
     public async Task Admin_current_card_renders_the_golden_billing_values(HireSource source, string billedMonthly, string billedPerPeriod, string earning)
     {
         await AddExchangeRateAsync(new DateOnly(2026, 1, 1), 280m);
@@ -605,9 +605,9 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
 
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var adminAll = await admin.GetStringAsync("/salaries");
-        // Billed: 300 + 1000 + 1200 = $2,500.00. Earning per full period: CR 25.00 + Budget (500 − 375.00) 125.00 + Owner 0 = $150.00.
+        // Billed: 300 + 1000 + 1200 = $2,500.00. Earning per full period: CR 25.00 + Budget (500 − 375.00) 125.00 + Owner 600.00 (M8: his whole billed amount) = $750.00.
         Assert.Contains("data-testid=\"total-billed\">$2,500.00<", adminAll);
-        Assert.Contains("data-testid=\"total-earning\">$150.00<", adminAll);
+        Assert.Contains("data-testid=\"total-earning\">$750.00<", adminAll);
         Assert.Equal(["Bravo Budget"], Names(await admin.GetStringAsync("/salaries?filter=NeedsReview")));
         Assert.Matches("data-testid=\"review-tile\"[\\s\\S]*?stat-value\">1<", await admin.GetStringAsync("/"));
         Assert.Matches("data-testid=\"no-pay-tile\"[\\s\\S]*?stat-value\">2<", await admin.GetStringAsync("/"));

@@ -146,3 +146,33 @@ a:visited {
 .register .iban {
     white-space: nowrap;
 }
+
+/* Invoice (M8): the document only, on A4. */
+.invoice-doc {
+    max-width: none !important;
+}
+
+.invoice-head,
+.invoice-table th,
+.invoice-table td,
+.invoice-footer {
+    border-color: #555 !important;
+}
+
+.invoice-table thead {
+    display: table-header-group !important;
+}
+
+.invoice-table tr {
+    display: table-row !important;
+    break-inside: avoid;
+}
+
+.invoice-table th,
+.invoice-table td {
+    display: table-cell !important;
+}
+
+.invoice-table td::before {
+    content: none !important;
+}

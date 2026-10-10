@@ -160,7 +160,7 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         AssertLine(lines1[g.Nadia], 6m, 95.46m, 81.82m, 22_910m, 13.64m, 3_819m); // G2
         AssertLine(lines1[g.Kamran], 10.5m, 167.04m, 143.18m, 40_090m, 23.86m, 6_681m); // G3
         AssertLine(lines1[g.Bilal], 11m, 500.00m, 350.00m, 98_000m, 150.00m, 42_000m); // G4
-        AssertLine(lines2[g.Imran], 11m, 600.00m, 600.00m, 168_000m, 0.00m, 0m); // G6
+        AssertLine(lines2[g.Imran], 11m, 600.00m, 600.00m, 168_000m, 600.00m, 168_000m); // G6 (M8: Owner earns his whole invoice)
         AssertLine(lines2[g.Rizwan], 4m, 63.64m, 54.55m, 15_274m, 9.09m, 2_545m); // G7
 
         // G5 base values on Bilal's Oct 16–31 line, then the G8 finals with the adjustments.
@@ -171,7 +171,7 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         Assert.Equal([(Oct(20), 0m, 1m), (Oct(27), 0m, 1m)], g8.Absences.OrderBy(a => a.Date).Select(a => (a.Date, a.PaidDays, a.UnpaidDays)).ToArray());
 
         // Owner income Oct 16–31 (G6 + full-period CompanyRecommended lines + G8/G5 + G7), as SPEC §8.
-        var ownerIncome = lines2.Values.Sum(l => l.HireSource == HireSource.Owner ? l.NetPayUsd!.Value : l.OwnerEarningUsd!.Value);
+        var ownerIncome = lines2.Values.Sum(l => l.OwnerEarningUsd!.Value); // SPEC §8: Σ final OwnerEarning over all lines
         Assert.Equal(600.00m + 25.00m * 3 + 122.73m + 9.09m, ownerIncome);
 
         // Finalize both, in order.

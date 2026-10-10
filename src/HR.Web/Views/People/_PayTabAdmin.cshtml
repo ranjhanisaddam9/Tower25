@@ -47,7 +47,7 @@ else
                 @if (amounts.EarningUsd is { } earning)
                 {
                     <span class="pay-summary-value num" data-testid="pay-earning">@DisplayFormat.Usd(earning)</span>
-                    <span class="pay-summary-sub">@(t.PayCurrency == PayCurrency.PKR ? $"Estimate at today's rate ({rateText})" : "Billed minus pay")</span>
+                    <span class="pay-summary-sub">@(tab.Source == HR.Domain.People.HireSource.Owner ? "Your whole billed amount" : t.PayCurrency == PayCurrency.PKR ? $"Estimate at today's rate ({rateText})" : "Billed minus pay")</span>
                 }
                 else
                 {

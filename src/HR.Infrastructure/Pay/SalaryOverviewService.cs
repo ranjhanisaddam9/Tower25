@@ -77,6 +77,8 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
     public async Task<(PagedResult<AdminSalaryRow> Page, AdminSalaryTotals Totals)> ListForAdminAsync(SalaryQuery query, CancellationToken cancellationToken = default)
     {
         var people = await ActivePeopleAsync(query.Search, cancellationToken);
+        var ids0 = people.Select(p => p.Id).ToList();
+        var sources = await db.People.AsNoTracking().Where(p => ids0.Contains(p.Id)).Select(p => new { p.Id, p.HireSource }).ToDictionaryAsync(p => p.Id, p => p.HireSource, cancellationToken); // Admin only
         var ids = people.Select(p => p.Id).ToList();
         var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
         var today = clock.Today;
@@ -96,7 +98,7 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
             var current = records.Where(r => r.EffectiveFrom <= today).MaxBy(r => r.EffectiveFrom);
             FullPeriodAmounts? amounts = current is null
                 ? null
-                : PayMath.FullPeriod(new PayTerms(current.EffectiveFrom, current.BilledMonthlyUsd, current.CommissionPerPeriodUsd, current.PayMonthlyAmount, current.PayCurrency), rate);
+                : PayMath.FullPeriod(new PayTerms(current.EffectiveFrom, current.BilledMonthlyUsd, current.CommissionPerPeriodUsd, current.PayMonthlyAmount, current.PayCurrency), rate, sources.GetValueOrDefault(person.Id));
             rows.Add(new AdminSalaryRow(row, current?.BilledMonthlyUsd, current?.CommissionPerPeriodUsd, amounts?.EarningUsd, records.Any(r => r.NeedsBillingReview)));
         }
 

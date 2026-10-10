@@ -11,6 +11,11 @@ public sealed class PayrollLock(AppDbContext db) : IPayrollLock
     public Task<bool> IsLockedAsync(DateOnly periodStart, CancellationToken cancellationToken = default) =>
         db.PayrollRuns.AsNoTracking().AnyAsync(r => r.PeriodStart == periodStart && r.Status == PayrollStatus.Finalized, cancellationToken);
 
+    public Task<bool> IsLockedForPersonAsync(int personId, DateOnly periodStart, CancellationToken cancellationToken = default) =>
+        db.PayrollLines.AsNoTracking().AnyAsync(
+            l => l.PersonId == personId && db.PayrollRuns.Any(r => r.Id == l.RunId && r.PeriodStart == periodStart && r.Status == PayrollStatus.Finalized),
+            cancellationToken);
+
     public Task<DateOnly?> LatestLockedPeriodStartAsync(CancellationToken cancellationToken = default) =>
         db.PayrollRuns.AsNoTracking()
             .Where(r => r.Status == PayrollStatus.Finalized)

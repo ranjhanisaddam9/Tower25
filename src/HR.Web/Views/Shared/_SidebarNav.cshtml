@@ -18,9 +18,10 @@
     // Admin-only sections (SPEC §1: invoices and owner income are Admin-only) are not even listed for Managers.
     if (isAdmin)
     {
-        upcoming.Add(("Invoices", "bi-file-earmark-text"));
-        upcoming.Add(("Owner Income", "bi-graph-up-arrow"));
+        enabled.Add(("Invoices", "bi-file-earmark-text", "Invoices", "Index"));
+        enabled.Add(("Owner Income", "bi-graph-up-arrow", "OwnerIncome", "Index"));
         enabled.Add(("Managers", "bi-person-gear", "Managers", "Index"));
+        enabled.Add(("Settings", "bi-gear", "Settings", "Index"));
     }
 
     upcoming.Add(("Reports", "bi-bar-chart-line"));

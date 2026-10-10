@@ -1,0 +1,14 @@
+@using HR.Infrastructure.People
+@{
+    // Shown only when the server says the joining date covers finalized payrolls this person is not in (M8).
+    var message = ViewData.ModelState[PersonService.ConfirmLateAdditionField]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+@if (message is not null)
+{
+    <div class="glass-alert alert-warning-glass late-addition" role="alert" data-testid="late-addition">
+        <div class="form-check form-check-strong mb-0">
+            <input class="form-check-input" type="checkbox" id="ConfirmLateAddition" name="ConfirmLateAddition" value="true" />
+            <label class="form-check-label" for="ConfirmLateAddition">@message</label>
+        </div>
+    </div>
+}

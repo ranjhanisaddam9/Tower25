@@ -61,6 +61,13 @@
     <partial name="_StatTile" model="@(new StatTileViewModel($"Payroll {DisplayFormat.DateRange(payrollTile.Period.Start, payrollTile.Period.End)}", payrollStatus, "bi-receipt", "violet",
         payrollTile.RunId is null ? "Generate the draft" : "Open the payroll", Href: payrollTile.RunId is { } runId ? $"/payroll/{runId}" : "/payroll", TestId: "payroll-tile"))" />
 
+    @if (Model.Invoices is { } outstanding)
+    {
+        <partial name="_StatTile" model="@(new StatTileViewModel("Outstanding invoices", DisplayFormat.Usd(outstanding.OutstandingUsd), "bi-file-earmark-text", outstanding.OverdueCount > 0 ? "danger" : "info",
+            outstanding.OutstandingCount == 0 ? "Nothing to collect" : $"{outstanding.OutstandingCount} unpaid · {outstanding.OverdueCount} overdue",
+            Href: outstanding.OverdueCount > 0 ? "/invoices?status=Overdue" : "/invoices?status=Issued", TestId: "invoices-tile"))" />
+    }
+
     @if (Model.PayrollAdmin is { } latest)
     {
         <partial name="_StatTile" model="@(new StatTileViewModel("Latest finalized payroll", DisplayFormat.Usd(latest.InvoiceUsd) + " invoiced", "bi-graph-up-arrow", "teal",

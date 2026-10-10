@@ -1,0 +1,105 @@
+@using HR.Domain.Invoices
+@using HR.Infrastructure.Invoices
+@model InvoiceListViewModel
+@{
+    ViewData["Title"] = "Invoices";
+    ViewData["Section"] = "Billing";
+    var totals = Model.List.Totals;
+    var statuses = new[] { (InvoiceStatusFilter.All, "All statuses"), (InvoiceStatusFilter.Issued, "Issued (unpaid)"), (InvoiceStatusFilter.Overdue, "Overdue"), (InvoiceStatusFilter.Paid, "Paid"), (InvoiceStatusFilter.Void, "Void") };
+}
+
+<p class="page-lead">One invoice per finalized payroll, issued when the payroll is finalized.</p>
+
+@if (!Model.CanIssueInvoices)
+{
+    <div class="glass-alert alert-warning-glass" role="status" data-testid="settings-incomplete">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Invoices can't be issued until the business name and the client company name are set in <a asp-controller="Settings" asp-action="Index">Settings</a>.
+    </div>
+}
+
+<section class="stat-grid" aria-label="Invoice totals@(Model.Year is { } y ? $" for {y}" : "")">
+    <partial name="_StatTile" model="@(new StatTileViewModel("Invoiced", DisplayFormat.Usd(totals.InvoicedUsd), "bi-file-earmark-text", "indigo", Model.Year is { } y1 ? $"Issued in {y1}, not void" : "All invoices that aren't void", TestId: "total-invoiced"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Received", DisplayFormat.Usd(totals.ReceivedUsd), "bi-check2-circle", "teal", "On paid invoices", TestId: "total-received"))" />
+    <partial name="_StatTile" model="@(new StatTileViewModel("Outstanding", DisplayFormat.Usd(totals.OutstandingUsd), "bi-hourglass-split", "warning", totals.OverdueCount == 0 ? "Nothing overdue" : $"{totals.OverdueCount} overdue", TestId: "total-outstanding"))" />
+</section>
+
+<form method="get" asp-action="Index" class="glass-card filter-bar" role="search" aria-label="Filter invoices">
+    <div class="form-floating filter-select">
+        <select class="form-select" id="status" name="status">
+            @foreach (var (value, label) in statuses)
+            {
+                <option value="@value" selected="@(value == Model.Filter)">@label</option>
+            }
+        </select>
+        <label for="status">Status</label>
+    </div>
+    <div class="form-floating filter-select">
+        <select class="form-select" id="year" name="year">
+            <option value="" selected="@(Model.Year is null)">All years</option>
+            @foreach (var y in Model.List.Years)
+            {
+                <option value="@y" selected="@(y == Model.Year)">@y</option>
+            }
+        </select>
+        <label for="year">Year</label>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-ghost"><i class="bi bi-funnel" aria-hidden="true"></i> Apply</button>
+        @if (Model.HasFilter)
+        {
+            <a class="btn btn-ghost" asp-action="Index">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.List.Rows.Count == 0)
+{
+    <section class="glass-card">
+        <div class="empty-state">
+            <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+            @if (Model.HasFilter)
+            {
+                <p class="empty-state-text">No invoices match these filters.</p>
+                <a class="btn btn-ghost" asp-action="Index">Clear filters</a>
+            }
+            else
+            {
+                <p class="empty-state-text">No invoices yet. Finalizing a payroll issues its invoice.</p>
+                <a class="btn btn-primary-gradient" asp-controller="Payroll" asp-action="Index"><i class="bi bi-receipt" aria-hidden="true"></i> Go to payroll</a>
+            }
+        </div>
+    </section>
+}
+else
+{
+    <div class="glass-table-wrap">
+        <table class="glass-table">
+            <caption class="visually-hidden">Invoices, newest first</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Number</th>
+                    <th scope="col">Period</th>
+                    <th scope="col">Issued</th>
+                    <th scope="col">Due</th>
+                    <th scope="col" class="money">Total</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Paid</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.List.Rows)
+                {
+                    <tr data-testid="invoice-row" data-invoice-id="@r.Id">
+                        <td data-label="Number" class="num"><a asp-action="Details" asp-route-id="@r.Id" class="cell-primary row-link">@r.Number</a></td>
+                        <td data-label="Period" class="num">@DisplayFormat.DateRange(r.PeriodStart, r.PeriodEnd)</td>
+                        <td data-label="Issued" class="num">@DisplayFormat.Date(r.IssueDate)</td>
+                        <td data-label="Due" class="num">@DisplayFormat.Date(r.DueDate)</td>
+                        <td data-label="Total" class="money num">@DisplayFormat.Usd(r.TotalUsd)</td>
+                        <td data-label="Status"><span class="pill @InvoiceDisplay.Pill(r.Status, r.IsOverdue)" data-testid="invoice-status">@InvoiceDisplay.Label(r.Status, r.IsOverdue)</span></td>
+                        <td data-label="Paid" class="num">@(r.PaidDate is { } paid ? DisplayFormat.Date(paid) : "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

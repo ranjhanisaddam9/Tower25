@@ -1066,6 +1066,12 @@ a.user-chip {
     color: var(--tone-warning-fg);
 }
 
+.alert-info-glass {
+    background: rgba(14, 165, 233, var(--tone-alpha));
+    border-color: rgba(14, 165, 233, .40);
+    color: var(--tone-info-fg);
+}
+
 .validation-summary-plain ul {
     margin: 0;
     padding: 0;

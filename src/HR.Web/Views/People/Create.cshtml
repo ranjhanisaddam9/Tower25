@@ -12,6 +12,7 @@
 
     <form method="post" asp-action="Create">
         <partial name="_PersonFields" model="Model" />
+        <partial name="_LateAdditionConfirm" />
         <div class="form-actions">
             <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-person-plus" aria-hidden="true"></i> Add person</button>
             <a class="btn btn-ghost" asp-action="Index">Cancel</a>

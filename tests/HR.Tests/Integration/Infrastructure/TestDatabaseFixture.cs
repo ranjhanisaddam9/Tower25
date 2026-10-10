@@ -34,6 +34,19 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public async Task ResetAsync()
     {
         await using var db = CreateDbContext();
+        // Invoices (lines cascade) and their per-year counters; Settings back to the migration's defaults.
+        await db.Invoices.ExecuteDeleteAsync();
+        await db.Set<HR.Domain.Invoices.InvoiceCounter>().ExecuteDeleteAsync();
+        await db.Settings.ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.BusinessName, (string?)null).SetProperty(x => x.BusinessAddress, (string?)null)
+            .SetProperty(x => x.BusinessEmail, (string?)null).SetProperty(x => x.BusinessPhone, (string?)null)
+            .SetProperty(x => x.BankName, (string?)null).SetProperty(x => x.BankAccountTitle, (string?)null)
+            .SetProperty(x => x.BankAccountNumber, (string?)null).SetProperty(x => x.BankSwift, (string?)null)
+            .SetProperty(x => x.ClientName, (string?)null).SetProperty(x => x.ClientAddress, (string?)null)
+            .SetProperty(x => x.ClientContactPerson, (string?)null).SetProperty(x => x.ClientEmail, (string?)null)
+            .SetProperty(x => x.InvoicePrefix, "INV").SetProperty(x => x.PaymentTermsDays, 7)
+            .SetProperty(x => x.InvoiceFooter, (string?)null).SetProperty(x => x.PayslipIssuerName, "HR Payroll"));
+
         // Finalized runs can never be deleted (trigger), so tests first turn them back into drafts; lines, adjustments
         // and line absences cascade from runs.
         await db.PayrollRuns.ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, HR.Domain.Payroll.PayrollStatus.Draft).SetProperty(r => r.FinalizedAt, (DateTimeOffset?)null));

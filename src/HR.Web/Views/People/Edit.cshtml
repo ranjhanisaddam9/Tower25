@@ -45,6 +45,7 @@
     <form method="post" asp-action="Edit" asp-route-id="@Model.Id">
         <input type="hidden" name="RowVersion" value="@Model.Form.RowVersion" />
         <partial name="_PersonFields" model="Model.Form" view-data="fieldsData" />
+        <partial name="_LateAdditionConfirm" />
         <div class="form-actions">
             <button type="submit" class="btn btn-primary-gradient"><i class="bi bi-check2" aria-hidden="true"></i> Save changes</button>
             <a class="btn btn-ghost" asp-action="Details" asp-route-id="@Model.Id">Cancel</a>

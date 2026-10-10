@@ -1,4 +1,6 @@
+using System.Globalization;
 using HR.Domain.Pay;
+using HR.Domain.Payroll;
 using HR.Domain.People;
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
@@ -202,7 +204,8 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
 
     // ---------- Commands ----------
 
-    public async Task<PersonResult> CreateAsync(PersonInput input, string actorId, CancellationToken cancellationToken = default)
+    /// <param name="confirmLateAddition">The user confirmed the person is not in the finalized payrolls their joining date covers.</param>
+    public async Task<PersonResult> CreateAsync(PersonInput input, string actorId, bool confirmLateAddition = false, CancellationToken cancellationToken = default)
     {
         var normalized = input.Normalize(out var errors);
         if (normalized is null)
@@ -214,6 +217,12 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         if (duplicates.Count > 0)
         {
             return new PersonResult(PersonResultStatus.Invalid, Errors: duplicates);
+        }
+
+        var (createRefusal, createUncovered) = await EmploymentImpactAsync(null, normalized.JoiningDate!.Value, null, adds: true, cancellationToken);
+        if (LateAdditionCheck(createRefusal, createUncovered, confirmLateAddition, nameof(PersonInput.JoiningDate)) is { } lateCreate)
+        {
+            return lateCreate;
         }
 
         // Taken before the insert: if the insert fails the number is simply skipped, never reused.
@@ -228,6 +237,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonCreated(_log, actorId, person.Id, person.Code);
+        AuditLateAddition(actorId, person, createUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -242,6 +252,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         bool keepIban,
         byte[] rowVersion,
         string actorId,
+        bool confirmLateAddition = false,
         CancellationToken cancellationToken = default)
     {
         var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -290,15 +301,20 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
             return new PersonResult(PersonResultStatus.Invalid, Errors: duplicates);
         }
 
-        // Moving the joining date adds or removes the days between the old and new dates.
+        // Moving the joining date adds (earlier) or removes (later) the days between the old and new dates.
+        List<PayPeriod> updateUncovered = [];
         if (normalized.JoiningDate is { } newJoining && newJoining != person.JoiningDate)
         {
-            var earlier = newJoining < person.JoiningDate ? newJoining : person.JoiningDate;
-            var later = newJoining < person.JoiningDate ? person.JoiningDate : newJoining;
-            if (await LockedChangeAsync(earlier, later.AddDays(-1), cancellationToken) is { } locked)
+            var adds = newJoining < person.JoiningDate;
+            var earlier = adds ? newJoining : person.JoiningDate;
+            var later = adds ? person.JoiningDate : newJoining;
+            var (refusal, uncovered) = await EmploymentImpactAsync(id, earlier, later.AddDays(-1), adds, cancellationToken);
+            if (LateAdditionCheck(refusal, uncovered, confirmLateAddition, nameof(PersonInput.JoiningDate)) is { } late)
             {
-                return PersonResult.Invalid(nameof(PersonInput.JoiningDate), locked);
+                return late;
             }
+
+            updateUncovered = uncovered;
         }
 
         // The version the user saw is the one EF checks in the UPDATE's WHERE clause.
@@ -312,6 +328,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonEdited(_log, actorId, person.Id, person.Code);
+        AuditLateAddition(actorId, person, updateUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -339,7 +356,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         // Employment after the leaving date disappears: no finalized period may lose days.
-        if (await LockedChangeAsync(leavingDate.Value.AddDays(1), null, cancellationToken) is { } locked)
+        if ((await EmploymentImpactAsync(id, leavingDate.Value.AddDays(1), null, adds: false, cancellationToken)).Refusal is { } locked)
         {
             return PersonResult.Invalid(LeavingDateField, locked);
         }
@@ -361,6 +378,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         DateOnly? rejoiningDate,
         string actorId,
         bool revealHireSource,
+        bool confirmLateAddition = false,
         CancellationToken cancellationToken = default)
     {
         var person = await db.People.Include(p => p.EmploymentPeriods).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -384,9 +402,10 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
             return PersonResult.Invalid(RejoiningDateField, "The rejoining date must be after the previous leaving date.");
         }
 
-        if (await LockedChangeAsync(rejoiningDate.Value, null, cancellationToken) is { } locked)
+        var (rejoinRefusal, rejoinUncovered) = await EmploymentImpactAsync(id, rejoiningDate.Value, null, adds: true, cancellationToken);
+        if (LateAdditionCheck(rejoinRefusal, rejoinUncovered, confirmLateAddition, RejoiningDateField) is { } lateRejoin)
         {
-            return PersonResult.Invalid(RejoiningDateField, locked);
+            return lateRejoin;
         }
 
         var today = clock.Today;
@@ -408,6 +427,7 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         }
 
         SecurityLog.PersonReactivated(_log, actorId, person.Id, person.Code, rejoiningDate.Value, previousJoining, previousLeaving);
+        AuditLateAddition(actorId, person, rejoinUncovered);
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
@@ -433,7 +453,10 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
             return PersonResult.Invalid(LeavingDateField, "The leaving date has already passed. Use Reactivate to record a rejoining date.");
         }
 
-        if (await LockedChangeAsync(leaving.AddDays(1), null, cancellationToken) is { } locked)
+        // Cancelling only ever affects someone already employed up to the leaving date, so a finalized period after it is
+        // refused either way (there is no confirmation route here).
+        var (cancelRefusal, cancelUncovered) = await EmploymentImpactAsync(id, leaving.AddDays(1), null, adds: true, cancellationToken);
+        if ((cancelRefusal ?? (cancelUncovered.Count > 0 ? LateAdditionMessage(cancelUncovered) : null)) is { } locked)
         {
             return PersonResult.Invalid(LeavingDateField, locked);
         }
@@ -449,25 +472,73 @@ public sealed class PersonService(AppDbContext db, IClock clock, IPayrollLock pa
         return new PersonResult(PersonResultStatus.Success, person.Id);
     }
 
+    public const string ConfirmLateAdditionField = "ConfirmLateAddition";
+
     /// <summary>
-    /// The message when changing employment from <paramref name="from"/> to <paramref name="to"/> (inclusive; null = no end)
-    /// would touch a finalized payroll period, or null when nothing locked is affected.
+    /// What changing a person's employment from <paramref name="from"/> to <paramref name="to"/> (inclusive; null = no end)
+    /// means for finalized payrolls (M8):
+    /// <list type="bullet">
+    /// <item>a finalized period whose payroll includes the person (they have a line) must not change: <c>Refusal</c>;</item>
+    /// <item>a finalized period that doesn't include them gains coverage when <paramref name="adds"/>: listed in
+    /// <c>Uncovered</c> and allowed only with the late-addition confirmation;</item>
+    /// <item>removing days from a finalized period they were never paid in changes nothing paid: allowed.</item>
+    /// </list>
     /// </summary>
-    private async Task<string?> LockedChangeAsync(DateOnly from, DateOnly? to, CancellationToken cancellationToken)
+    private async Task<(string? Refusal, List<PayPeriod> Uncovered)> EmploymentImpactAsync(
+        int? personId, DateOnly from, DateOnly? to, bool adds, CancellationToken cancellationToken)
     {
-        if (to is { } end && end < from)
+        var uncovered = new List<PayPeriod>();
+        if (to is { } end && end < from || await payrollLock.LatestLockedPeriodStartAsync(cancellationToken) is not { } latest)
         {
-            return null;
+            return (null, uncovered);
         }
 
-        return await payrollLock.FirstLockedAsync(from, to, cancellationToken) is { } start
-            ? LockedEmploymentMessage(HR.Domain.Payroll.PayPeriod.For(start))
-            : null;
+        var last = to is { } stop && stop < latest ? stop : latest;
+        for (var period = PayPeriod.For(from); period.Start <= last; period = period.Next())
+        {
+            if (!await payrollLock.IsLockedAsync(period.Start, cancellationToken))
+            {
+                continue;
+            }
+
+            if (personId is { } id && await payrollLock.IsLockedForPersonAsync(id, period.Start, cancellationToken))
+            {
+                return (LockedEmploymentMessage(period), uncovered);
+            }
+
+            if (adds)
+            {
+                uncovered.Add(period);
+            }
+        }
+
+        return (null, uncovered);
     }
 
-    public static string LockedEmploymentMessage(HR.Domain.Payroll.PayPeriod period) =>
-        $"This change would alter the finalized payroll for {period.Start.ToString("dd MMM", System.Globalization.CultureInfo.InvariantCulture)}–{period.End.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}. " +
+    public static string LockedEmploymentMessage(PayPeriod period) =>
+        $"This change would alter the finalized payroll for {period.Start.ToString("dd MMM", CultureInfo.InvariantCulture)}–{period.End.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}. " +
         "An administrator has to reopen that payroll first.";
+
+    public static string PeriodsText(IEnumerable<PayPeriod> periods) =>
+        string.Join(", ", periods.Select(p => $"{p.Start.ToString("dd", CultureInfo.InvariantCulture)}–{p.End.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"));
+
+    /// <summary>The confirmation text for employment that covers finalized payrolls the person is not in.</summary>
+    public static string LateAdditionMessage(IEnumerable<PayPeriod> periods) =>
+        $"This person is not included in the finalized payroll(s) for {PeriodsText(periods)}. Pay any arrears as a Bonus or extra days in the current payroll.";
+
+    /// <summary>Refusal, or the confirmation still needed, for a change; null when it may go ahead.</summary>
+    private static PersonResult? LateAdditionCheck(string? refusal, List<PayPeriod> uncovered, bool confirmed, string refusalField) =>
+        refusal is not null ? PersonResult.Invalid(refusalField, refusal)
+        : uncovered.Count > 0 && !confirmed ? PersonResult.Invalid(ConfirmLateAdditionField, LateAdditionMessage(uncovered))
+        : null;
+
+    private void AuditLateAddition(string actorId, Person person, List<PayPeriod> uncovered)
+    {
+        if (uncovered.Count > 0)
+        {
+            SecurityLog.PersonLateAdditionConfirmed(_log, actorId, person.Id, person.Code, PeriodsText(uncovered));
+        }
+    }
 
     /// <summary>Admin only. At most one active person may have the Owner source (SPEC §2).</summary>
     public async Task<PersonResult> SetHireSourceAsync(int id, HireSource? source, string actorId, CancellationToken cancellationToken = default)

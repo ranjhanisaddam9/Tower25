@@ -30,6 +30,7 @@ public static class PayrollDisplay
     {
         LineIssue.NoHireSource => isAdmin ? "No hire source" : "Pay setup incomplete",
         LineIssue.NoRateRecordAtPeriodStart => isAdmin ? "No pay record in effect on the period's first day" : "Pay setup incomplete",
+        LineIssue.NegativeNetPay => "Deductions exceed pay",
         _ => issue.ToString(),
     };
 
@@ -37,6 +38,7 @@ public static class PayrollDisplay
     {
         LineIssue.NoHireSource => isAdmin ? "Set the hire source and pay on the person's page, then regenerate." : "Ask the administrator to complete this person's pay setup, then regenerate.",
         LineIssue.NoRateRecordAtPeriodStart => isAdmin ? "Add a pay record starting on or before the period's first day, then regenerate." : "Ask the administrator to complete this person's pay setup, then regenerate.",
+        LineIssue.NegativeNetPay => "Reduce or remove a deduction on this line so net pay is not below zero.",
         _ => string.Empty,
     };
 
@@ -131,7 +133,8 @@ public sealed record PayrollRunViewModel(
     IReadOnlyList<LineChange>? Changes,
     decimal? HistoryRate,
     DateOnly? HistoryRateDate,
-    RateForm RateForm)
+    RateForm RateForm,
+    HR.Infrastructure.Invoices.RunInvoice? Invoice = null)
 {
     public bool IsAdmin => Billing is not null;
 

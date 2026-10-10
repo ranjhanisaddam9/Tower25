@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using HR.Domain.Payroll;
 using HR.Infrastructure.Identity;
+using HR.Infrastructure.Invoices;
 using HR.Infrastructure.Payroll;
 using HR.Infrastructure.Rates;
+using HR.Infrastructure.Settings;
 using HR.Web.Formatting;
 using HR.Web.Infrastructure;
 using HR.Web.Security;
@@ -19,9 +21,8 @@ namespace HR.Web.Controllers;
 /// </summary>
 [Authorize(Policy = Policies.ManagerOrAdmin)]
 [Route("payroll")]
-public class PayrollController(PayrollService payroll, IExchangeRateService rates, IConfiguration configuration, IMemoryCache cache) : Controller
+public class PayrollController(PayrollService payroll, IExchangeRateService rates, SettingsService settings, InvoiceService invoices, IMemoryCache cache) : Controller
 {
-    public const string IssuerNameKey = "Payslip:IssuerName";
     private const string ChangesKey = "PayrollChanges";
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -29,7 +30,6 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
 
     private bool IsAdmin => User.IsInRole(AppRoles.Admin);
 
-    private string IssuerName => configuration[IssuerNameKey] is { Length: > 0 } name ? name : "HR Payroll";
 
     // ===================== List and generate =====================
 
@@ -80,7 +80,8 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
         var billing = IsAdmin ? await payroll.BillingAsync(id, cancellationToken: cancellationToken) : null;
         var history = run.IsDraft ? await rates.GetRateForAsync(run.Period.End, cancellationToken) : null;
         return View(new PayrollRunViewModel(run, lines, billing, await payroll.EventsAsync(id, cancellationToken), ReadChanges(), history?.UsdToPkr,
-            history?.EffectiveFrom, new RateForm { Source = run.RateOverridden ? "override" : "history", Rate = run.ExchangeRate }));
+            history?.EffectiveFrom, new RateForm { Source = run.RateOverridden ? "override" : "history", Rate = run.ExchangeRate },
+            IsAdmin && !run.IsDraft ? await invoices.RunInvoiceAsync(id, cancellationToken) : null));
     }
 
     [HttpPost("{id:int}/regenerate")]
@@ -327,21 +328,21 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
     {
         var run = await payroll.GetRunAsync(id, cancellationToken);
         var detail = await payroll.GetLineAsync(id, lineId, cancellationToken);
-        return run is null || detail is null || detail.Line.IsOrphaned ? NotFound() : View(new PayslipViewModel(run, detail, IssuerName));
+        return run is null || detail is null || detail.Line.IsOrphaned ? NotFound() : View(new PayslipViewModel(run, detail, (await settings.GetAsync(cancellationToken)).PayslipIssuerName));
     }
 
     [HttpGet("{id:int}/payslips")]
     public async Task<IActionResult> Payslips(int id, CancellationToken cancellationToken)
     {
         var run = await payroll.GetRunAsync(id, cancellationToken);
-        return run is null ? NotFound() : View(new PayslipsViewModel(run, await payroll.GetAllLineDetailsAsync(id, cancellationToken), IssuerName));
+        return run is null ? NotFound() : View(new PayslipsViewModel(run, await payroll.GetAllLineDetailsAsync(id, cancellationToken), (await settings.GetAsync(cancellationToken)).PayslipIssuerName));
     }
 
     [HttpGet("{id:int}/register")]
     public async Task<IActionResult> Register(int id, CancellationToken cancellationToken)
     {
         var run = await payroll.GetRunAsync(id, cancellationToken);
-        return run is null ? NotFound() : View(new RegisterViewModel(run, await payroll.RegisterAsync(id, cancellationToken), IssuerName));
+        return run is null ? NotFound() : View(new RegisterViewModel(run, await payroll.RegisterAsync(id, cancellationToken), (await settings.GetAsync(cancellationToken)).PayslipIssuerName));
     }
 
     // ===================== Helpers =====================

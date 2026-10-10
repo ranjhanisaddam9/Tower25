@@ -84,7 +84,7 @@ public class PayrollCalculatorTests
 
     [Fact]
     public void G6_owner_full_period() =>
-        AssertBase(Calc(Second, OwnerTerms, HireSource.Owner), 11m, 11, 600.00m, 600.00m, 168_000m, 0.00m, 0m);
+        AssertBase(Calc(Second, OwnerTerms, HireSource.Owner), 11m, 11, 600.00m, 600.00m, 168_000m, 600.00m, 168_000m); // M8: the Owner's whole invoiced amount is his income
 
     [Fact]
     public void G7_leaving_Wednesday_Oct_21() =>
@@ -145,16 +145,42 @@ public class PayrollCalculatorTests
     }
 
     [Fact]
-    public void Owner_income_Oct_16_31_is_747_73()
+    public void Owner_income_Oct_16_31_is_747_73_the_sum_of_every_lines_owner_earning()
     {
-        var lines = new (HireSource?, PayrollLineResult)[]
-        {
-            (HireSource.Owner, Calc(Second, OwnerTerms, HireSource.Owner)),
-            (HireSource.CompanyRecommended, Calc(Second, G1Terms, HireSource.CompanyRecommended)),
-            (HireSource.BudgetHire, Calc(Second, BudgetTerms, HireSource.BudgetHire, absences: BilalAbsences)),
-        };
+        PayrollLineResult[] lines =
+        [
+            Calc(Second, OwnerTerms, HireSource.Owner), // G6: 600.00
+            Calc(Second, G1Terms, HireSource.CompanyRecommended), // full-period G1-style: 25.00
+            Calc(Second, BudgetTerms, HireSource.BudgetHire, absences: BilalAbsences), // G5: 122.73
+        ];
 
         Assert.Equal(747.73m, OwnerIncome.Usd(lines));
+        Assert.Equal(747.73m, lines.Sum(l => l.OwnerEarningUsd!.Value));
+        Assert.Equal(168_000m + 7_000m + 34_363m, OwnerIncome.Pkr(lines));
+    }
+
+    [Fact]
+    public void The_Owner_line_earns_its_whole_invoice_including_adjustments()
+    {
+        var r = Calc(Second, OwnerTerms, HireSource.Owner, adjustments: [new(AdjustmentType.Bonus, 50m, PayCurrency.USD), new(AdjustmentType.Deduction, 2_800m, PayCurrency.PKR)]);
+
+        Assert.Equal(640.00m, r.InvoiceUsd); // 600 + 50 − 10
+        Assert.Equal((640.00m, 179_200m), (r.OwnerEarningUsd!.Value, r.OwnerEarningPkr!.Value));
+    }
+
+    [Fact]
+    public void Deductions_exceeding_pay_are_an_issue()
+    {
+        var ok = Calc(First, G1Terms, HireSource.CompanyRecommended, adjustments: [new(AdjustmentType.Deduction, 42_000m, PayCurrency.PKR)]);
+        Assert.Equal(0m, ok.NetPayPkr); // exactly zero is allowed
+        Assert.Null(ok.Issue);
+
+        var negative = Calc(First, G1Terms, HireSource.CompanyRecommended, adjustments: [new(AdjustmentType.Deduction, 42_001m, PayCurrency.PKR)]);
+        Assert.Equal(-1m, negative.NetPayPkr);
+        Assert.Equal(LineIssue.NegativeNetPay, negative.Issue);
+
+        // A missing setup still wins: it is the first thing to fix.
+        Assert.Equal(LineIssue.NoHireSource, Calc(First, null, null).Issue);
     }
 
     // ---------- Issues ----------

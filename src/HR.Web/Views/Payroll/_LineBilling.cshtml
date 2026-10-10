@@ -24,10 +24,22 @@
         <li>Billed: @PayrollDisplay.Usd(b.SalaryPartUsd) + @PayrollDisplay.Usd(b.CommissionUsd) = <strong>@PayrollDisplay.Usd(b.BilledUsd)</strong></li>
         <li>Adjustments pass through at cost: @PayrollDisplay.Usd(b.AdjustmentsUsd)</li>
         <li>Invoice: @PayrollDisplay.Usd(b.BilledUsd) + @PayrollDisplay.Usd(b.AdjustmentsUsd) = <strong data-testid="billing-invoice">@PayrollDisplay.Usd(b.InvoiceUsd)</strong></li>
-        <li>Your earning (USD): invoice @PayrollDisplay.Usd(b.InvoiceUsd) − net pay @PayrollDisplay.Usd(l.NetPayUsd) = <strong data-testid="billing-earning-usd">@PayrollDisplay.Usd(b.OwnerEarningUsd)</strong></li>
-        @if (rate is { } r && b.InvoiceUsd is { } invoice)
+        @if (b.HireSource == HR.Domain.People.HireSource.Owner)
         {
-            <li>Your earning (PKR): @PayrollDisplay.Usd(invoice) × @r.ToString("0.00##", System.Globalization.CultureInfo.InvariantCulture) = @DisplayFormat.Pkr(HR.Domain.Payroll.Money.RoundPkr(invoice * r)), − net pay @PayrollDisplay.Pkr(l.NetPayPkr) = <strong data-testid="billing-earning-pkr">@PayrollDisplay.Pkr(b.OwnerEarningPkr)</strong></li>
+            // SPEC §5: the whole invoiced amount of the Owner's own line is his income.
+            <li>Your earning (USD): your whole invoiced amount = <strong data-testid="billing-earning-usd">@PayrollDisplay.Usd(b.OwnerEarningUsd)</strong></li>
+            @if (rate is { } ownRate && b.InvoiceUsd is { } ownInvoice)
+            {
+                <li>Your earning (PKR): @PayrollDisplay.Usd(ownInvoice) × @ownRate.ToString("0.00##", System.Globalization.CultureInfo.InvariantCulture) = <strong data-testid="billing-earning-pkr">@PayrollDisplay.Pkr(b.OwnerEarningPkr)</strong></li>
+            }
+        }
+        else
+        {
+            <li>Your earning (USD): invoice @PayrollDisplay.Usd(b.InvoiceUsd) − net pay @PayrollDisplay.Usd(l.NetPayUsd) = <strong data-testid="billing-earning-usd">@PayrollDisplay.Usd(b.OwnerEarningUsd)</strong></li>
+            @if (rate is { } r && b.InvoiceUsd is { } invoice)
+            {
+                <li>Your earning (PKR): @PayrollDisplay.Usd(invoice) × @r.ToString("0.00##", System.Globalization.CultureInfo.InvariantCulture) = @DisplayFormat.Pkr(HR.Domain.Payroll.Money.RoundPkr(invoice * r)), − net pay @PayrollDisplay.Pkr(l.NetPayPkr) = <strong data-testid="billing-earning-pkr">@PayrollDisplay.Pkr(b.OwnerEarningPkr)</strong></li>
+            }
         }
     </ul>
 </section>

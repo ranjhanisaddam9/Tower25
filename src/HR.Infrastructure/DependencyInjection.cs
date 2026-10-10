@@ -83,6 +83,9 @@ public static class DependencyInjection
 
         services.AddScoped<HR.Domain.Pay.IPayrollLock, Payroll.PayrollLock>();
         services.AddScoped<Payroll.PayrollService>();
+        services.AddScoped<Settings.SettingsService>();
+        services.AddScoped<Invoices.InvoiceService>();
+        services.AddScoped<Payroll.OwnerIncomeService>();
         services.AddScoped<Pay.PayRecordService>();
         services.AddScoped<Pay.SalaryOverviewService>();
         services.AddScoped<Absences.AbsenceService>();

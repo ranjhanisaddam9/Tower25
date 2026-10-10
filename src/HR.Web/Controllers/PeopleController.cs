@@ -119,7 +119,7 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
             return View(form);
         }
 
-        var result = await people.CreateAsync(form.ToInput(), ActorId, cancellationToken);
+        var result = await people.CreateAsync(form.ToInput(), ActorId, form.ConfirmLateAddition, cancellationToken);
         if (!result.Succeeded)
         {
             AddErrors(result);
@@ -165,7 +165,7 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
             return BadRequest();
         }
 
-        var result = await people.UpdateAsync(id, form.ToInput(), keepCnic, keepIban, rowVersion, ActorId, cancellationToken);
+        var result = await people.UpdateAsync(id, form.ToInput(), keepCnic, keepIban, rowVersion, ActorId, form.ConfirmLateAddition, cancellationToken);
         switch (result.Status)
         {
             case PersonResultStatus.Success:
@@ -193,9 +193,9 @@ public class PeopleController(PersonService people, PayRecordService pay, Absenc
     }
 
     [HttpPost("{id:int}/reactivate")]
-    public async Task<IActionResult> Reactivate(int id, DateOnly? rejoiningDate, CancellationToken cancellationToken)
+    public async Task<IActionResult> Reactivate(int id, DateOnly? rejoiningDate, bool confirmLateAddition, CancellationToken cancellationToken)
     {
-        var result = await people.ReactivateAsync(id, rejoiningDate, ActorId, revealHireSource: IsAdmin, cancellationToken);
+        var result = await people.ReactivateAsync(id, rejoiningDate, ActorId, revealHireSource: IsAdmin, confirmLateAddition, cancellationToken);
         return await AfterStatusChange(id, result, "has been reactivated.", cancellationToken);
     }
 

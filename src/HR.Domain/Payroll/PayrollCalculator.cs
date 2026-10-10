@@ -16,6 +16,9 @@ public enum LineIssue
 {
     NoHireSource = 1,
     NoRateRecordAtPeriodStart = 2,
+
+    /// <summary>Deductions exceed pay: net pay below zero.</summary>
+    NegativeNetPay = 3,
 }
 
 public sealed record AdjustmentInput(AdjustmentType Type, decimal Amount, PayCurrency Currency);
@@ -164,8 +167,24 @@ public static class PayrollCalculator
         var netPayPkr = payPkr + adjustmentsPkr;
         var netPayUsd = payUsd + adjustmentsUsd;
         var invoiceUsd = billed + adjustmentsUsd;
-        var ownerUsd = invoiceUsd - netPayUsd;
-        decimal? ownerPkr = rate is { } y && invoiceUsd is { } invoice && netPayPkr is { } net ? Money.RoundPkr(invoice * y) - net : null;
+        decimal? ownerUsd;
+        decimal? ownerPkr;
+        if (input.HireSource == HireSource.Owner)
+        {
+            // SPEC §5: the Owner's whole invoiced amount is his income.
+            ownerUsd = invoiceUsd;
+            ownerPkr = rate is { } o && invoiceUsd is { } ownInvoice ? Money.RoundPkr(ownInvoice * o) : null;
+        }
+        else
+        {
+            ownerUsd = invoiceUsd - netPayUsd;
+            ownerPkr = rate is { } y && invoiceUsd is { } invoice && netPayPkr is { } net ? Money.RoundPkr(invoice * y) - net : null;
+        }
+
+        if (issue is null && netPayPkr < 0m)
+        {
+            issue = LineIssue.NegativeNetPay; // deductions exceed pay
+        }
 
         return new PayrollLineResult(working, days.EmployedWorkingDays, days.UnpaidDays, input.ExtraDays, payable,
             salaryPart, commission, billed, payUsd, payPkr, adjustmentsPkr, adjustmentsUsd, netPayPkr, netPayUsd, invoiceUsd,
@@ -182,22 +201,11 @@ public static class PayrollCalculator
     };
 }
 
-/// <summary>SPEC §8: the Owner's own net pay plus the final owner earning of every CompanyRecommended and BudgetHire line.</summary>
+
+/// <summary>SPEC §8: owner income = Σ final OwnerEarning over all lines (own salary, commission and margin).</summary>
 public static class OwnerIncome
 {
-    public static decimal Usd(IEnumerable<(HireSource? Source, PayrollLineResult Line)> lines) =>
-        lines.Sum(l => l.Source switch
-        {
-            HireSource.Owner => l.Line.NetPayUsd ?? 0m,
-            HireSource.CompanyRecommended or HireSource.BudgetHire => l.Line.OwnerEarningUsd ?? 0m,
-            _ => 0m,
-        });
+    public static decimal Usd(IEnumerable<PayrollLineResult> lines) => lines.Sum(l => l.OwnerEarningUsd ?? 0m);
 
-    public static decimal Pkr(IEnumerable<(HireSource? Source, PayrollLineResult Line)> lines) =>
-        lines.Sum(l => l.Source switch
-        {
-            HireSource.Owner => l.Line.NetPayPkr ?? 0m,
-            HireSource.CompanyRecommended or HireSource.BudgetHire => l.Line.OwnerEarningPkr ?? 0m,
-            _ => 0m,
-        });
+    public static decimal Pkr(IEnumerable<PayrollLineResult> lines) => lines.Sum(l => l.OwnerEarningPkr ?? 0m);
 }

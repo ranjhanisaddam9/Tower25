@@ -140,7 +140,8 @@ public sealed record PayrollResult(
     int? Id = null,
     IReadOnlyList<PayrollError>? Errors = null,
     IReadOnlyList<LineChange>? Changes = null,
-    int Count = 0)
+    int Count = 0,
+    int? InvoiceId = null)
 {
     public bool Succeeded => Status == PayrollResultStatus.Success;
 
@@ -156,7 +157,7 @@ public sealed record PayrollResult(
 /// (after re-checking the draft against a fresh calculation inside a serializable transaction), reopen (Admin, latest
 /// only) and delete drafts. Manager queries never select billing columns. Audit events 15xx never contain notes.
 /// </summary>
-public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateService rates, ILoggerFactory loggerFactory)
+public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateService rates, HR.Infrastructure.Invoices.InvoiceService invoices, ILoggerFactory loggerFactory)
 {
     public const string NotDraftMessage = "This payroll is finalized, so it can't be changed. An administrator can reopen it.";
     public const string DataChangedMessage = "Data changed since this draft was calculated. The draft has been recalculated; review the changes and finalize again.";
@@ -170,6 +171,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
     public const string ReopenLatestOnlyMessage = "Only the latest finalized payroll can be reopened.";
     public const string ReopenReasonMessage = "Give a reason of at least 10 characters (at most 500).";
     public const string RateNoteMessage = "Add a note explaining the rate change.";
+    public const string HasInvoicesMessage = "This payroll had an invoice (now void), so it is kept for the record. Finalize it again instead of deleting it.";
     public const string NoRateInHistoryMessage = "There is no exchange rate in effect on the period's last day. Enter a rate with a note instead.";
 
     public const int NoDeleteFinalizedErrorNumber = 51010;
@@ -657,6 +659,9 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         }
 
         run.Finalize(actorId, clock.UtcNow);
+
+        // M8: the company invoice is issued in the same transaction (when Settings allow; otherwise it stays pending).
+        var invoice = await invoices.AddForRunAsync(run, actorId, cancellationToken);
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -669,7 +674,12 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
 
         await transaction.CommitAsync(cancellationToken);
         SecurityLog.PayrollFinalized(_log, actorId, run.Id, run.PeriodStart, run.Lines.Count, run.Lines.Sum(l => l.NetPayPkr ?? 0m), run.ExchangeRate!.Value);
-        return new PayrollResult(PayrollResultStatus.Success, run.Id);
+        if (invoice is not null)
+        {
+            invoices.AuditIssued(actorId, invoice);
+        }
+
+        return new PayrollResult(PayrollResultStatus.Success, run.Id, InvoiceId: invoice?.Id);
     }
 
     /// <summary>Admin only (the controller enforces the policy). The latest finalized run goes back to Draft, with a reason.</summary>
@@ -697,6 +707,13 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
             return PayrollResult.Invalid("Reason", ReopenReasonMessage) with { Id = runId };
         }
 
+        // M8: a paid invoice blocks the reopen; an issued one is voided with the reopen reason (same save).
+        var (paidRefusal, voided) = await invoices.VoidForReopenAsync(run.Id, trimmed, actorId, cancellationToken);
+        if (paidRefusal is not null)
+        {
+            return PayrollResult.Refused(paidRefusal) with { Id = runId };
+        }
+
         run.Reopen(trimmed, actorId, clock.UtcNow);
         if (await SaveAsync(cancellationToken) is { } failure)
         {
@@ -704,6 +721,10 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         }
 
         SecurityLog.PayrollReopened(_log, actorId, run.Id, run.PeriodStart);
+        if (voided is not null)
+        {
+            invoices.AuditVoided(actorId, voided);
+        }
         return new PayrollResult(PayrollResultStatus.Success, run.Id);
     }
 
@@ -718,6 +739,11 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
         if (!run.IsDraft)
         {
             return PayrollResult.Refused("A finalized payroll can never be deleted.") with { Id = runId };
+        }
+
+        if (await db.Invoices.AnyAsync(i => i.RunId == runId, cancellationToken))
+        {
+            return PayrollResult.Refused(HasInvoicesMessage) with { Id = runId };
         }
 
         db.PayrollRuns.Remove(run);

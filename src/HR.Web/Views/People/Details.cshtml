@@ -277,6 +277,12 @@ else if (!p.IsActive)
                     {
                         <p class="form-hint" id="rejoinHint">After the previous leaving date, @DisplayFormat.Date(leftOn).</p>
                     }
+                    <div class="form-check form-check-strong mt-3">
+                        <input class="form-check-input" type="checkbox" id="confirmLateAddition" name="confirmLateAddition" value="true" />
+                        <label class="form-check-label" for="confirmLateAddition">
+                            If the rejoining date falls in a finalized payroll: I understand this person is not included in it. Any arrears are paid as a Bonus or extra days in the current payroll.
+                        </label>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>

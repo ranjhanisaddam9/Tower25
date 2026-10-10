@@ -10,6 +10,9 @@ namespace HR.Web.ViewModels;
 /// </summary>
 public sealed class PersonFormViewModel
 {
+    /// <summary>Confirms that a joining date covering finalized payrolls leaves the person out of them (M8).</summary>
+    public bool ConfirmLateAddition { get; set; }
+
     [Required(ErrorMessage = "Enter the full name.")]
     [StringLength(PersonInput.FullNameMaxLength, ErrorMessage = "The full name can be at most 200 characters.")]
     [Display(Name = "Full name")]

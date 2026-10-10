@@ -18,7 +18,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 
 ## 2. Core concepts
 
-**Person**: an Employee or an Internee (`PersonType`). Has one or more employment periods (start date, optional end date; never overlapping; at most one open). Joining/leaving date shown in the UI are those of the latest period. Deactivate closes the open period (the leaving date may be in the future); reactivate opens a new one; cancelling a leaving date that hasn't passed reopens the same period. Also has a designation and contact details. A person is **active** until their leaving date has passed: no leaving date, or a leaving date on or after today (Asia/Karachi). Nothing about it is stored.
+**Person**: an Employee or an Internee (`PersonType`). Has one or more employment periods (start date, optional end date; never overlapping; at most one open). Joining/leaving date shown in the UI are those of the latest period. Deactivate closes the open period (the leaving date may be in the future); reactivate opens a new one; cancelling a leaving date that hasn't passed reopens the same period. Also has a designation and contact details. A person is **active** until their leaving date has passed: no leaving date, or a leaving date on or after today (Asia/Karachi). Nothing about it is stored. Changes to employment that alter days a person was paid for in a finalized payroll are refused. Adding employment that covers a finalized payroll period the person is not in (a new person, rejoining, an earlier joining date) needs an explicit confirmation; any arrears are paid as a Bonus or extra days in the current payroll.
 
 **Hire source** (`HireSource`, Admin-only field):
 
@@ -26,7 +26,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 |---|---|---|---|---|---|
 | `CompanyRecommended` | Company found the person and set the salary | The salary (USD) | A per-person USD amount (e.g. $25), editable | The same salary (USD, disbursed as PKR) | The commission |
 | `BudgetHire` | Company gave a budget; owner hired someone for less | The budget (USD) | 0 | The pay the owner agreed with the person (usually PKR) | Budget − pay (the margin) |
-| `Owner` | The owner himself | His salary (USD) | 0 | The same salary | His salary (via this line) |
+| `Owner` | The owner himself | His salary (USD) | 0 | The same salary | His whole billed amount |
 
 At most one active person can have source `Owner`.
 
@@ -89,6 +89,8 @@ InvoiceUsd = BilledUsd + Σ s·AmountUsd.
 Final OwnerEarningUsd = InvoiceUsd − NetPayUsd (always equals BilledUsd − PayUsd);  Final OwnerEarningPkr = round0(InvoiceUsd × rate) − NetPayPkr (may differ from the base by a rupee or two of rounding).
 ```
 
+For Owner lines, Final OwnerEarningUsd = InvoiceUsd and Final OwnerEarningPkr = round0(InvoiceUsd × rate).
+
 ## 6. Payroll lifecycle
 
 1. **Draft**: generated for one period (unique per period). Includes every person with at least one employed working day. Can be regenerated; regenerating keeps adjustments.
@@ -99,12 +101,14 @@ Outputs: payroll register (PKR, Manager and Admin), payslips per person (PKR wit
 
 ## 7. Company invoice (Admin only)
 
-One invoice per finalized payroll. One row per person: name, designation, **amount in USD** (= `InvoiceUsd`). **Commission is never shown as a separate line**; it is already inside the amount. The owner's own line appears like any other. Invoice total = sum of rows.
+One invoice per finalized payroll. One row per person: name, designation, **amount in USD** (= `InvoiceUsd`).
+
+The invoice is issued when the payroll is finalized (if the business and client names are set in Settings), numbered `<prefix>-YYYY-NNNN` per year, dated on the finalize date and due after the payment terms. Reopening the payroll voids its invoice (refused while it is paid); finalizing again issues a replacement that refers to the voided one. Rows show the salary part (`BilledUsd`), extras (Σ s·AmountUsd) and the amount (`InvoiceUsd`). **Commission is never shown as a separate line**; it is already inside the amount. The owner's own line appears like any other. Invoice total = sum of rows.
 
 ## 8. Owner income (Admin only)
 
 ```
-OwnerIncome(period) = Owner's own NetPay + Σ final OwnerEarning over CompanyRecommended lines (commission) + Σ final OwnerEarning over BudgetHire lines (margin)
+OwnerIncome(period) = Σ final OwnerEarning over all lines; broken down as own salary (Owner lines), commission (CompanyRecommended lines) and margin (BudgetHire lines).
 ```
 Shown by period, month and year, broken into: own salary, commission, margin, total, in USD and PKR.
 
@@ -119,7 +123,7 @@ These must exist as unit tests of the calculator, with exactly these numbers. Al
 | G3 | CompanyRecommended | Oct 1–15 | as G1; absent Mon Oct 5 (half), Wed Oct 7 (full) | 10.5/11 | 167.04 | 143.18 | 40,090 | 23.86 | 6,681 |
 | G4 | BudgetHire | Oct 1–15 | budget $1,000/mo, pay PKR 196,000/mo; absent Oct 6, Oct 20, Oct 27 (all full) | 11/11 | 500.00 | 350.00 | 98,000 | 150.00 | 42,000 |
 | G5 | BudgetHire | Oct 16–31 | same person as G4 | 9/11 | 409.09 | 286.36 | 80,182 | 122.73 | 34,363 |
-| G6 | Owner | Oct 16–31 | $1,200/mo | 11/11 | 600.00 | 600.00 | 168,000 | 0.00 | 0 |
+| G6 | Owner | Oct 16–31 | $1,200/mo | 11/11 | 600.00 | 600.00 | 168,000 | 600.00 | 168,000 |
 | G7 | CompanyRecommended | Oct 16–31 | as G1, leaving date Wed Oct 21 | 4/11 | 63.64 | 54.55 | 15,274 | 9.09 | 2,545 |
 
 With adjustments and extra days (also rate 280):
@@ -163,3 +167,4 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 - 2026-10-08: Initial spec agreed with the owner.
 - 2026-10-09: Employment periods replace single joining/leaving dates; Owner rule relaxed to at most one active Owner.
 - 2026-10-10: extra days; adjustments pass through at cost; deductions credit the Company; active status follows leaving date.
+- 2026-10-10 (M8): the Owner line's earning is its whole invoiced amount; owner income = Σ final OwnerEarning over all lines; deductions may not exceed pay (NegativeNetPay blocks finalize); people added after a finalized period need a confirmation (arrears paid in the current payroll); invoice and settings rules (§7).

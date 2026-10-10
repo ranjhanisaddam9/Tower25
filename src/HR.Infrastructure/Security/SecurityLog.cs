@@ -114,6 +114,26 @@ public static partial class SecurityLog
     [LoggerMessage(EventId = 1105, Level = LogLevel.Information, Message = "Audit: {ActorId} cancelled the leaving date {LeavingDate} of person {PersonId} ({PersonCode})")]
     public static partial void PersonLeavingCancelled(ILogger logger, string actorId, int personId, string personCode, DateOnly leavingDate);
 
+    [LoggerMessage(EventId = 1106, Level = LogLevel.Warning, Message = "Audit: {ActorId} confirmed that person {PersonId} ({PersonCode}) is not included in the finalized payroll(s) for {Periods}")]
+    public static partial void PersonLateAdditionConfirmed(ILogger logger, string actorId, int personId, string personCode, string periods);
+
+    // ---- Settings, invoices (audit; never values or notes) ----
+
+    [LoggerMessage(EventId = 1600, Level = LogLevel.Warning, Message = "Audit: {ActorId} changed settings: {Fields}")]
+    public static partial void SettingsChanged(ILogger logger, string actorId, string fields);
+
+    [LoggerMessage(EventId = 1601, Level = LogLevel.Information, Message = "Audit: {ActorId} issued invoice {InvoiceId} ({Number}) for payroll {RunId}: {TotalUsd} USD, replaces {Replaces}")]
+    public static partial void InvoiceIssued(ILogger logger, string actorId, int invoiceId, string number, int runId, decimal totalUsd, string replaces);
+
+    [LoggerMessage(EventId = 1602, Level = LogLevel.Information, Message = "Audit: {ActorId} marked invoice {InvoiceId} ({Number}) paid: {AmountReceivedUsd} USD on {PaidDate}")]
+    public static partial void InvoicePaid(ILogger logger, string actorId, int invoiceId, string number, decimal amountReceivedUsd, DateOnly paidDate);
+
+    [LoggerMessage(EventId = 1603, Level = LogLevel.Warning, Message = "Audit: {ActorId} marked invoice {InvoiceId} ({Number}) unpaid")]
+    public static partial void InvoiceUnpaid(ILogger logger, string actorId, int invoiceId, string number);
+
+    [LoggerMessage(EventId = 1604, Level = LogLevel.Warning, Message = "Audit: {ActorId} voided invoice {InvoiceId} ({Number}) of payroll {RunId}")]
+    public static partial void InvoiceVoided(ILogger logger, string actorId, int invoiceId, string number, int runId);
+
     // ---- Payroll (audit; never notes or the reopen reason) ----
 
     [LoggerMessage(EventId = 1500, Level = LogLevel.Information, Message = "Audit: {ActorId} generated payroll {RunId} for {PeriodStart} with {LineCount} lines, rate {Rate}")]

@@ -144,7 +144,7 @@ public sealed class PayRecordService(
         if (currentRow is not null)
         {
             var terms = new PayTerms(currentRow.EffectiveFrom, currentRow.BilledMonthlyUsd, currentRow.CommissionPerPeriodUsd, currentRow.PayMonthlyAmount, currentRow.PayCurrency);
-            current = new AdminPayCurrent(terms, PayMath.FullPeriod(terms, rate));
+            current = new AdminPayCurrent(terms, PayMath.FullPeriod(terms, rate, person.Source));
         }
 
         var latest = rows.MaxBy(r => r.EffectiveFrom);

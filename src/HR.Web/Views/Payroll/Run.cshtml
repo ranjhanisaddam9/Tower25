@@ -98,6 +98,35 @@
     </dl>
 </section>
 
+@if (Model.Invoice is { } runInvoice)
+{
+    @if (runInvoice.InvoiceId is { } invoiceId)
+    {
+        <div class="glass-alert alert-info-glass run-invoice" role="status" data-testid="run-invoice">
+            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+            Invoice <a asp-controller="Invoices" asp-action="Details" asp-route-id="@invoiceId" class="num">@runInvoice.Number</a>
+            <span class="pill @InvoiceDisplay.Pill(runInvoice.Status!.Value, runInvoice.IsOverdue)">@InvoiceDisplay.Label(runInvoice.Status!.Value, runInvoice.IsOverdue)</span>
+        </div>
+    }
+    else
+    {
+        <div class="glass-alert alert-warning-glass run-invoice" role="status" data-testid="invoice-pending">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            @if (runInvoice.SettingsComplete)
+            {
+                <span>Invoice pending.</span>
+                <form method="post" asp-controller="Invoices" asp-action="Issue" asp-route-runId="@run.Id" class="d-inline">
+                    <button type="submit" class="btn btn-primary-gradient btn-sm-compact" data-testid="issue-invoice">Issue invoice</button>
+                </form>
+            }
+            else
+            {
+                <span>Invoice pending: complete <a asp-controller="Settings" asp-action="Index">Settings</a> (business name and client company name), then issue it here.</span>
+            }
+        </div>
+    }
+}
+
 @if (run.IsDraft && run.ExchangeRate is null)
 {
     <div class="glass-alert alert-danger-glass" role="alert" data-testid="no-rate">

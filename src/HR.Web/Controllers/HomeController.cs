@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR.Web.Controllers;
 
-public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll) : Controller
+public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll, HR.Infrastructure.Invoices.InvoiceService invoices) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -43,7 +43,8 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
             notAssigned,
             await absences.GetDashboardAsync(cancellationToken),
             await payroll.DashboardAsync(cancellationToken),
-            User.IsInRole(AppRoles.Admin) ? await payroll.DashboardAdminAsync(cancellationToken) : null);
+            User.IsInRole(AppRoles.Admin) ? await payroll.DashboardAdminAsync(cancellationToken) : null,
+            User.IsInRole(AppRoles.Admin) ? await invoices.DashboardAsync(cancellationToken) : null);
 
         return View(model);
     }
