@@ -13,6 +13,31 @@ Work one milestone at a time. Never start the next milestone until the owner sen
 - .NET: the newest LTS SDK installed (.NET 10 preferred, else .NET 8), pinned in `global.json`. EF Core and ASP.NET Core packages match that major version.
 - Never put production secrets in the repo. Production config comes from environment variables or user secrets.
 
+## Release package (M10)
+- `build-package.ps1` builds `dist\HRPayroll-v<version>-win-x64.zip`:
+  - a self-contained win-x64 Release publish in `app\`
+  - `migrate.exe` (a self-contained EF migration bundle)
+  - the `deploy\` scripts, `INSTALL.md`, `restore.md`
+  - the licences.
+
+  `dist/` is git-ignored. The target PC needs SQL Server Express but no .NET.
+- **Installed layout:**
+  - `C:\HRPayroll\{app,app.previous,tools,config,keys,logs,backups}`
+  - the Windows Service `HRPayroll`, running as `NT SERVICE\HRPayroll`
+  - Kestrel on `https://localhost:7443` only (loopback).
+- **Configuration:** the app reads `..\config\appsettings.Production.json` next to its folder (override with `HRPAYROLL_CONFIG_DIR`); never in Development. `HttpsCertificate:Thumbprint` selects the LocalMachine\My certificate. `Backup:StatusFile` turns on the dashboard backup warning.
+- **Scripts** (Windows PowerShell 5.1, ASCII-only, run as Administrator, idempotent):
+  - `setup.ps1` (`-DatabaseName`, `-Port`, `-NoService`)
+  - `update.ps1`, which backs up, keeps `app.previous` and rolls back on failure
+  - `uninstall.ps1` (`-RemoveData` needs the database name typed to confirm)
+  - `admin-reset.ps1`
+  - `backup.ps1` (`-SetPassword`, `-SecondCopyPath`)
+  - `register-backup-task.ps1`
+  - `restore.ps1`.
+- **Server commands** (`HR.Web.exe <command>`, never over HTTP): `admin-reset --email`, `audit-purge`, `seed-admin`. The Admin seed password reaches `seed-admin` only through the process environment.
+- **Shipping app or schema changes:** a schema change ships as a new migration, picked up by `migrate.exe`. A new setting needs a default in `appsettings.json`, and setup writes the machine-specific values. Give the app's SQL login only the rights it needs (see setup.ps1).
+- **Testing a package on a dev PC:** use `setup.ps1 -DatabaseName HRPayroll_PackageTest -Port 7444`, never the dev database, and clean up with `uninstall.ps1 -RemoveData`.
+
 ## Solution layout
 ```
 HRPayroll.sln

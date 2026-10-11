@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR.Web.Controllers;
 
-public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll, HR.Infrastructure.Invoices.InvoiceService invoices, ReportService reports, HR.Infrastructure.Security.AuditQueryService audit) : Controller
+public class HomeController(IClock clock, PersonService people, ExchangeRateService rates, PayRecordService pay, AbsenceService absences, PayrollService payroll, HR.Infrastructure.Invoices.InvoiceService invoices, ReportService reports, HR.Infrastructure.Security.AuditQueryService audit, HR.Infrastructure.Backups.BackupStatusService backups) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -47,7 +47,8 @@ public class HomeController(IClock clock, PersonService people, ExchangeRateServ
             User.IsInRole(AppRoles.Admin) ? await payroll.DashboardAdminAsync(cancellationToken) : null,
             User.IsInRole(AppRoles.Admin) ? await invoices.DashboardAsync(cancellationToken) : null,
             await TrendAsync(cancellationToken),
-            User.IsInRole(AppRoles.Admin) ? await audit.AlertsAsync(cancellationToken) : null);
+            User.IsInRole(AppRoles.Admin) ? await audit.AlertsAsync(cancellationToken) : null,
+            User.IsInRole(AppRoles.Admin) ? await backups.GetWarningAsync(cancellationToken) : null);
 
         return View(model);
     }

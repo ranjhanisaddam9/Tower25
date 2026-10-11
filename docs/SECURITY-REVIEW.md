@@ -1,6 +1,12 @@
 # Security review (M10)
 
-Scope: HR Payroll v1, ASP.NET Core MVC on .NET 10, EF Core 10, SQL Server Express. The review follows the **OWASP Top 10 (2025)**. Target posture: an internet-facing Windows server over HTTPS. The owner has deferred deployment, so the app currently runs locally only.
+Scope: HR Payroll v1, ASP.NET Core MVC on .NET 10, EF Core 10, SQL Server Express. The review follows the **OWASP Top 10 (2025)**.
+
+**Deployed posture (v1.0.0):** the portable release package on one Windows PC.
+- Kestrel listens on `https://localhost:7443` only (loopback); other machines can't connect.
+- It runs as the Windows Service `HRPayroll` under the least-privilege virtual account `NT SERVICE\HRPayroll`.
+
+The application controls below were written for an internet-facing server. Exposing the app beyond this PC needs the checklist in [Before any network or internet exposure](#before-any-network-or-internet-exposure).
 
 For each category: what was checked, what was found, what was fixed, and the risk that remains. Every check below is backed by an automated test unless it says otherwise.
 
@@ -183,8 +189,14 @@ The PDF font is the Plus Jakarta Sans TTF from the official repository (SIL OFL)
   - timing-equalised unknown-email path.
 
 **Residual risk**
-- TOTP codes aren't single-use within their 30-second window: Identity doesn't track used time steps. Lockout and rate limits bound guessing. Possible future improvement: store the last accepted time step.
 - No password-breach (HIBP) check; it would need an outbound call.
+
+**Fixed later in M10: TOTP replay.** Authenticator codes are now single-use.
+- The time step of the last accepted code is stored per user (`AspNetUsers.LastTotpTimeStep`, migration `AddTotpReplayGuard`).
+- Any code from that step or an earlier one is refused, both at sign-in and when confirming enrolment.
+- Two requests racing with the same code can't both win, because the save is guarded by Identity's concurrency stamp.
+- The ±2-step drift window is unchanged.
+- Tests cover: replay after a successful sign-in, an older code inside the window, an enrolment code replayed at sign-in, a used code at enrolment, a 4-way race, and the RFC 6238 test vectors.
 
 ## A08 Software or data integrity failures
 
@@ -242,3 +254,41 @@ For an authenticated scan:
 2. Add it with `-z "-config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Cookie -config replacer.full_list(0).replacement=__Host-hr.auth=<value>"`.
 3. Repeat with an Admin cookie.
 4. Record and justify every alert in this file.
+
+## Release package (local install)
+
+What the package does on the target PC (`deploy/setup.ps1`):
+
+| Area | Control |
+|---|---|
+| Network | Kestrel binds `https://localhost:<port>` only (127.0.0.1 and ::1); no HTTP endpoint at all. `AllowedHosts` is `localhost`. Tested: the LAN IP refuses connections. |
+| TLS | A self-signed RSA-2048 certificate for `localhost` (5 years, private key not exportable) in LocalMachine\My, trusted in LocalMachine\Root on that PC only. The app loads it by thumbprint. |
+| Service identity | `NT SERVICE\HRPayroll`, a virtual account with no password and no rights beyond what setup grants. |
+| Folder ACLs | `C:\HRPayroll` drops inherited permissions (Administrators and SYSTEM full control). The service account can read the app and config, and write only to `keys` and `logs`. The SQL Server service account can write to `backups`. The backup password file is readable by Administrators and SYSTEM only. |
+| Database login | The service's SQL login has `db_datareader`, `db_datawriter`, `EXECUTE` and `UPDATE` on the person-code sequence. It can't change the schema, back up, alter the audit trigger or administer the server. Migrations run with the installer's admin login through `migrate.exe`. |
+| Secrets | None in files. The connection string uses Windows authentication. The first Admin's password is read with `Read-Host -AsSecureString` and passed once through the child process's environment to `HR.Web.exe seed-admin`; it is never written to disk or logged. |
+| Configuration | `C:\HRPayroll\config\appsettings.Production.json`, outside the app folder, so updates never overwrite it. Environment variables still override it. |
+| Backups | Nightly as SYSTEM, which needs `db_backupoperator` on the database plus `CREATE ANY DATABASE` for `RESTORE VERIFYONLY`. Each backup is made `WITH CHECKSUM` and verified. There is an optional 7-Zip AES-256 copy with encrypted headers; its password is DPAPI-protected at machine scope, Administrators and SYSTEM only. |
+| Monitoring | The Admin dashboard warns when the last backup failed or the last good one is older than 48 hours. |
+| Updates | `update.ps1` backs up first, keeps `app.previous`, migrates, checks `/health`, and rolls back automatically on failure. |
+
+**Residual risks (local install):**
+- **7-Zip password on the command line:** the backup script passes the archive password on 7-Zip's command line. Local administrators and SYSTEM, who can read the password file anyway, could see it in the process list while the backup runs, and so could process-creation auditing with command lines, if that is enabled.
+- **Trusted root certificate:** a self-signed root is trusted on the PC. It is only valid for `localhost`, and its private key is non-exportable.
+- **Shared Windows account:** anyone who can sign in to the PC as an administrator can read the database and the backups. HR Payroll's own authorization doesn't protect against the machine's administrators.
+
+## Before any network or internet exposure
+
+None of this is needed while the app is reachable only from the PC it runs on. Do all of it before it's reachable from anywhere else:
+
+1. **Bind address:** change `Kestrel:Endpoints:Https:Url` from `localhost` to a specific interface or host name. Set `AllowedHosts` to that host name only.
+2. **Certificate:** use a certificate for the real host name from a trusted CA (an internal CA for the LAN, a public CA for the internet). Remove the self-signed `localhost` root from LocalMachine\Root on PCs that no longer need it.
+3. **Firewall:** open only the HTTPS port, and only to the networks that need it. Never expose SQL Server (1433) or RDP.
+4. **IIS / TLS** (if IIS is used): host through the ASP.NET Core Module using the prepared `web.config`.
+   - TLS 1.2 or 1.3 only, with a strong cipher order (for example IIS Crypto's "Best Practices" template).
+   - Turn HSTS preload on only once the host name is final.
+5. **Reverse proxy:** configure forwarded headers (`ForwardedHeadersOptions` with `KnownProxies`), so the per-IP login rate limit and the audit IP column see the real client.
+6. **Accounts:** confirm that two-factor sign-in is required for Managers too (Managers → Edit → Require two-factor), not only for Admins.
+7. **Dynamic scan:** run the OWASP ZAP baseline and authenticated scans (see [Dynamic scan](#dynamic-scan-owasp-zap)) against the exposed URL. Record and justify every alert here.
+8. **Monitoring:** watch `/health` from outside, and alert on the log file's security events (failed sign-ins, lockouts).
+9. **Backups off the machine:** make sure the encrypted second copy goes to storage the web server can't delete.

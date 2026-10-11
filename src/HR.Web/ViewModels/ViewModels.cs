@@ -30,7 +30,8 @@ public sealed record DashboardViewModel(
     HR.Infrastructure.Payroll.PayrollDashboardAdmin? PayrollAdmin,
     HR.Infrastructure.Invoices.InvoiceDashboard? Invoices,
     PayrollTrendViewModel Trend,
-    HR.Infrastructure.Security.SecurityAlerts? Alerts = null);
+    HR.Infrastructure.Security.SecurityAlerts? Alerts = null,
+    HR.Infrastructure.Backups.BackupWarning? Backup = null);
 
 /// <param name="CorrelationId">Shown on 5xx pages so a user can quote it; the same id is in the server log.</param>
 public sealed record ErrorViewModel(int StatusCode, string Title, string Message, string Icon, string? CorrelationId = null);

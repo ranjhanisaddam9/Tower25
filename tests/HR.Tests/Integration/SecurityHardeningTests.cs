@@ -621,12 +621,13 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         Assert.Matches("src=\"data:image/png;base64,[A-Za-z0-9+/=&#;]{100,}\"", setup); // Razor encodes + and / as entities
         var key = Regex.Match(setup, "data-testid=\"manual-key\">([a-z0-9 ]+)<").Groups[1].Value.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
         Assert.Equal(32, key.Length);
+        Totp.UseClock(key, App.Time);
 
         var wrong = await client.PostFormAsync(AccountPaths.Setup, AccountPaths.Setup, new Dictionary<string, string> { ["Code"] = Totp.WrongCode(key) });
         Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
         Assert.Contains("didn&#x27;t match", await wrong.Content.ReadAsStringAsync());
 
-        var enrolled = await client.PostFormAsync(AccountPaths.Setup, AccountPaths.Setup, new Dictionary<string, string> { ["Code"] = Totp.Code(key) });
+        var enrolled = await client.PostFormAsync(AccountPaths.Setup, AccountPaths.Setup, new Dictionary<string, string> { ["Code"] = await Totp.NextCodeAsync(key) });
         Assert.Equal(HttpStatusCode.OK, enrolled.StatusCode);
         Assert.Contains("no-store", enrolled.Headers.CacheControl?.ToString() ?? string.Empty);
         var codes = Regex.Matches(await enrolled.Content.ReadAsStringAsync(), "data-testid=\"recovery-code\">([^<]+)<").Select(m => m.Groups[1].Value).ToList();
@@ -661,7 +662,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         }
 
         Assert.True((await App.GetUserAsync(user.Id)).LockoutEnd > DateTimeOffset.UtcNow);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostTwoFactorCodeAsync(Totp.Code(user.AuthenticatorKey!))).StatusCode); // refused, page again
+        Assert.Equal(HttpStatusCode.OK, (await client.PostTwoFactorCodeAsync(await Totp.NextCodeAsync(user.AuthenticatorKey!))).StatusCode); // refused, page again
         Assert.True(IsLoginRedirect(await client.GetAsync("/")));
         await AssertAuditedAsync(AuditEvents.TwoFactorFailed, user.Id);
         await AssertAuditedAsync(AuditEvents.LockedOut, user.Id);

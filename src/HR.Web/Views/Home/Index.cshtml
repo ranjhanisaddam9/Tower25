@@ -55,6 +55,37 @@
     </div>
 }
 
+@if (Model.Backup is { } backup)
+{
+    <div class="glass-alert alert-warning-glass security-alert" role="alert" data-testid="backup-alert">
+        <i class="bi bi-database-exclamation" aria-hidden="true"></i>
+        <div>
+            <p class="mb-1"><strong>@(backup.Problem switch
+            {
+                HR.Infrastructure.Backups.BackupProblem.NeverRun => "No backup has run yet",
+                HR.Infrastructure.Backups.BackupProblem.LastRunFailed => "The last backup failed",
+                HR.Infrastructure.Backups.BackupProblem.Unreadable => "The backup status can't be read",
+                _ => "The last good backup is more than 48 hours old",
+            })</strong></p>
+            <p class="mb-1">
+                @if (backup.LastGoodUtc is { } good)
+                {
+                    <text>Last good backup: @DisplayFormat.DateTime(good).</text>
+                }
+                else
+                {
+                    <text>There is no good backup on record.</text>
+                }
+                @if (!string.IsNullOrEmpty(backup.Message))
+                {
+                    <span class="d-block">@backup.Message</span>
+                }
+            </p>
+            <p class="mb-0">Run <code>backup.ps1</code> on the server as Administrator and check <code>C:\HRPayroll\backups\backup.log</code> (see INSTALL.md).</p>
+        </div>
+    </div>
+}
+
 <p class="page-lead">Today is <time datetime="@Model.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)">@DisplayFormat.Date(Model.Today)</time> (Asia/Karachi).</p>
 
 <section class="stat-grid" aria-label="Key figures">

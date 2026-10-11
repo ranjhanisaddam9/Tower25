@@ -7,6 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Supply chain (M10): packages.lock.json per project; CI restores in locked mode so a changed dependency graph fails the build. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- The release package is a self-contained win-x64 publish; restoring that runtime everywhere keeps the lock files stable. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>

@@ -14,21 +14,25 @@ namespace HR.Infrastructure.Security;
 /// <list type="bullet">
 /// <item><c>HR.Web.exe admin-reset --email &lt;e&gt;</c>: emergency Admin recovery.</item>
 /// <item><c>HR.Web.exe audit-purge</c>: removes audit rows older than the configured retention (default: keep forever).</item>
+/// <item><c>HR.Web.exe seed-admin</c>: creates the roles and, when no Admin exists, the first Admin from <c>Seed:Admin:*</c>
+/// (used once by setup.ps1, which passes the password through the process environment only).</item>
 /// </list>
 /// </summary>
 public sealed class ServerCommands(
     AppDbContext db,
     UserManager<ApplicationUser> userManager,
     ITemporaryPasswordGenerator passwordGenerator,
+    AdminSeeder adminSeeder,
     IConfiguration configuration,
     IClock clock,
     ILoggerFactory loggerFactory)
 {
     public const string AdminReset = "admin-reset";
     public const string AuditPurge = "audit-purge";
+    public const string SeedAdmin = "seed-admin";
     public const string RetentionKey = "Audit:RetentionDays";
 
-    public static readonly IReadOnlySet<string> Names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { AdminReset, AuditPurge };
+    public static readonly IReadOnlySet<string> Names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { AdminReset, AuditPurge, SeedAdmin };
 
     private readonly ILogger _log = loggerFactory.CreateLogger(SecurityLog.Category);
 
@@ -51,6 +55,11 @@ public sealed class ServerCommands(
         if (string.Equals(name, AuditPurge, StringComparison.OrdinalIgnoreCase))
         {
             return await AuditPurgeAsync(output, cancellationToken);
+        }
+
+        if (string.Equals(name, SeedAdmin, StringComparison.OrdinalIgnoreCase))
+        {
+            return await SeedAdminAsync(output, cancellationToken);
         }
 
         await output.WriteLineAsync($"Unknown command. Available: {string.Join(", ", Names)}");
@@ -92,6 +101,24 @@ public sealed class ServerCommands(
         await output.WriteLineAsync($"Admin {user.Email} has been reset.");
         await output.WriteLineAsync($"Temporary password (shown once, not stored anywhere): {password}");
         await output.WriteLineAsync("Sign in, change the password, then enrol a new authenticator app.");
+        return 0;
+    }
+
+    /// <summary>
+    /// Runs the first-Admin seeding on demand. Exit code 0 when an Admin exists afterwards (created now or already there),
+    /// 1 otherwise; the reason is in the log. The password is never printed.
+    /// </summary>
+    public async Task<int> SeedAdminAsync(TextWriter output, CancellationToken cancellationToken = default)
+    {
+        await adminSeeder.SeedAsync(cancellationToken);
+        var admins = await userManager.GetUsersInRoleAsync(AppRoles.Admin);
+        if (admins.Count == 0)
+        {
+            await output.WriteLineAsync("No Admin was created; see the messages above (email, name and a strong password are required).");
+            return 1;
+        }
+
+        await output.WriteLineAsync($"Admin account ready ({admins.Count} Admin{(admins.Count == 1 ? string.Empty : "s")}).");
         return 0;
     }
 

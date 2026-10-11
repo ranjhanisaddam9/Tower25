@@ -67,8 +67,8 @@ public static class DependencyInjection
                 options.SignIn.RequireConfirmedPhoneNumber = false;
             })
             .AddEntityFrameworkStores<AppDbContext>()
-            // TOTP authenticator apps (M10). No other token providers: there is no email/SMS flow to abuse.
-            .AddTokenProvider<AuthenticatorTokenProvider<ApplicationUser>>(TokenOptions.DefaultAuthenticatorProvider)
+            // TOTP authenticator apps (M10), each code single-use. No other token providers: there is no email/SMS flow to abuse.
+            .AddTokenProvider<ReplayProtectedAuthenticatorTokenProvider>(TokenOptions.DefaultAuthenticatorProvider)
             .AddSignInManager<AppSignInManager>()
             .AddClaimsPrincipalFactory<AppUserClaimsPrincipalFactory>();
 
@@ -99,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<Security.AuditWriter>();
         services.AddScoped<Security.AuditQueryService>();
         services.AddScoped<Security.ServerCommands>();
+        services.AddScoped<Backups.BackupStatusService>();
 
         // PDF exports: Community licence and the embedded font, registered once per process.
         Exports.PdfSetup.Configure();

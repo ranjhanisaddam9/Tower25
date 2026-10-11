@@ -2,6 +2,22 @@
 
 All notable changes, one entry per milestone. Details are in [docs/milestones](docs/milestones).
 
+## v1.0.0: release package, backups and TOTP replay fix (2026-10-11)
+- **Release package:** a portable `HRPayroll-v1.0.0-win-x64.zip` built by `build-package.ps1`. It contains:
+  - the self-contained app, running as the Windows Service `HRPayroll` or as a console app, on `https://localhost:7443` only;
+  - `migrate.exe`;
+  - the scripts `setup`, `update` (with automatic rollback), `uninstall`, `admin-reset` and `restore`;
+  - `INSTALL.md` and `restore.md`.
+- **Backups:**
+  - nightly `backup.ps1`: `CHECKSUM` plus `RESTORE VERIFYONLY`; 14 daily and 12 monthly kept;
+  - an optional encrypted 7-Zip copy to a second location;
+  - the Admin dashboard warns when the last backup failed or is older than 48 hours.
+- **Security:**
+  - authenticator codes are single-use (migration `AddTotpReplayGuard`);
+  - a new `seed-admin` server command;
+  - the app's SQL login is least-privilege.
+- **Docs:** `docs/DEPLOYMENT.md`, plus a "before any network or internet exposure" checklist in `SECURITY-REVIEW.md`.
+
 ## M10: security audit and hardening (2026-10-10)
 - **Two-factor sign-in (TOTP):** QR code and recovery codes; required for Admins; Admins can require or reset it for Managers.
 - **Sessions:** logout ends all of a user's sessions.

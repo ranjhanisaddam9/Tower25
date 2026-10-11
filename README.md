@@ -124,7 +124,7 @@ The command:
 - ends that user's sessions;
 - writes an audit log entry.
 
-Stop the running app first, because the build can't replace files it has locked. On a published server, run `HR.Web.exe admin-reset --email "…"` instead.
+Stop the running app first, because the build can't replace files it has locked. On an installed PC, use `C:\HRPayroll\tools\admin-reset.ps1 -Email "…"` instead (see [INSTALL.md](deploy/INSTALL.md)).
 
 Fonts and icons (Plus Jakarta Sans, Bootstrap Icons) are self-hosted under `src/HR.Web/wwwroot/lib` and committed.
 To re-download them after editing `libman.json`, run `libman restore` from `src/HR.Web`.
@@ -187,12 +187,32 @@ Never commit secrets. In production, supply settings through environment variabl
 | Auto-migrate on startup (default `false`) | `Database__MigrateOnStartup` |
 | Allowed host names | `AllowedHosts` |
 | First Admin (only used while no Admin exists) | `Seed__Admin__Email`, `Seed__Admin__FullName`, `Seed__Admin__Password` |
-
 | Data Protection key folder | `DataProtection__KeysPath` |
 | JSON log file path | `Logging__File__Path` |
 | Audit retention in days (0 = keep forever) | `Audit__RetentionDays` |
 
-Behind a reverse proxy, the rate limits (10 logins per minute per IP; 120 POSTs and 30 exports per minute per user) need forwarded headers configured so they see the real client IP. Deployment (IIS, backups, a deployment guide) is deferred for now; the app runs locally.
+Behind a reverse proxy, the rate limits (10 logins per minute per IP; 120 POSTs and 30 exports per minute per user) need forwarded headers configured so they see the real client IP. On an installed PC, `setup.ps1` writes the machine settings to `C:\HRPayroll\config\appsettings.Production.json` (see "Release package" below).
+
+## Release package (install on a PC)
+
+HR Payroll v1 is installed on one Windows PC from a portable zip. It is reachable only on that PC, at `https://localhost:7443`.
+
+Build the package (this needs the pinned .NET SDK and `dotnet-ef`):
+
+```bash
+powershell -ExecutionPolicy Bypass -File build-package.ps1
+```
+
+This creates `dist\HRPayroll-v1.0.0-win-x64.zip` (git-ignored). It contains:
+- the self-contained app;
+- `migrate.exe`, the EF migration bundle;
+- the scripts `setup`, `update`, `uninstall`, `admin-reset`, `backup`, `register-backup-task` and `restore` (all `.ps1`);
+- `INSTALL.md` and `restore.md`;
+- the licences.
+
+The target PC needs Windows 10 or 11 and SQL Server Express, but no .NET. How to install, update, back up, restore and uninstall is in [deploy/INSTALL.md](deploy/INSTALL.md). See also [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+> `dotnet run` (Development) is for development only. Never use it with real data.
 
 ## Exports and third-party licences
 

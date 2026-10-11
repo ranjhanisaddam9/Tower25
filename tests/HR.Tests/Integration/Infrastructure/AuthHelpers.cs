@@ -49,7 +49,7 @@ public static partial class AuthHelpers
 
         if (enrolTwoFactor ?? role == AppRoles.Admin)
         {
-            var key = await EnrolAsync(users, user);
+            var key = await EnrolAsync(users, user, factory.Time);
             return new TestUser(user.Id, email, password, key);
         }
 
@@ -61,15 +61,16 @@ public static partial class AuthHelpers
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        return await EnrolAsync(users, (await users.FindByIdAsync(userId))!);
+        return await EnrolAsync(users, (await users.FindByIdAsync(userId))!, factory.Time);
     }
 
-    private static async Task<string> EnrolAsync(UserManager<ApplicationUser> users, ApplicationUser user)
+    private static async Task<string> EnrolAsync(UserManager<ApplicationUser> users, ApplicationUser user, TimeProvider clock)
     {
         AssertSucceeded(await users.ResetAuthenticatorKeyAsync(user));
         var key = (await users.GetAuthenticatorKeyAsync(user))!;
         AssertSucceeded(await users.SetTwoFactorEnabledAsync(user, true));
         Keys[user.Email!] = key;
+        Totp.UseClock(key, clock);
         return key;
     }
 
@@ -115,7 +116,7 @@ public static partial class AuthHelpers
             && response.Headers.Location?.OriginalString.StartsWith("/account/login-2fa", StringComparison.Ordinal) == true
             && Keys.TryGetValue(email, out var key))
         {
-            return await client.PostTwoFactorCodeAsync(Totp.Code(key), response.Headers.Location.OriginalString);
+            return await client.PostTwoFactorCodeAsync(await Totp.NextCodeAsync(key), response.Headers.Location.OriginalString);
         }
 
         return response;

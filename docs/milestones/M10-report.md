@@ -139,3 +139,83 @@ If you're ever locked out:
    dotnet run --project src/HR.Web -- admin-reset --email "ranjhani.saddam@gmail.com"
    ```
 3. Sign in with the printed password, change it, and set up two-factor again.
+
+---
+
+# M10 part 2: release package, backups and TOTP replay fix (IN PROGRESS, 11 Oct 2026)
+
+**Status: work in progress.** This is a WIP commit made at the owner's request, so the work can be shared. Step 3, the install test on this PC, has **not** started. The v1.0.0 tag is **not** created.
+
+## Step 1: TOTP replay fix (done)
+- A new `ReplayProtectedAuthenticatorTokenProvider` replaces Identity's authenticator provider. It keeps the same RFC 6238 codes and the same ±2-step window. The step of the last accepted code is stored in `AspNetUsers.LastTotpTimeStep`.
+- Any code at or before that step is refused, both at sign-in and at enrolment.
+- Two requests racing with the same code: only one wins, because the save is guarded by Identity's concurrency stamp.
+- Migration: `20261010210705_AddTotpReplayGuard`, applied to the dev database.
+- Tests: `TotpReplayTests` (5 integration) and `TotpUnitTests` (RFC 6238 vectors, drift window, Base32).
+- The test TOTP helper now follows the test host's adjustable clock and never reuses a time step.
+- SECURITY-REVIEW.md: the residual-risk entry is replaced by the fix description.
+
+## Step 2: release package (built; not yet install-tested)
+
+**App changes**
+- `UseWindowsService`; the content root is the exe folder when running as a service.
+- Configuration from `..\config\appsettings.Production.json`, outside the app folder (Production only; override with `HRPAYROLL_CONFIG_DIR`).
+- The Kestrel certificate comes from LocalMachine\My by thumbprint (`HttpsCertificate:Thumbprint`).
+- A new `seed-admin` server command; the password arrives only through the process environment.
+- `BackupStatusService` plus a dashboard warning for Admins only. It appears when no backup has run, the last run failed, the status can't be read, or the last good backup is older than 48 hours.
+- New package `Microsoft.Extensions.Hosting.WindowsServices`. `RuntimeIdentifiers=win-x64` was added to Directory.Build.props, so the lock files stay stable with the self-contained publish.
+
+**Scripts** in `deploy/` (Windows PowerShell 5.1, ASCII-only, parse-checked):
+- `setup.ps1` (`-DatabaseName`, `-Port`, `-NoService`, `-BackupTask`)
+- `update.ps1` (backup, `app.previous`, migrate, health check, rollback)
+- `uninstall.ps1` (`-RemoveData` with the database name typed to confirm)
+- `admin-reset.ps1`
+- `backup.ps1`:
+  - `CHECKSUM` plus `RESTORE VERIFYONLY`
+  - 14 daily and 12 monthly kept
+  - an encrypted 7-Zip copy (AES-256, encrypted headers)
+  - `-SetPassword` with a DPAPI machine-scope password file
+  - `status.json` and `backup.log`
+- `register-backup-task.ps1` (as SYSTEM, at 23:00, runs after a missed start)
+- `restore.ps1`, an addition that supports restore.md and the restore drill
+- `common.ps1`, shared helpers.
+
+**Documents:** `INSTALL.md`, `restore.md`, `THIRD-PARTY-NOTICES.md`, `docs/DEPLOYMENT.md` (a stub). SECURITY-REVIEW.md gains a "Release package" section and the "Before any network or internet exposure" checklist. README, CHANGELOG and CLAUDE.md are updated.
+
+**`build-package.ps1`** builds `dist\HRPayroll-v1.0.0-win-x64.zip`: **136.1 MB zipped, 334.6 MB unzipped**.
+
+**Production smoke test** of the packaged app, run from its folder with a temporary config on port 7450:
+- `/health` → 200 `Healthy`, with all security headers (CSP, COOP, CORP, nosniff, DENY and the rest);
+- `/account/login` → 200; `/css/site.css` → 200;
+- no HTTP listener;
+- the JSON log file was written to the configured folder.
+
+**Finding:** when `HR.Web.exe` runs from another folder, the content root is that folder, so `appsettings.json`, views and wwwroot aren't found. The service, the shortcut and admin-reset.ps1 already ran from the app folder; setup now runs `seed-admin` from the app folder too.
+
+## Tests: 594 passed, 0 failed, 0 skipped
+The build has 0 warnings. The dev database is migrated.
+
+## BLOCKER: Microsoft Defender flags register-backup-task.ps1
+- Extracting the zip fails on `register-backup-task.ps1`: "the file contains a virus or potentially unwanted software". Copying the same file outside a zip (same SHA-256) is not blocked.
+- **Likely cause** (unconfirmed): heuristics for the combination of a scheduled task running as SYSTEM, `powershell.exe -ExecutionPolicy Bypass -File`, and a new SQL login for SYSTEM. This is almost certainly a false positive.
+- The detection name isn't known yet: reading Defender's history needs an elevated shell.
+- **Waiting for the owner:**
+  - the output of `Get-MpThreatDetection` and `Get-MpThreat` (run as Administrator);
+  - a decision:
+    1. report the false positive to Microsoft;
+    2. change how the nightly backup runs (for example, a background job inside the app);
+    3. sign the scripts with a CA-issued code-signing certificate.
+- The code was not reworded to slip past Defender, on purpose.
+
+## Still to do in M10
+- Resolve the Defender blocker, then run Step 3 on this PC, as the owner's Administrator steps alternating with my checks:
+  - install with `-DatabaseName HRPayroll_PackageTest -Port 7444`;
+  - `/health`, headers and `__Host-` cookies; confirm the LAN IP can't connect;
+  - Admin sign-in, forced password change and two-factor enrolment;
+  - service restart, and the sign-in cookie surviving it;
+  - `admin-reset.ps1`, then `update.ps1`;
+  - the restore drill into `HRPayroll_RestoreTest`, comparing row counts;
+  - visual checks at 375px and 1440px in both themes, including the backup warning and the 404 and 503 pages;
+  - `uninstall.ps1 -RemoveData`.
+- The owner installs 7-Zip, for the encrypted-copy test.
+- Final report update, the final commit "M10: release package, backups and TOTP replay fix", and the v1.0.0 tag.

@@ -487,3 +487,6 @@ appsettings.*.local.json
 *.user
 # Claude Code local tooling
 .claude/
+
+# Release package output (build-package.ps1)
+dist/

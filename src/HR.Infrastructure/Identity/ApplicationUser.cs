@@ -25,4 +25,10 @@ public class ApplicationUser : IdentityUser
     /// Admins always need two-factor, whatever this says.
     /// </summary>
     public bool RequireTwoFactor { get; set; }
+
+    /// <summary>
+    /// The RFC 6238 time step of the last authenticator code accepted (M10). Codes from that step or earlier are refused,
+    /// so an observed code can't be replayed within its validity window.
+    /// </summary>
+    public long? LastTotpTimeStep { get; set; }
 }
