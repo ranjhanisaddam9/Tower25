@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Updates an installed HR Payroll to the version in this package. Run from the unzipped NEW package, as Administrator.
+    Updates HR Payroll on this server to the version in this package. Run from the unzipped NEW package, as Administrator.
 
 .DESCRIPTION
     1. Backs up the database (backup.ps1). Nothing changes if the backup fails.
-    2. Stops the app and keeps the current version as C:\HRPayroll\app.previous.
-    3. Copies the new version, applies database migrations, starts the app and checks /health.
-    4. If anything fails: puts the previous version back, starts it, and prints how to restore the database backup.
+    2. Takes the site offline (app_offline.htm) and keeps the current build in C:\HRPayroll\app.previous.
+    3. Copies the new build, applies migrations (migrate.ps1), brings the site back and checks /health.
+    4. If anything fails: restores the previous build and prints how to restore the database backup.
 #>
 [CmdletBinding()]
 param()
@@ -17,11 +17,11 @@ $package = $PSScriptRoot
 Assert-Windows
 Assert-Administrator
 $settings = Get-InstallSettings
-$port = [int]$settings.Port
-$connection = Get-ConnectionString $settings.SqlInstance $settings.DatabaseName
+$hostName = $settings.HostName
+$port = [int]$settings.HttpsPort
 $newVersion = (Get-Content -Raw (Join-Path $package 'VERSION.txt') -ErrorAction SilentlyContinue)
 if ($newVersion) { $newVersion = $newVersion.Trim() }
-foreach ($required in @('app\HR.Web.exe', 'migrate.exe')) {
+foreach ($required in @('app\HR.Web.dll', 'migrate.exe', 'migrate.ps1')) {
     if (-not (Test-Path (Join-Path $package $required))) { Stop-WithError "The package is incomplete: $required is missing." }
 }
 
@@ -31,62 +31,57 @@ Write-Host ''
 
 # ---------------------------------------------------------------- 1. backup
 Write-Step 'Backing up the database first'
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ToolsDir 'backup.ps1')
-if ($LASTEXITCODE -ne 0) { Stop-WithError 'The backup failed, so nothing was updated. Fix the backup first (see C:\HRPayroll\backups\backup.log).' }
+& (Join-Path $ToolsDir 'backup.ps1')
+if ($LASTEXITCODE -ne 0) { Stop-WithError 'The backup failed, so nothing was updated. Fix the backup first (C:\HRPayroll\backups\backup.log).' }
 $backupFile = (Get-Content -Raw $StatusFile | ConvertFrom-Json).lastFile
-Write-Done "Backup: $backupFile"
+Write-Done "Restore point: $backupFile"
 
-# ---------------------------------------------------------------- 2. stop, keep the old version
-Write-Step 'Stopping HR Payroll'
-Stop-App
-if (Test-Path $PreviousAppDir) { Remove-Item $PreviousAppDir -Recurse -Force }
-Move-Item $AppDir $PreviousAppDir
-Write-Done "The current version is kept as $PreviousAppDir."
+# ---------------------------------------------------------------- 2. offline, keep the current build
+Write-Step 'Taking the site offline (app_offline.htm)'
+Enter-Maintenance
+Copy-Mirror $AppDir $PreviousAppDir
+Write-Done "The current build is kept in $PreviousAppDir."
 
 function Restore-PreviousVersion([string]$Reason) {
     Write-Host ''
-    Write-Warning2 "$Reason Rolling back to the previous version."
-    Stop-App
-    if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
-    Move-Item $PreviousAppDir $AppDir
-    $healthy = Start-App -Port $port
+    Write-Warning2 "$Reason Rolling back to the previous build."
+    Enter-Maintenance
+    Copy-Mirror $PreviousAppDir $AppDir
+    Exit-Maintenance
+    $healthy = Wait-Healthy $hostName $port
     Write-Host ''
-    if ($healthy) { Write-Host 'The previous version is running again.' -ForegroundColor Yellow }
-    else { Write-Host 'The previous version did not report Healthy either; check the newest log in C:\HRPayroll\logs.' -ForegroundColor Red }
+    if ($healthy) { Write-Host 'The previous build is running again.' -ForegroundColor Yellow }
+    else { Write-Host 'The previous build did not report Healthy either; check the newest log in C:\HRPayroll\logs.' -ForegroundColor Red }
     Write-Host ''
-    Write-Host 'If the new version had already changed the database, restore the backup taken at the start:' -ForegroundColor Yellow
+    Write-Host 'If migrations had already changed the database, restore the backup taken at the start:' -ForegroundColor Yellow
     Write-Host "  powershell -ExecutionPolicy Bypass -File C:\HRPayroll\tools\restore.ps1 -BackupFile `"$backupFile`" -Replace"
-    Write-Host '  (step-by-step instructions: C:\HRPayroll\tools\restore.md)'
+    Write-Host '  (step by step: C:\HRPayroll\tools\restore.md)'
     exit 1
 }
 
-# ---------------------------------------------------------------- 3. new version
+# ---------------------------------------------------------------- 3. new build, migrations, online
 try {
-    Write-Step 'Copying the new version'
-    New-Item -ItemType Directory -Path $AppDir | Out-Null
+    Write-Step 'Copying the new build'
     Copy-Mirror (Join-Path $package 'app') $AppDir
-    foreach ($file in Get-ChildItem -Path $package -File | Where-Object { $_.Extension -in '.ps1', '.md', '.exe', '.txt' }) {
-        Copy-Item -Path $file.FullName -Destination $ToolsDir -Force
-    }
-    if (Test-Path (Join-Path $package 'licences')) { Copy-Mirror (Join-Path $package 'licences') (Join-Path $ToolsDir 'licences') }
+    Install-Tools $package
 
-    Write-Step 'Applying database migrations'
-    & (Join-Path $package 'migrate.exe') --connection $connection
-    if ($LASTEXITCODE -ne 0) { throw "migrate.exe failed (exit code $LASTEXITCODE)." }
+    & (Join-Path $package 'migrate.ps1') -SqlInstance $settings.SqlInstance -DatabaseName $settings.DatabaseName
+    if ($LASTEXITCODE -ne 0) { throw 'Applying migrations failed.' }
 }
 catch {
     Restore-PreviousVersion "The update failed: $($_.Exception.Message)"
 }
 
-Write-Step 'Starting the new version'
-if (-not (Start-App -Port $port)) {
-    Restore-PreviousVersion 'The new version did not report Healthy within 90 seconds.'
+Write-Step 'Bringing the site back online'
+Exit-Maintenance
+if (-not (Wait-Healthy $hostName $port)) {
+    Restore-PreviousVersion 'The new build did not report Healthy within 90 seconds.'
 }
 
 $settings.Version = $newVersion
 Save-InstallSettings $settings
-Write-Done "https://localhost:$port/health answers Healthy."
+Write-Done "https://${hostName}:$port/health answers Healthy."
 Write-Host ''
 Write-Host "HR Payroll is updated to $newVersion." -ForegroundColor Green
-Write-Host "The previous version stays in $PreviousAppDir until the next update."
+Write-Host "The previous build stays in $PreviousAppDir until the next update."
 Write-Host ''

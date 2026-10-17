@@ -73,14 +73,14 @@ else
                 <tr>
                     <th scope="col">Code</th>
                     <th scope="col">Name</th>
-                    <th scope="col" class="money">Pay / month</th>
+                    <th scope="col" class="money">Salary / month</th>
                     <th scope="col">Since</th>
                     <th scope="col">Last change</th>
                     @if (admin is not null)
                     {
+                        <th scope="col" class="money">Commission / month</th>
                         <th scope="col" class="money">Billed / month</th>
-                        <th scope="col" class="money">Commission / period</th>
-                        <th scope="col" class="money">Est. earning / period</th>
+                        <th scope="col" class="money">Earning / period</th>
                     }
                 </tr>
             </thead>
@@ -95,10 +95,10 @@ else
                                 <span class="cell-sub">@row.Designation</span>
                             </span>
                         </td>
-                        <td data-label="Pay / month" class="money">
-                            @if (row.PayMonthlyAmount is { } payAmount && row.PayCurrency is { } currency)
+                        <td data-label="Salary / month" class="money">
+                            @if (row.SalaryMonthlyUsd is { } salary)
                             {
-                                <span data-testid="salary-pay">@DisplayFormat.Money(payAmount, currency)</span>
+                                <span data-testid="salary-pay">@DisplayFormat.Usd(salary)</span>
                             }
                             else if (row.StartsOn is { } starts)
                             {
@@ -122,9 +122,9 @@ else
                         </td>
                         @if (admin is not null && admin.Rows.TryGetValue(row.PersonId, out var a))
                         {
+                            <td data-label="Commission / month" class="money">@(a.CommissionMonthlyUsd is { } c ? DisplayFormat.Usd(c) : "—")</td>
                             <td data-label="Billed / month" class="money">@(a.BilledMonthlyUsd is { } b ? DisplayFormat.Usd(b) : "—")</td>
-                            <td data-label="Commission / period" class="money">@(a.CommissionPerPeriodUsd is { } c ? DisplayFormat.Usd(c) : "—")</td>
-                            <td data-label="Est. earning / period" class="money">
+                            <td data-label="Earning / period" class="money">
                                 <span class="cell-group">
                                     <span>@(a.EarningPerFullPeriodUsd is { } e ? DisplayFormat.Usd(e) : "—")</span>
                                     @if (a.NeedsReview)
@@ -141,10 +141,12 @@ else
             {
                 <tfoot>
                     <tr data-testid="salary-totals">
-                        <th scope="row" colspan="5">Totals (all @Model.TotalCount shown by this filter)</th>
+                        <th scope="row" colspan="2">Totals (all @Model.TotalCount shown by this filter)</th>
+                        <td data-label="Salary / month" class="money" data-testid="total-salary">@DisplayFormat.Usd(admin.Totals.SalaryMonthlyUsd)</td>
+                        <td colspan="2"><span class="visually-hidden">No total</span></td>
+                        <td data-label="Commission / month" class="money" data-testid="total-commission">@DisplayFormat.Usd(admin.Totals.CommissionMonthlyUsd)</td>
                         <td data-label="Billed / month" class="money" data-testid="total-billed">@DisplayFormat.Usd(admin.Totals.BilledMonthlyUsd)</td>
-                        <td data-label="Commission / period" class="money">—</td>
-                        <td data-label="Est. earning / period" class="money" data-testid="total-earning">@DisplayFormat.Usd(admin.Totals.EarningPerFullPeriodUsd)</td>
+                        <td data-label="Earning / period" class="money" data-testid="total-earning">@DisplayFormat.Usd(admin.Totals.EarningPerFullPeriodUsd)</td>
                     </tr>
                 </tfoot>
             }
@@ -153,9 +155,7 @@ else
     @if (admin is not null)
     {
         <p class="form-hint mt-2">
-            Earning per full pay period is billed (salary part + commission) minus pay.
-            @(admin.Totals.EarningIsEstimate ? "PKR pay is converted at today's exchange rate, so totals are estimates." : "")
-            @(admin.Totals.PeopleWithoutRate > 0 ? $"{admin.Totals.PeopleWithoutRate} PKR-paid people are left out: there is no exchange rate yet." : "")
+            Earning per full pay period is billed minus salary (your commission); for the owner it is the whole billed amount. All amounts are USD; salaries are paid in PKR at each payroll's rate.
         </p>
     }
 

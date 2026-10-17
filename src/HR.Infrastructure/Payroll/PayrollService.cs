@@ -64,6 +64,7 @@ public sealed record PayrollLineRow(
     decimal UnpaidDays,
     decimal ExtraDays,
     decimal PayableDays,
+    /// <summary>The monthly pay snapshot: the USD salary (lines since v1.1.0) or the legacy pay amount and currency.</summary>
     decimal? PayMonthlyAmount,
     PayCurrency? PayCurrency,
     decimal? PayPkr,
@@ -81,6 +82,7 @@ public sealed record PayrollLineBilling(
     HireSource? HireSource,
     decimal? BilledMonthlyUsd,
     decimal? CommissionPerPeriodUsd,
+    decimal? CommissionMonthlyUsd,
     decimal? SalaryPartUsd,
     decimal? CommissionUsd,
     decimal? BilledUsd,
@@ -272,7 +274,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
     public async Task<IReadOnlyDictionary<int, PayrollLineBilling>> BillingAsync(int runId, int? lineId = null, CancellationToken cancellationToken = default) =>
         (await db.PayrollLines.AsNoTracking()
             .Where(l => l.RunId == runId && (lineId == null || l.Id == lineId))
-            .Select(l => new PayrollLineBilling(l.Id, l.HireSource, l.BilledMonthlyUsd, l.CommissionPerPeriodUsd, l.SalaryPartUsd, l.CommissionUsd,
+            .Select(l => new PayrollLineBilling(l.Id, l.HireSource, l.BilledMonthlyUsd, l.CommissionPerPeriodUsd, l.CommissionMonthlyUsd, l.SalaryPartUsd, l.CommissionUsd,
                 l.BilledUsd, l.AdjustmentsUsd, l.InvoiceUsd, l.OwnerEarningUsd, l.OwnerEarningPkr))
             .ToListAsync(cancellationToken))
         .ToDictionary(b => b.LineId);
@@ -837,7 +839,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
             .ToDictionary(g => g.Key, g => g.Select(a => new AbsenceDay(a.Date, a.Portion)).ToList());
         var records = (await db.RateRecords.AsNoTracking()
                 .Where(r => ids.Contains(r.PersonId) && r.EffectiveFrom <= period.Start)
-                .Select(r => new { r.Id, r.PersonId, r.EffectiveFrom, r.BilledMonthlyUsd, r.CommissionPerPeriodUsd, r.PayMonthlyAmount, r.PayCurrency })
+                .Select(r => new { r.Id, r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd, r.CommissionMonthlyUsd, r.BilledMonthlyUsd })
                 .ToListAsync(cancellationToken))
             .GroupBy(r => r.PersonId)
             .ToDictionary(g => g.Key, g => g.MaxBy(r => r.EffectiveFrom)!);
@@ -866,7 +868,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
             }
 
             var record = records.GetValueOrDefault(personId);
-            var terms = record is null ? null : new PayTerms(record.EffectiveFrom, record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency);
+            var terms = record is null ? null : new PayTerms(record.EffectiveFrom, record.SalaryMonthlyUsd, record.CommissionMonthlyUsd, record.BilledMonthlyUsd);
             var snapshot = new PayrollLineSnapshot(person.Code, person.FullName, person.Designation, person.Type, person.HireSource, person.BankName, person.Iban, record?.Id, terms);
             var isNew = line is null;
             line ??= run.AddLine(personId);
@@ -894,7 +896,7 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
     private IQueryable<PayrollLineRow> LineRows(IQueryable<PayrollLine> lines) =>
         lines.Select(l => new PayrollLineRow(
             l.Id, l.PersonId, l.PersonCode, l.PersonName, l.Designation, l.PersonType, l.WorkingDays, l.EmployedWorkingDays, l.UnpaidDays,
-            l.ExtraDays, l.PayableDays, l.PayMonthlyAmount, l.PayCurrency, l.PayPkr, l.PayUsd, l.AdjustmentsPkr, l.NetPayPkr, l.NetPayUsd,
+            l.ExtraDays, l.PayableDays, l.SalaryMonthlyUsd ?? l.PayMonthlyAmount, l.SalaryMonthlyUsd != null ? PayCurrency.USD : l.PayCurrency, l.PayPkr, l.PayUsd, l.AdjustmentsPkr, l.NetPayPkr, l.NetPayUsd,
             l.Issue, l.IsOrphaned, db.PayrollAdjustments.Count(a => a.LineId == l.Id)));
 
     private Task<PayrollRun?> LoadRunAsync(int runId, CancellationToken cancellationToken) =>
@@ -990,9 +992,9 @@ public sealed class PayrollService(AppDbContext db, IClock clock, IExchangeRateS
                 ("Bank details", $"{l.BankName} {l.Iban}", false),
                 ("Hire source", l.HireSource?.ToString() ?? "none", true),
                 ("Pay record", l.RateRecordId?.ToString(CultureInfo.InvariantCulture) ?? "none", false),
-                ("Monthly pay", $"{D(l.PayMonthlyAmount)} {l.PayCurrency}", false),
+                ("Monthly salary", l.SalaryMonthlyUsd is { } s ? $"{D(s)} USD" : $"{D(l.PayMonthlyAmount)} {l.PayCurrency}", false),
                 ("Monthly billing", D(l.BilledMonthlyUsd), true),
-                ("Commission per period", D(l.CommissionPerPeriodUsd), true),
+                ("Monthly commission", l.CommissionMonthlyUsd is { } c ? D(c) : $"{D(l.CommissionPerPeriodUsd)} per period", true),
                 ("Employed working days", l.EmployedWorkingDays.ToString(CultureInfo.InvariantCulture), false),
                 ("Unpaid days", D(l.UnpaidDays), false),
                 ("Payable days", D(l.PayableDays), false),

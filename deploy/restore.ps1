@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
-    Restores an HR Payroll backup (.bak, or an encrypted .bak.7z copy). Run as Administrator. See restore.md.
+    Restores an HR Payroll backup (.bak, or an encrypted .bak.7z copy). See restore.md.
 
 .PARAMETER BackupFile
     The backup to restore, e.g. C:\HRPayroll\backups\daily\HRPayroll_20261011_230000.bak or a .bak.7z copy.
 .PARAMETER AsDatabase
     Restore into this database name instead of the live one (for checking a backup). The live database is untouched.
 .PARAMETER Replace
-    Overwrite the live database. HR Payroll is stopped during the restore and started again afterwards.
+    Overwrite the live database. The site is taken offline (app_offline.htm) during the restore; if the restore fails
+    it stays offline until you fix it (delete C:\HRPayroll\app\app_offline.htm to bring it back).
 #>
 [CmdletBinding()]
 param(
@@ -18,7 +19,7 @@ param(
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-Assert-Administrator
+if ($Replace) { Assert-Administrator } # a copy under another name needs only SQL Server rights
 $settings = Get-InstallSettings
 $live = $settings.DatabaseName
 $target = if ($AsDatabase) { $AsDatabase } else { $live }
@@ -58,8 +59,8 @@ try {
     }
 
     if ($target -eq $live) {
-        Write-Step 'Stopping HR Payroll'
-        Stop-App
+        Write-Step 'Taking the site offline (app_offline.htm)'
+        Enter-Maintenance
     }
     Write-Step "Restoring into [$target]"
     $sql = "RESTORE DATABASE [$target] FROM DISK = @file WITH CHECKSUM, RECOVERY, REPLACE, " + ($moves -join ', ')
@@ -68,8 +69,9 @@ try {
     Write-Done "Restored $([IO.Path]::GetFileName($BackupFile)) into [$target]."
 
     if ($target -eq $live) {
-        Write-Step 'Starting HR Payroll'
-        if (Start-App -Port ([int]$settings.Port)) { Write-Done 'Running and healthy.' }
+        Write-Step 'Bringing the site back online'
+        Exit-Maintenance
+        if (Wait-Healthy $settings.HostName ([int]$settings.HttpsPort)) { Write-Done 'Running and healthy.' }
         else { Write-Warning2 'HR Payroll did not report Healthy; check the newest log in C:\HRPayroll\logs.' }
     }
 }

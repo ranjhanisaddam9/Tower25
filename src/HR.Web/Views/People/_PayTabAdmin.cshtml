@@ -1,23 +1,21 @@
 @using HR.Domain.Pay
-@using HR.Domain.Rates
 @model AdminPayTabViewModel
 @{
     var tab = Model.Tab;
-    var rateText = tab.UsdToPkr is { } r ? $"Rs {ExchangeRateRules.Format(r)} per USD" : null;
 }
 
 @if (tab.Source is null)
 {
     <div class="empty-state" data-testid="pay-no-source">
         <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
-        <p class="empty-state-text">Set this person's hire source (in the Hire source card) before setting up pay. The source decides how billing, commission and pay relate.</p>
+        <p class="empty-state-text">Set this person's hire source (in the Hire source card) before setting up pay. The source decides how salary, commission and billing relate.</p>
     </div>
 }
 else if (tab.Rows.Count == 0)
 {
     <div class="empty-state" data-testid="pay-empty">
         <span class="empty-state-icon" aria-hidden="true"><i class="bi bi-cash-stack"></i></span>
-        <p class="empty-state-text">No pay set up yet. The first record sets billing and pay for @HireSourceDisplay.Label(tab.Source).ToLowerInvariant() terms.</p>
+        <p class="empty-state-text">No pay set up yet. The first record sets the salary, commission and billing for @HireSourceDisplay.Label(tab.Source).ToLowerInvariant() terms.</p>
         <a class="btn btn-primary-gradient" asp-controller="Pay" asp-action="New" asp-route-personId="@Model.PersonId"><i class="bi bi-plus-lg" aria-hidden="true"></i> Set up pay</a>
     </div>
 }
@@ -31,30 +29,45 @@ else
     {
         var t = current.Terms;
         var amounts = current.FullPeriod;
-        <div class="pay-summary" data-testid="pay-current">
-            <div class="pay-summary-item">
-                <span class="pay-summary-label">Pay</span>
-                <span class="pay-summary-value num">@DisplayFormat.Money(t.PayMonthlyAmount, t.PayCurrency) <span class="pay-summary-unit">/ month</span></span>
-                <span class="pay-summary-sub num">@DisplayFormat.Money(PayMath.PayPerFullPeriod(t.PayMonthlyAmount, t.PayCurrency), t.PayCurrency) per full period</span>
-            </div>
-            <div class="pay-summary-item">
-                <span class="pay-summary-label">Billed to the Company</span>
-                <span class="pay-summary-value num">@DisplayFormat.Usd(t.BilledMonthlyUsd) <span class="pay-summary-unit">/ month</span></span>
-                <span class="pay-summary-sub num">@DisplayFormat.Usd(amounts.BilledUsd) per full period@(amounts.CommissionUsd > 0 ? $" (incl. {DisplayFormat.Usd(amounts.CommissionUsd)} commission)" : "")</span>
-            </div>
-            <div class="pay-summary-item">
-                <span class="pay-summary-label">Your earning per full period</span>
-                @if (amounts.EarningUsd is { } earning)
-                {
-                    <span class="pay-summary-value num" data-testid="pay-earning">@DisplayFormat.Usd(earning)</span>
-                    <span class="pay-summary-sub">@(tab.Source == HR.Domain.People.HireSource.Owner ? "Your whole billed amount" : t.PayCurrency == PayCurrency.PKR ? $"Estimate at today's rate ({rateText})" : "Billed minus pay")</span>
-                }
-                else
-                {
-                    <span class="pay-summary-value">—</span>
-                    <span class="pay-summary-sub">Add an exchange rate to estimate PKR pay in USD.</span>
-                }
-            </div>
+        var isOwner = tab.Source == HR.Domain.People.HireSource.Owner;
+        <div class="glass-table-wrap glass-table-wrap-inset pay-current-wrap" data-testid="pay-current">
+            <table class="glass-table pay-current-table" aria-label="Current pay">
+                <thead>
+                    <tr>
+                        <th scope="col">Current</th>
+                        <th scope="col" class="money">Per month</th>
+                        <th scope="col" class="money">Per full period</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Salary</th>
+                        <td data-label="Per month" class="money">@DisplayFormat.Usd(t.SalaryMonthlyUsd)</td>
+                        <td data-label="Per full period" class="money">
+                            @DisplayFormat.Usd(amounts.SalaryUsd)
+                            @if (amounts.PayPkr is { } pkr)
+                            {
+                                <span class="cell-sub">≈ @DisplayFormat.Pkr(pkr) at today's rate</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Commission</th>
+                        <td data-label="Per month" class="money">@DisplayFormat.Usd(t.CommissionMonthlyUsd)</td>
+                        <td data-label="Per full period" class="money">@DisplayFormat.Usd(amounts.CommissionUsd)</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Billed</th>
+                        <td data-label="Per month" class="money">@DisplayFormat.Usd(t.BilledMonthlyUsd)</td>
+                        <td data-label="Per full period" class="money">@DisplayFormat.Usd(amounts.BilledUsd)</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Your earning <span class="cell-sub">@(isOwner ? "your whole billed amount" : "billed minus salary")</span></th>
+                        <td data-label="Per month" class="money">@DisplayFormat.Usd(isOwner ? t.BilledMonthlyUsd : t.CommissionMonthlyUsd)</td>
+                        <td data-label="Per full period" class="money" data-testid="pay-earning">@DisplayFormat.Usd(amounts.EarningUsd)</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
         <p class="pay-since text-muted-glass">In effect since @DisplayFormat.Date(t.EffectiveFrom).</p>
     }
@@ -69,10 +82,10 @@ else
                 <tr>
                     <th scope="col">Effective from</th>
                     <th scope="col">Change</th>
-                    <th scope="col" class="money">Pay / month</th>
+                    <th scope="col" class="money">Salary / month</th>
+                    <th scope="col" class="money">Commission / month</th>
                     <th scope="col" class="money">Billed / month</th>
-                    <th scope="col" class="money">Commission / period</th>
-                    <th scope="col" class="money">Pay change</th>
+                    <th scope="col" class="money">Salary change</th>
                     <th scope="col">Note</th>
                     <th scope="col">Added by</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -92,10 +105,10 @@ else
                             </span>
                         </td>
                         <td data-label="Change"><span class="pill @PayDisplay.PillClass(row.ChangeType)">@PayDisplay.AdminLabel(row.ChangeType)</span></td>
-                        <td data-label="Pay / month" class="money">@DisplayFormat.Money(row.PayMonthlyAmount, row.PayCurrency)</td>
+                        <td data-label="Salary / month" class="money">@DisplayFormat.Usd(row.SalaryMonthlyUsd)</td>
+                        <td data-label="Commission / month" class="money">@DisplayFormat.Usd(row.CommissionMonthlyUsd)</td>
                         <td data-label="Billed / month" class="money">@DisplayFormat.Usd(row.BilledMonthlyUsd)</td>
-                        <td data-label="Commission / period" class="money">@DisplayFormat.Usd(row.CommissionPerPeriodUsd)</td>
-                        <td data-label="Pay change" class="money">@(row.PayChangePercent is { } pct ? DisplayFormat.Percent(pct) : "—")</td>
+                        <td data-label="Salary change" class="money">@(row.SalaryChangePercent is { } pct ? DisplayFormat.Percent(pct) : "—")</td>
                         <td data-label="Note" class="cell-wrap">@(row.Note ?? "—")</td>
                         <td data-label="Added by">@(row.AddedBy ?? "—")</td>
                         <td data-label="Actions" class="cell-actions">

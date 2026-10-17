@@ -255,22 +255,22 @@ public class ReportRuleTests
     {
         var history = new[]
         {
-            new RatePoint(new DateOnly(2026, 1, 1), 300m, PayCurrency.USD, 300m, 25m),
-            new RatePoint(new DateOnly(2026, 4, 1), 321m, PayCurrency.USD, 321m, 25m),
-            new RatePoint(new DateOnly(2026, 6, 16), 321m, PayCurrency.USD, 321m, 30m),
-            new RatePoint(new DateOnly(2026, 9, 1), 300m, PayCurrency.USD, 300m, 30m),
-            new RatePoint(new DateOnly(2026, 10, 1), 90_000m, PayCurrency.PKR, 300m, 30m),
+            new RatePoint(new DateOnly(2026, 1, 1), 300m, 350m, 50m),
+            new RatePoint(new DateOnly(2026, 4, 1), 321m, 371m, 50m),
+            new RatePoint(new DateOnly(2026, 6, 16), 321m, 381m, 60m),
+            new RatePoint(new DateOnly(2026, 9, 1), 300m, 360m, 60m),
+            new RatePoint(new DateOnly(2026, 10, 1), 330m, 390m, 60m),
         };
         var changes = SalaryChanges.Between(history, new DateOnly(2026, 2, 1), new DateOnly(2026, 12, 31));
 
         Assert.Equal(4, changes.Count);
-        Assert.Equal(7.00m, changes[0].PayChangePercent);
-        Assert.Equal((false, true), (changes[1].PayChanged, changes[1].BillingChanged)); // commission only (Admin)
-        Assert.Equal(-6.54m, changes[2].PayChangePercent);
-        Assert.Null(changes[3].PayChangePercent); // currency changed
+        Assert.Equal(7.00m, changes[0].SalaryChangePercent);
+        Assert.Equal((false, true), (changes[1].SalaryChanged, changes[1].BillingChanged)); // commission only (Admin)
+        Assert.Equal(-6.54m, changes[2].SalaryChangePercent);
+        Assert.Equal(10.00m, changes[3].SalaryChangePercent);
 
         // Managers' points carry no billing, so a billing-only change never appears for them.
-        var managerView = SalaryChanges.Between(history.Select(r => r with { BilledMonthlyUsd = null, CommissionPerPeriodUsd = null }), new DateOnly(2026, 2, 1), new DateOnly(2026, 12, 31));
+        var managerView = SalaryChanges.Between(history.Select(r => r with { BilledMonthlyUsd = null, CommissionMonthlyUsd = null }), new DateOnly(2026, 2, 1), new DateOnly(2026, 12, 31));
         Assert.Equal(3, managerView.Count);
         Assert.All(managerView, c => Assert.False(c.BillingChanged));
     }

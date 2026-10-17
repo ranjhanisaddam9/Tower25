@@ -1,5 +1,6 @@
 namespace HR.Domain.Pay;
 
+/// <summary>Currency of a payroll adjustment (bonus, reimbursement, deduction). Salaries are always USD (SPEC §2).</summary>
 public enum PayCurrency
 {
     USD = 1,
@@ -16,18 +17,20 @@ public enum RateChangeType
     Correction = 5,
 }
 
-/// <summary>The money terms of one rate record (SPEC §2), already derived and validated.</summary>
+/// <summary>
+/// The money terms of one rate record (SPEC §2), already derived and validated: three monthly USD figures with
+/// Billed = Salary + Commission. The person is paid the salary (in PKR at the payroll's rate); the Company is billed.
+/// </summary>
 public sealed record PayTerms(
     DateOnly EffectiveFrom,
-    decimal BilledMonthlyUsd,
-    decimal CommissionPerPeriodUsd,
-    decimal PayMonthlyAmount,
-    PayCurrency PayCurrency);
+    decimal SalaryMonthlyUsd,
+    decimal CommissionMonthlyUsd,
+    decimal BilledMonthlyUsd);
 
 /// <summary>
-/// A person's billing, commission and pay from <see cref="EffectiveFrom"/> (the 1st or 16th) until the next record.
-/// The record in effect on a period's start date applies to the whole period (SPEC §2). Corrections are allowed and
-/// audited; finalized payrolls keep their own snapshot (M7).
+/// A person's salary, commission and billing (monthly USD) from <see cref="EffectiveFrom"/> (the 1st or 16th) until the
+/// next record. The record in effect on a period's start date applies to the whole period (SPEC §2). Corrections are
+/// allowed and audited; finalized payrolls keep their own snapshot (M7).
 /// </summary>
 public sealed class RateRecord
 {
@@ -43,19 +46,21 @@ public sealed class RateRecord
 
     public DateOnly EffectiveFrom { get; private set; }
 
+    public decimal SalaryMonthlyUsd { get; private set; }
+
+    public decimal CommissionMonthlyUsd { get; private set; }
+
+    /// <summary>Always SalaryMonthlyUsd + CommissionMonthlyUsd (also a database check constraint).</summary>
     public decimal BilledMonthlyUsd { get; private set; }
-
-    public decimal CommissionPerPeriodUsd { get; private set; }
-
-    public decimal PayMonthlyAmount { get; private set; }
-
-    public PayCurrency PayCurrency { get; private set; }
 
     public RateChangeType ChangeType { get; private set; }
 
     public string? Note { get; private set; }
 
-    /// <summary>Set when a Manager changes pay for a BudgetHire person: the budget may have changed too.</summary>
+    /// <summary>
+    /// Set when a Manager changes the salary of a BudgetHire person (the budget may have changed too), and on records
+    /// converted from PKR pay by the pay-model migration.
+    /// </summary>
     public bool NeedsBillingReview { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -68,7 +73,7 @@ public sealed class RateRecord
 
     public byte[] RowVersion { get; private set; } = [];
 
-    public PayTerms Terms => new(EffectiveFrom, BilledMonthlyUsd, CommissionPerPeriodUsd, PayMonthlyAmount, PayCurrency);
+    public PayTerms Terms => new(EffectiveFrom, SalaryMonthlyUsd, CommissionMonthlyUsd, BilledMonthlyUsd);
 
     public static RateRecord Create(int personId, PayTerms terms, string? note, bool needsBillingReview, string actorId, DateTimeOffset now)
     {
@@ -110,10 +115,9 @@ public sealed class RateRecord
         }
 
         EffectiveFrom = terms.EffectiveFrom;
+        SalaryMonthlyUsd = terms.SalaryMonthlyUsd;
+        CommissionMonthlyUsd = terms.CommissionMonthlyUsd;
         BilledMonthlyUsd = terms.BilledMonthlyUsd;
-        CommissionPerPeriodUsd = terms.CommissionPerPeriodUsd;
-        PayMonthlyAmount = terms.PayMonthlyAmount;
-        PayCurrency = terms.PayCurrency;
         Note = trimmed;
         NeedsBillingReview = needsBillingReview;
         UpdatedAt = now;

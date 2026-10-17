@@ -1,6 +1,6 @@
 @using HR.Domain.Pay
 @model ManagerPayTabViewModel
-@* Manager view: pay side only. Built from ManagerPayTab, which has no billing, commission or hire-source data. *@
+@* Manager view: the salary only (USD, with a PKR estimate). Built from ManagerPayTab, which has no billing, commission or hire-source data. *@
 @{
     var tab = Model.Tab;
 }
@@ -22,17 +22,20 @@ else
     {
         <div class="pay-summary" data-testid="pay-current">
             <div class="pay-summary-item">
-                <span class="pay-summary-label">Pay per month</span>
-                <span class="pay-summary-value num">@DisplayFormat.Money(current.PayMonthlyAmount, current.PayCurrency)</span>
+                <span class="pay-summary-label">Salary per month</span>
+                <span class="pay-summary-value num">@DisplayFormat.Usd(current.SalaryMonthlyUsd)</span>
                 @if (tab.UsdToPkr is { } rate)
                 {
-                    var other = current.PayCurrency == PayCurrency.PKR ? PayCurrency.USD : PayCurrency.PKR;
-                    <span class="pay-summary-sub num">approx. @DisplayFormat.Money(PayMath.Convert(current.PayMonthlyAmount, current.PayCurrency, rate), other) at today's rate</span>
+                    <span class="pay-summary-sub num">approx. @DisplayFormat.Pkr(PayMath.ToPkr(current.SalaryMonthlyUsd, rate)) at today's rate</span>
                 }
             </div>
             <div class="pay-summary-item">
-                <span class="pay-summary-label">Pay per full period</span>
-                <span class="pay-summary-value num">@DisplayFormat.Money(current.PayPerFullPeriod, current.PayCurrency)</span>
+                <span class="pay-summary-label">Salary per full period</span>
+                <span class="pay-summary-value num">@DisplayFormat.Usd(current.SalaryPerFullPeriodUsd)</span>
+                @if (tab.UsdToPkr is { } periodRate)
+                {
+                    <span class="pay-summary-sub num">approx. @DisplayFormat.Pkr(PayMath.ToPkr(current.SalaryPerFullPeriodUsd, periodRate))</span>
+                }
                 <span class="pay-summary-sub">Since @DisplayFormat.Date(current.EffectiveFrom)</span>
             </div>
         </div>
@@ -48,8 +51,8 @@ else
                 <tr>
                     <th scope="col">Effective from</th>
                     <th scope="col">Change</th>
-                    <th scope="col" class="money">Pay / month</th>
-                    <th scope="col" class="money">Pay change</th>
+                    <th scope="col" class="money">Salary / month</th>
+                    <th scope="col" class="money">Change</th>
                     <th scope="col">Note</th>
                     <th scope="col">Added by</th>
                     <th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -61,8 +64,8 @@ else
                     <tr data-testid="pay-row">
                         <td data-label="Effective from" class="num">@DisplayFormat.Date(row.EffectiveFrom)</td>
                         <td data-label="Change"><span class="pill @PayDisplay.PillClass(row.ChangeLabel)">@row.ChangeLabel</span></td>
-                        <td data-label="Pay / month" class="money">@DisplayFormat.Money(row.PayMonthlyAmount, row.PayCurrency)</td>
-                        <td data-label="Pay change" class="money">@(row.PayChangePercent is { } pct ? DisplayFormat.Percent(pct) : "—")</td>
+                        <td data-label="Salary / month" class="money">@DisplayFormat.Usd(row.SalaryMonthlyUsd)</td>
+                        <td data-label="Change" class="money">@(row.SalaryChangePercent is { } pct ? DisplayFormat.Percent(pct) : "—")</td>
                         <td data-label="Note" class="cell-wrap">@(row.Note ?? "—")</td>
                         <td data-label="Added by">@(row.AddedBy ?? "—")</td>
                         <td data-label="Actions" class="cell-actions">

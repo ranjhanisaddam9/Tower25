@@ -9,28 +9,18 @@ using HR.Web.Configuration;
 using HR.Web.Security;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.WebEncoders;
 using Serilog;
 using Serilog.Formatting.Compact;
 
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-{
-    Args = args,
-    // As a Windows Service the working directory is System32: views and wwwroot live next to the exe.
-    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : null,
-});
-
-// Release package (M10): the Windows Service "HRPayroll" (a no-op when run from a console or by dotnet run).
-builder.Host.UseWindowsService(options => options.ServiceName = ReleaseHosting.ServiceName);
+var builder = WebApplication.CreateBuilder(args);
 
 // Optional, git-ignored machine overrides (e.g. this PC's SQL Server name), right after appsettings.{env}.json.
 builder.Configuration.AddLocalSettingsFile(builder.Environment);
 
 // Installed copies: C:\HRPayroll\config\appsettings.Production.json (outside the app folder; updates never touch it).
 builder.Configuration.AddInstallConfigFile(builder.Environment);
-builder.UseStoreCertificate();
 
 // Structured logs (M10): a rolling daily JSON file (30 kept). JSON escapes CR/LF, so user text can never forge a log line.
 // Serilog is one more logging provider: the console and any other provider keep receiving the same events unchanged.

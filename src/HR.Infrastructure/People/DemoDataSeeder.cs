@@ -215,42 +215,42 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
     public const string DemoManagerId = "demo-manager";
 
     /// <summary>
-    /// Demo pay mirroring SPEC §9 (Ayesha = G1 CompanyRecommended $300 + $25; Bilal = G4 BudgetHire $1,000 budget /
-    /// Rs 196,000 pay; Imran = G6 Owner $1,200, all from 2026-10-01), plus a few people with a year of changes.
-    /// Idempotent: people who already have pay records are skipped.
+    /// Demo pay mirroring SPEC §9 (monthly USD: Ayesha = G1 CompanyRecommended salary $300 + commission $50; Bilal = G4
+    /// BudgetHire budget $1,000, salary $700; Imran = G6 Owner $1,200, all from 2026-10-01), plus a few people with a
+    /// year of changes. Idempotent: people who already have pay records are skipped.
     /// </summary>
     private static readonly DemoPay[] Pay =
     [
-        new("Ayesha Siddiqui", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
-        new("Bilal Ahmed", [new("2026-10-01", 1000m, 0m, 196_000m, Domain.Pay.PayCurrency.PKR, ActorId)]),
-        new("Imran Qureshi", [new("2026-10-01", 1200m, 0m, 1200m, Domain.Pay.PayCurrency.USD, ActorId)]),
-        new("Kamran Yousaf", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
-        new("Nadia Haider", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
-        new("Rizwan Ali", [new("2026-10-01", 300m, 25m, 300m, Domain.Pay.PayCurrency.USD, ActorId)]),
+        new("Ayesha Siddiqui", [new("2026-10-01", 300m, 50m, ActorId)]),
+        new("Bilal Ahmed", [new("2026-10-01", 700m, 300m, ActorId)]),
+        new("Imran Qureshi", [new("2026-10-01", 1200m, 0m, ActorId)]),
+        new("Kamran Yousaf", [new("2026-10-01", 300m, 50m, ActorId)]),
+        new("Nadia Haider", [new("2026-10-01", 300m, 50m, ActorId)]),
+        new("Rizwan Ali", [new("2026-10-01", 300m, 50m, ActorId)]),
         new("Fatima Zahra",
         [
-            new("2025-10-01", 800m, 25m, 800m, Domain.Pay.PayCurrency.USD, ActorId),
-            new("2026-04-01", 900m, 25m, 900m, Domain.Pay.PayCurrency.USD, DemoManagerId),
+            new("2025-10-01", 800m, 50m, ActorId),
+            new("2026-04-01", 900m, 50m, DemoManagerId),
         ]),
         new("Hamza Sheikh",
         [
-            new("2025-11-01", 1500m, 0m, 280_000m, Domain.Pay.PayCurrency.PKR, ActorId),
-            new("2026-05-16", 1500m, 0m, 310_000m, Domain.Pay.PayCurrency.PKR, DemoManagerId, NeedsReview: true),
+            new("2025-11-01", 1000m, 500m, ActorId),
+            new("2026-05-16", 1100m, 400m, DemoManagerId, NeedsReview: true), // budget $1,500 kept
         ]),
         new("Mariam Javed",
         [
-            new("2025-12-01", 1200m, 0m, 850m, Domain.Pay.PayCurrency.USD, ActorId),
-            new("2026-07-01", 1200m, 0m, 900m, Domain.Pay.PayCurrency.USD, DemoManagerId, NeedsReview: true),
+            new("2025-12-01", 850m, 350m, ActorId),
+            new("2026-07-01", 900m, 300m, DemoManagerId, NeedsReview: true), // budget $1,200 kept
         ]),
         new("Omar Farooq",
         [
-            new("2025-02-16", 1000m, 30m, 1000m, Domain.Pay.PayCurrency.USD, ActorId),
-            new("2026-01-01", 1000m, 35m, 1000m, Domain.Pay.PayCurrency.USD, ActorId), // commission only: BillingChange
+            new("2025-02-16", 1000m, 60m, ActorId),
+            new("2026-01-01", 1000m, 70m, ActorId), // commission only: BillingChange
         ]),
         new("Ali Raza",
         [
-            new("2025-04-01", 700m, 25m, 700m, Domain.Pay.PayCurrency.USD, ActorId),
-            new("2026-04-01", 780m, 25m, 780m, Domain.Pay.PayCurrency.USD, DemoManagerId),
+            new("2025-04-01", 700m, 50m, ActorId),
+            new("2026-04-01", 780m, 50m, DemoManagerId),
         ]),
     ];
 
@@ -274,9 +274,9 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
             Domain.Pay.PayTerms? previous = null;
             foreach (var r in demo.Records)
             {
-                var terms = new Domain.Pay.PayTerms(DateOnly.Parse(r.EffectiveFrom, CultureInfo.InvariantCulture), r.Billed, r.Commission, r.Pay, r.Currency);
+                var terms = new Domain.Pay.PayTerms(DateOnly.Parse(r.EffectiveFrom, CultureInfo.InvariantCulture), r.Salary, r.Commission, r.Salary + r.Commission);
                 var record = Domain.Pay.RateRecord.Create(person.Id, terms, "Demo data", r.NeedsReview, r.CreatedBy, clock.UtcNow);
-                record.SetChangeType(Domain.Pay.PayRules.DeriveChangeType(previous, terms, null));
+                record.SetChangeType(Domain.Pay.PayRules.DeriveChangeType(previous, terms));
                 db.RateRecords.Add(record);
                 previous = terms;
                 added++;
@@ -291,7 +291,8 @@ public sealed class DemoDataSeeder(AppDbContext db, IHostEnvironment environment
 
     private sealed record DemoPay(string FullName, DemoRate[] Records);
 
-    private sealed record DemoRate(string EffectiveFrom, decimal Billed, decimal Commission, decimal Pay, Domain.Pay.PayCurrency Currency, string CreatedBy, bool NeedsReview = false);
+    /// <summary>Monthly USD: billed = salary + commission.</summary>
+    private sealed record DemoRate(string EffectiveFrom, decimal Salary, decimal Commission, string CreatedBy, bool NeedsReview = false);
 
     private static string EmailFor(string fullName) =>
         fullName.ToLowerInvariant().Replace(' ', '.') + EmailDomain;

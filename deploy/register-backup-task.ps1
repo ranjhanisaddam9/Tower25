@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     The task runs C:\HRPayroll\tools\backup.ps1 as SYSTEM, so it works when nobody is signed in and no Windows password
-    is stored. SYSTEM gets just enough SQL Server rights for it: db_backupoperator on the HR Payroll database, plus
+    is stored. It runs under the RemoteSigned execution policy; setup unblocks the installed scripts. SYSTEM gets just enough SQL Server rights for it: db_backupoperator on the HR Payroll database, plus
     CREATE ANY DATABASE, which SQL Server requires for RESTORE VERIFYONLY.
 
 .PARAMETER Unregister
@@ -47,7 +47,7 @@ if (-not $hadLogin) {
 Write-Done 'SQL Server: SYSTEM may back up this database and verify backups.'
 
 $script = Join-Path $ToolsDir 'backup.ps1'
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$script`""
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File `"$script`""
 $trigger = New-ScheduledTaskTrigger -Daily -At '23:00'
 $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
 $taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -55,5 +55,5 @@ $taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOn
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $taskSettings `
     -Description 'Backs up the HR Payroll database (C:\HRPayroll\backups). Registered by register-backup-task.ps1.'
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
-Write-Done 'Every day at 23:00 as SYSTEM; if the PC was off at 23:00 it runs as soon as possible afterwards.'
+Write-Done 'Every day at 23:00 as SYSTEM; if the server was off at 23:00 it runs as soon as possible afterwards.'
 exit 0

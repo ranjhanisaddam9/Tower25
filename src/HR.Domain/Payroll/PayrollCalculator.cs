@@ -144,22 +144,13 @@ public static class PayrollCalculator
         // amount × payable / working: multiply first so the only inexact step is the final division.
         decimal Scale(decimal amount) => working == 0 ? 0m : amount * payable / working;
 
-        var salaryPart = Money.RoundUsd(Scale(terms.BilledMonthlyUsd / 2m));
-        var commission = Money.RoundUsd(Scale(terms.CommissionPerPeriodUsd));
+        // SPEC §5: SalaryUsd and CommissionUsd from the monthly figures (half a month per period), billed = their sum;
+        // the person is paid the salary, in PKR at the payroll's rate.
+        var salaryPart = Money.RoundUsd(Scale(terms.SalaryMonthlyUsd / 2m));
+        var commission = Money.RoundUsd(Scale(terms.CommissionMonthlyUsd / 2m));
         var billed = salaryPart + commission;
-
-        decimal? payUsd;
-        decimal? payPkr;
-        if (terms.PayCurrency == PayCurrency.USD)
-        {
-            payUsd = Money.RoundUsd(Scale(terms.PayMonthlyAmount / 2m));
-            payPkr = rate is { } x ? Money.RoundPkr(payUsd.Value * x) : null;
-        }
-        else
-        {
-            payPkr = Money.RoundPkr(Scale(terms.PayMonthlyAmount / 2m));
-            payUsd = rate is { } x ? Money.RoundUsd(payPkr.Value / x) : null;
-        }
+        decimal? payUsd = salaryPart;
+        decimal? payPkr = rate is { } x ? Money.RoundPkr(salaryPart * x) : null;
 
         decimal? adjustmentsPkr = adjustments.All(a => a.AmountPkr is not null) ? adjustments.Sum(a => a.Sign * a.AmountPkr!.Value) : null;
         decimal? adjustmentsUsd = adjustments.All(a => a.AmountUsd is not null) ? adjustments.Sum(a => a.Sign * a.AmountUsd!.Value) : null;

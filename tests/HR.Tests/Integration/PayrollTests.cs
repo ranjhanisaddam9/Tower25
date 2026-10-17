@@ -43,11 +43,11 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         Assert.True(result.Succeeded, string.Join("; ", result.Errors?.Select(e => e.Message) ?? [result.Status.ToString()]));
     }
 
-    private static AdminPayInput Cr(decimal salary = 300m, decimal commission = 25m) => new(Oct(1), salary, commission, null, null, null);
+    private static AdminPayInput Cr(decimal salary = 300m, decimal commission = 50m) => new(Oct(1), salary, commission, null);
 
-    private static AdminPayInput Budget(decimal budget = 1000m, decimal pay = 196_000m) => new(Oct(1), null, null, budget, pay, PayCurrency.PKR);
+    private static AdminPayInput Budget(decimal budget = 1000m, decimal salary = 700m) => new(Oct(1), salary, null, budget);
 
-    private static AdminPayInput OwnerPay(decimal salary = 1200m) => new(Oct(1), salary, null, null, null, null);
+    private static AdminPayInput OwnerPay(decimal salary = 1200m) => new(Oct(1), salary, null, null);
 
     private static async Task AbsentAsync(int personId, DateOnly date, AbsencePortion portion = AbsencePortion.Full)
     {
@@ -165,8 +165,8 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
 
         // G5 base values on Bilal's Oct 16–31 line, then the G8 finals with the adjustments.
         var g8 = lines2[g.Bilal];
-        Assert.Equal((9m, 409.09m, 286.36m, 80_182m), (g8.PayableDays, g8.BilledUsd!.Value, g8.PayUsd!.Value, g8.PayPkr!.Value));
-        Assert.Equal((443.38m, 89_782m, 320.65m, 122.73m, 34_364m), (g8.InvoiceUsd!.Value, g8.NetPayPkr!.Value, g8.NetPayUsd!.Value, g8.OwnerEarningUsd!.Value, g8.OwnerEarningPkr!.Value));
+        Assert.Equal((9m, 409.09m, 286.36m, 80_181m), (g8.PayableDays, g8.BilledUsd!.Value, g8.PayUsd!.Value, g8.PayPkr!.Value));
+        Assert.Equal((443.38m, 89_781m, 320.65m, 122.73m, 34_365m), (g8.InvoiceUsd!.Value, g8.NetPayPkr!.Value, g8.NetPayUsd!.Value, g8.OwnerEarningUsd!.Value, g8.OwnerEarningPkr!.Value));
         Assert.Equal([(5_000m, 17.86m), (5_600m, 20.00m), (1_000m, 3.57m)], g8.Adjustments.OrderBy(a => a.Id).Select(a => (a.AmountPkr!.Value, a.AmountUsd!.Value)).ToArray());
         Assert.Equal([(Oct(20), 0m, 1m), (Oct(27), 0m, 1m)], g8.Absences.OrderBy(a => a.Date).Select(a => (a.Date, a.PaidDays, a.UnpaidDays)).ToArray());
 
@@ -191,14 +191,57 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         {
             var pay = scope.ServiceProvider.GetRequiredService<PayRecordService>();
             var record = await scope.ServiceProvider.GetRequiredService<HR.Infrastructure.Data.AppDbContext>().RateRecords.AsNoTracking().SingleAsync(r => r.PersonId == g.Bilal);
-            var edit = await pay.UpdateAdminAsync(g.Bilal, record.Id, new AdminPayInput(Oct(1), null, null, 1200m, 250_000m, PayCurrency.PKR), null, false, true, record.RowVersion, "test");
+            var edit = await pay.UpdateAdminAsync(g.Bilal, record.Id, new AdminPayInput(Oct(1), 900m, null, 1200m), null, false, true, record.RowVersion, "test");
             Assert.Equal(PayResultStatus.Locked, edit.Status);
         }
 
         var after = (await LinesAsync(second)).Single(l => l.PersonId == g.Bilal);
-        Assert.Equal(("Bilal Golden", 443.38m, 89_782m, 34_364m, 196_000m), (after.PersonName, after.InvoiceUsd!.Value, after.NetPayPkr!.Value, after.OwnerEarningPkr!.Value, after.PayMonthlyAmount!.Value));
+        Assert.Equal(("Bilal Golden", 443.38m, 89_781m, 34_365m, 700m), (after.PersonName, after.InvoiceUsd!.Value, after.NetPayPkr!.Value, after.OwnerEarningPkr!.Value, after.SalaryMonthlyUsd!.Value));
         Assert.Equal(280m, (await RunAsync(second)).ExchangeRate);
         Assert.Contains("Bilal Golden", await admin.GetStringAsync($"/payroll/{second}"));
+    }
+
+    [Fact]
+    public async Task A_line_frozen_before_v1_1_0_still_renders_on_every_page_PDF_and_export()
+    {
+        var g = await SeedGoldenAsync();
+        var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
+        var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
+        var run = await GenerateAsync(manager, Oct(1));
+        Assert.Equal(HttpStatusCode.Redirect, (await FinalizeAsync(admin, run)).StatusCode);
+        var bilal = (await LinesAsync(run)).Single(l => l.PersonId == g.Bilal).Id;
+
+        // Make Bilal's frozen line a legacy (pre-v1.1.0) snapshot, as finalized lines from v1.0 are: PKR pay Rs 196,000 a
+        // month, billed $1,000 with the billed salary part $500, no commission. Same amounts paid and billed.
+        await using (var db = TestDatabaseFixture.CreateDbContext())
+        {
+            await db.Database.ExecuteSqlRawAsync("DISABLE TRIGGER [dbo].[TR_PayrollLines_Frozen] ON [dbo].[PayrollLines]");
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE dbo.PayrollLines SET SalaryMonthlyUsd = NULL, CommissionMonthlyUsd = NULL, CommissionPerPeriodUsd = 0, PayMonthlyAmount = 196000, PayCurrency = 'PKR', SalaryPartUsd = 500, CommissionUsd = 0 WHERE Id = {bilal}");
+            await db.Database.ExecuteSqlRawAsync("ENABLE TRIGGER [dbo].[TR_PayrollLines_Frozen] ON [dbo].[PayrollLines]");
+        }
+
+        Assert.True((await LinesAsync(run)).Single(l => l.Id == bilal).IsLegacyPayModel);
+
+        foreach (var client in new[] { admin, manager })
+        {
+            Assert.Contains("Bilal Golden", await client.GetStringAsync($"/payroll/{run}"));
+            var line = WebUtility.HtmlDecode(await client.GetStringAsync($"/payroll/{run}/lines/{bilal}"));
+            Assert.Contains("Rs 196,000 ÷ 2 × 11/11 = Rs 98,000", line); // the legacy PKR pay breakdown
+            Assert.Contains("Rs 98,000", WebUtility.HtmlDecode(await client.GetStringAsync($"/payroll/{run}/lines/{bilal}/payslip")));
+            foreach (var url in new[] { $"/payroll/{run}/lines/{bilal}/payslip/pdf", $"/payroll/{run}/payslips/pdf", $"/payroll/{run}/register/pdf",
+                         $"/payroll/{run}/export", $"/payroll/{run}/register/export" })
+            {
+                var response = await client.GetAsync(url);
+                Assert.True(response.StatusCode == HttpStatusCode.OK, $"{url}: {(int)response.StatusCode}");
+            }
+        }
+
+        // The Admin's billing breakdown uses the legacy wording for a legacy line.
+        var adminLine = WebUtility.HtmlDecode(await admin.GetStringAsync($"/payroll/{run}/lines/{bilal}"));
+        Assert.Contains("Salary part: $1,000.00 ÷ 2 × 11/11 = $500.00", adminLine);
+        Assert.Contains("Billed: $500.00 + $0.00 = <strong>$500.00</strong>", adminLine);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/payroll/{run}/t25/export")).StatusCode);
     }
 
     [Fact]
@@ -227,7 +270,8 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         // The Manager sees the days with the extra part, and a plain-language pay breakdown.
         Assert.Contains("10.5 of 11 incl. 1.5 extra", await manager.GetStringAsync($"/payroll/{second}"));
         var line = WebUtility.HtmlDecode(await manager.GetStringAsync($"/payroll/{second}/lines/{bilal}"));
-        Assert.Contains("Rs 196,000 ÷ 2 × 10.5/11 = Rs 93,545", line);
+        Assert.Contains("$700.00 ÷ 2 × 10.5/11 = $334.09", line);
+        Assert.Contains("$334.09 × 280.00 = Rs 93,545", line);
 
         // Extra-days limits over HTTP.
         foreach (var bad in new[] { "0.25", "10.5", "-1" })
@@ -251,7 +295,7 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Default Person", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(id, new AdminPayInput(new DateOnly(2026, 1, 1), 1200m, null, null, null, null));
+        await PayAsync(id, new AdminPayInput(new DateOnly(2026, 1, 1), 1200m, null, null));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
         var today = PayPeriod.For(PeopleHelpers.Today);
@@ -559,11 +603,11 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         Assert.True((await absences.CreateAsync(id, Oct(19), AbsencePortion.Full, null, "t")).Succeeded);
 
         // Pay records: create, edit, delete in the locked period refused.
-        Assert.Equal(PayResultStatus.Locked, (await pay.CreateAdminAsync(id, new AdminPayInput(Oct(1), 400m, 25m, null, null, null), null, true, "t")).Status);
+        Assert.Equal(PayResultStatus.Locked, (await pay.CreateAdminAsync(id, new AdminPayInput(Oct(1), 400m, 50m, null), null, true, "t")).Status);
         var record = await db.RateRecords.AsNoTracking().SingleAsync(r => r.PersonId == id);
-        Assert.Equal(PayResultStatus.Locked, (await pay.UpdateAdminAsync(id, record.Id, new AdminPayInput(Oct(1), 400m, 25m, null, null, null), null, false, true, record.RowVersion, "t")).Status);
+        Assert.Equal(PayResultStatus.Locked, (await pay.UpdateAdminAsync(id, record.Id, new AdminPayInput(Oct(1), 400m, 50m, null), null, false, true, record.RowVersion, "t")).Status);
         Assert.Equal(PayResultStatus.Locked, (await pay.DeleteAsync(id, record.Id, "t", true)).Status);
-        Assert.True((await pay.CreateAdminAsync(id, new AdminPayInput(Oct(16), 400m, 25m, null, null, null), null, true, "t")).Succeeded);
+        Assert.True((await pay.CreateAdminAsync(id, new AdminPayInput(Oct(16), 400m, 50m, null), null, true, "t")).Succeeded);
 
         // Employment: a leaving date inside (or before) the locked period, or a joining date moved across it, is refused.
         var inside = await people.DeactivateAsync(id, Oct(10), "t");
@@ -644,7 +688,7 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         }
 
         var payslip = WebUtility.HtmlDecode(await manager.GetStringAsync($"/payroll/{second}/lines/{bilal}/payslip"));
-        Assert.Contains("Rs 85,782", payslip); // 80,182 + 5,600
+        Assert.Contains("Rs 85,781", payslip); // 80,181 + 5,600
         Assert.Contains("1 USD = Rs 280.00", payslip);
         Assert.Contains("data-testid=\"payslip-issuer\">HR Payroll<", payslip);
 

@@ -13,8 +13,8 @@ public class InvoiceMathTests
 
     private static readonly EmploymentSpan[] Always = [new(new DateOnly(2025, 1, 6), null)];
     private static readonly AbsenceDay[] BilalAbsences = [new(Oct(6), AbsencePortion.Full), new(Oct(20), AbsencePortion.Full), new(Oct(27), AbsencePortion.Full)];
-    private static readonly PayTerms G1Terms = new(Oct(1), 300m, 25m, 300m, PayCurrency.USD);
-    private static readonly PayTerms BudgetTerms = new(Oct(1), 1000m, 0m, 196_000m, PayCurrency.PKR);
+    private static readonly PayTerms G1Terms = new(Oct(1), 300m, 50m, 350m);
+    private static readonly PayTerms BudgetTerms = new(Oct(1), 700m, 300m, 1000m);
 
     private static InvoiceLineAmounts Map(PayrollLineResult r) =>
         InvoiceMath.Line(r.BilledUsd!.Value, r.AdjustmentsUsd!.Value, r.InvoiceUsd!.Value, r.PayableDays, r.WorkingDays);

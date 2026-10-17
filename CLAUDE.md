@@ -13,30 +13,24 @@ Work one milestone at a time. Never start the next milestone until the owner sen
 - .NET: the newest LTS SDK installed (.NET 10 preferred, else .NET 8), pinned in `global.json`. EF Core and ASP.NET Core packages match that major version.
 - Never put production secrets in the repo. Production config comes from environment variables or user secrets.
 
-## Release package (M10)
-- `build-package.ps1` builds `dist\HRPayroll-v<version>-win-x64.zip`:
-  - a self-contained win-x64 Release publish in `app\`
+## Server deployment (M10)
+- Target: Windows Server + **IIS in-process hosting**, internet-facing over HTTPS (Let's Encrypt via win-acme), SQL Server on the same machine (default instance `.`; `-SqlInstance .\NAME` for a named one). The guide is `docs/DEPLOYMENT.md`; it also ships in the package.
+- `build-package.ps1` builds `dist\HRPayroll-v<version>-win-x64.zip` (`dist/` is git-ignored):
+  - the framework-dependent win-x64 publish (profile `src/HR.Web/Properties/PublishProfiles/IIS-win-x64.pubxml`) in `app\`; the server needs the ASP.NET Core 10 Hosting Bundle
   - `migrate.exe` (a self-contained EF migration bundle)
-  - the `deploy\` scripts, `INSTALL.md`, `restore.md`
-  - the licences.
-
-  `dist/` is git-ignored. The target PC needs SQL Server Express but no .NET.
-- **Installed layout:**
-  - `C:\HRPayroll\{app,app.previous,tools,config,keys,logs,backups}`
-  - the Windows Service `HRPayroll`, running as `NT SERVICE\HRPayroll`
-  - Kestrel on `https://localhost:7443` only (loopback).
-- **Configuration:** the app reads `..\config\appsettings.Production.json` next to its folder (override with `HRPAYROLL_CONFIG_DIR`); never in Development. `HttpsCertificate:Thumbprint` selects the LocalMachine\My certificate. `Backup:StatusFile` turns on the dashboard backup warning.
+  - the `deploy\` scripts, `DEPLOYMENT.md`, `restore.md`, the licences.
+- **Installed layout:** `C:\HRPayroll\{app,app.previous,tools,config,keys,logs,backups}`. The IIS site and application pool are both `HRPayroll` (No Managed Code, `ApplicationPoolIdentity`, always running); the app connects to SQL as `IIS APPPOOL\HRPayroll` with `db_datareader`, `db_datawriter`, `EXECUTE` and `UPDATE` on the person-code sequence only.
+- **Configuration:** the app reads `..\config\appsettings.Production.json` next to its folder, outside the web root (override with `HRPAYROLL_CONFIG_DIR`); never in Development. `Backup:StatusFile` turns on the dashboard backup warning. TLS is IIS's job, not the app's.
 - **Scripts** (Windows PowerShell 5.1, ASCII-only, run as Administrator, idempotent):
-  - `setup.ps1` (`-DatabaseName`, `-Port`, `-NoService`)
-  - `update.ps1`, which backs up, keeps `app.previous` and rolls back on failure
+  - `setup.ps1` (`-HostName`, `-DatabaseName`, `-SqlInstance`, `-HttpsPort`, `-HttpPort`, `-NoFirewall`)
+  - `migrate.ps1` (migrations never run at app startup in Production)
+  - `update.ps1` (backup, `app_offline.htm`, `app.previous`, migrate, health check, automatic rollback of the build)
   - `uninstall.ps1` (`-RemoveData` needs the database name typed to confirm)
-  - `admin-reset.ps1`
-  - `backup.ps1` (`-SetPassword`, `-SecondCopyPath`)
-  - `register-backup-task.ps1`
-  - `restore.ps1`.
-- **Server commands** (`HR.Web.exe <command>`, never over HTTP): `admin-reset --email`, `audit-purge`, `seed-admin`. The Admin seed password reaches `seed-admin` only through the process environment.
-- **Shipping app or schema changes:** a schema change ships as a new migration, picked up by `migrate.exe`. A new setting needs a default in `appsettings.json`, and setup writes the machine-specific values. Give the app's SQL login only the rights it needs (see setup.ps1).
-- **Testing a package on a dev PC:** use `setup.ps1 -DatabaseName HRPayroll_PackageTest -Port 7444`, never the dev database, and clean up with `uninstall.ps1 -RemoveData`.
+  - `admin-reset.ps1`, `backup.ps1` (`-SetPassword`, `-SecondCopyPath`), `register-backup-task.ps1`, `restore.ps1`
+  - `tls-hardening.ps1` (optional, server-wide, needs a reboot).
+- **Server commands** (`HR.Web.exe <command>`, never over HTTP): `admin-reset --email`, `audit-purge`, `seed-admin`, `recalculate-drafts` (run by `migrate.ps1` after the bundle, so draft payrolls follow pay-rule changes). The Admin seed password reaches `seed-admin` only through the process environment.
+- **Shipping app or schema changes:** a schema change ships as a new migration, picked up by `migrate.exe`. A new setting needs a default in `appsettings.json`, and setup writes the server-specific values. Keep the app's SQL login least-privilege (see setup.ps1).
+- **Testing a package on a dev PC with IIS:** `setup.ps1 -HostName localhost -DatabaseName HRPayroll_PackageTest -HttpsPort 7444 -HttpPort 0 -NoFirewall -TrustTemporaryCertificate`, never the dev database; clean up with `uninstall.ps1 -RemoveData`.
 
 ## Solution layout
 ```

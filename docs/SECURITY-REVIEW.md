@@ -1,12 +1,8 @@
 # Security review (M10)
 
-Scope: HR Payroll v1, ASP.NET Core MVC on .NET 10, EF Core 10, SQL Server Express. The review follows the **OWASP Top 10 (2025)**.
+Scope: HR Payroll v1, ASP.NET Core MVC on .NET 10, EF Core 10, SQL Server (Express or higher). The review follows the **OWASP Top 10 (2025)**.
 
-**Deployed posture (v1.0.0):** the portable release package on one Windows PC.
-- Kestrel listens on `https://localhost:7443` only (loopback); other machines can't connect.
-- It runs as the Windows Service `HRPayroll` under the least-privilege virtual account `NT SERVICE\HRPayroll`.
-
-The application controls below were written for an internet-facing server. Exposing the app beyond this PC needs the checklist in [Before any network or internet exposure](#before-any-network-or-internet-exposure).
+**Deployed posture (v1.0.0):** Windows Server, IIS in-process hosting, internet-facing over HTTPS at the owner's domain (Let's Encrypt via win-acme), SQL Server on the same machine reached locally with Windows authentication. The deployment and its checklist are in [docs/DEPLOYMENT.md](DEPLOYMENT.md); the server-side controls are summarised in [Server deployment](#server-deployment-iis) below.
 
 For each category: what was checked, what was found, what was fixed, and the risk that remains. Every check below is backed by an automated test unless it says otherwise.
 
@@ -55,10 +51,10 @@ Test suite: 571 tests (353 unit, 218 integration), all passing. The M10-specific
   - `/dev/styleguide` returns 404;
   - demo data runs only in Development;
   - `Database:MigrateOnStartup` is ignored outside Development, with a warning logged. Production schema changes go through a migration bundle.
-- **`web.config`** (for IIS, when deployment is resumed): in-process hosting, `removeServerHeader`, X-Powered-By removed, verbs limited to GET/HEAD/POST, 1 MB limit, appsettings files hidden.
+- **`web.config`** (IIS): in-process hosting, `removeServerHeader`, X-Powered-By removed, verbs limited to GET/HEAD/POST, 1 MB limit, appsettings files hidden.
 
 **Residual risk**
-- TLS settings, the certificate and the firewall are server configuration. They belong to the deferred deployment guide.
+- TLS settings, the certificate and the firewall are server configuration: see [Server deployment](#server-deployment-iis) and DEPLOYMENT.md.
 
 ## A03 Software supply chain failures
 
@@ -255,40 +251,40 @@ For an authenticated scan:
 3. Repeat with an Admin cookie.
 4. Record and justify every alert in this file.
 
-## Release package (local install)
+## Server deployment (IIS)
 
-What the package does on the target PC (`deploy/setup.ps1`):
+What `deploy/setup.ps1` sets up, and what DEPLOYMENT.md asks the administrator to do:
 
 | Area | Control |
 |---|---|
-| Network | Kestrel binds `https://localhost:<port>` only (127.0.0.1 and ::1); no HTTP endpoint at all. `AllowedHosts` is `localhost`. Tested: the LAN IP refuses connections. |
-| TLS | A self-signed RSA-2048 certificate for `localhost` (5 years, private key not exportable) in LocalMachine\My, trusted in LocalMachine\Root on that PC only. The app loads it by thumbprint. |
-| Service identity | `NT SERVICE\HRPayroll`, a virtual account with no password and no rights beyond what setup grants. |
-| Folder ACLs | `C:\HRPayroll` drops inherited permissions (Administrators and SYSTEM full control). The service account can read the app and config, and write only to `keys` and `logs`. The SQL Server service account can write to `backups`. The backup password file is readable by Administrators and SYSTEM only. |
-| Database login | The service's SQL login has `db_datareader`, `db_datawriter`, `EXECUTE` and `UPDATE` on the person-code sequence. It can't change the schema, back up, alter the audit trigger or administer the server. Migrations run with the installer's admin login through `migrate.exe`. |
-| Secrets | None in files. The connection string uses Windows authentication. The first Admin's password is read with `Read-Host -AsSecureString` and passed once through the child process's environment to `HR.Web.exe seed-admin`; it is never written to disk or logged. |
-| Configuration | `C:\HRPayroll\config\appsettings.Production.json`, outside the app folder, so updates never overwrite it. Environment variables still override it. |
-| Backups | Nightly as SYSTEM, which needs `db_backupoperator` on the database plus `CREATE ANY DATABASE` for `RESTORE VERIFYONLY`. Each backup is made `WITH CHECKSUM` and verified. There is an optional 7-Zip AES-256 copy with encrypted headers; its password is DPAPI-protected at machine scope, Administrators and SYSTEM only. |
-| Monitoring | The Admin dashboard warns when the last backup failed or the last good one is older than 48 hours. |
-| Updates | `update.ps1` backs up first, keeps `app.previous`, migrates, checks `/health`, and rolls back automatically on failure. |
+| TLS | IIS terminates HTTPS with a Let's Encrypt certificate (win-acme, automatic renewal). `tls-hardening.ps1` restricts SCHANNEL to TLS 1.2/1.3. The app adds HSTS (1 year) and redirects HTTP to HTTPS; port 80 only redirects and answers Let's Encrypt validation. Until win-acme runs, a temporary self-signed certificate is bound and setup warns about it. |
+| Hosting | In-process ASP.NET Core Module. `web.config` removes `Server` and `X-Powered-By`, limits requests to 1 MB and the verbs to GET/HEAD/POST, and hides `appsettings*.json`. `AllowedHosts` is the site's host name only. |
+| Identity | Application pool `HRPayroll` runs as its own virtual account `IIS APPPOOL\HRPayroll` (No Managed Code, always running). |
+| Folder ACLs | `C:\HRPayroll` drops inherited permissions (Administrators and SYSTEM full control). The pool identity can read the app and config and write only to `keys` and `logs`. The SQL Server service can write `backups`. The backup password file is readable by Administrators and SYSTEM only. |
+| Configuration | `C:\HRPayroll\config\appsettings.Production.json`, outside the web root, so IIS can never serve it and updates never overwrite it. It holds no secrets: the connection string uses Windows authentication. Environment variables still override it. |
+| Database login | `IIS APPPOOL\HRPayroll` has `db_datareader`, `db_datawriter`, `EXECUTE` and `UPDATE` on the person-code sequence. It can't change the schema, back up, alter the audit trigger or administer the server. Migrations run separately with an administrator's login (`migrate.ps1` → `migrate.exe`); never at app startup. |
+| Network | The firewall allows inbound 443 and 80 only (rule group *HR Payroll*). Setup warns if SQL Server listens on a non-loopback address; DEPLOYMENT.md step 2 says to disable or firewall it. |
+| First Admin | The password is read with `Read-Host -AsSecureString` and passed once through the child process's environment to `HR.Web.exe seed-admin`. It is never written to disk, logged, or set as a machine variable. |
+| Backups | Nightly, as SYSTEM: `db_backupoperator` on the database plus `CREATE ANY DATABASE` for `RESTORE VERIFYONLY`. `WITH CHECKSUM` plus verification. An optional 7-Zip AES-256 copy with encrypted headers off the server; its password is DPAPI machine-scope, Administrators and SYSTEM only. BitLocker on the data and backup disks (DEPLOYMENT.md step 1). The dashboard warns when the last backup failed or is older than 48 hours. |
+| Updates | `update.ps1` backs up first, uses `app_offline.htm`, keeps `app.previous`, migrates, checks `/health`, and rolls back the build automatically. |
 
-**Residual risks (local install):**
-- **7-Zip password on the command line:** the backup script passes the archive password on 7-Zip's command line. Local administrators and SYSTEM, who can read the password file anyway, could see it in the process list while the backup runs, and so could process-creation auditing with command lines, if that is enabled.
-- **Trusted root certificate:** a self-signed root is trusted on the PC. It is only valid for `localhost`, and its private key is non-exportable.
-- **Shared Windows account:** anyone who can sign in to the PC as an administrator can read the database and the backups. HR Payroll's own authorization doesn't protect against the machine's administrators.
+**Residual risks (server):**
+- **Microsoft Defender** flags `register-backup-task.ps1` when it is extracted from the package zip. This is almost certainly a heuristic false positive on "scheduled task as SYSTEM running PowerShell". It is open in the M10 report; the script was deliberately not reworded to avoid detection.
+- **7-Zip password visibility:** the password is on 7-Zip's command line while the backup runs. Local administrators and SYSTEM (who can read the password file anyway) could see it, and so could command-line process auditing, if that is enabled.
+- **Server administrators:** anyone with administrator rights on the server can read the database, backups and keys. HR Payroll's authorization doesn't protect against them. Keep the administrator group small and use MFA for RDP, or a VPN.
+- **No WAF or DDoS protection** beyond the app's rate limits. Put the site behind a reverse proxy or CDN (for example Cloudflare) if attacks become a concern. If you do, configure forwarded headers (`KnownProxies`), so the per-IP limits and the audit IP see the real client.
+- **Dynamic scan pending:** the ZAP scan hasn't been run (no Docker on the dev PC). Run it against the deployed URL (see [Dynamic scan](#dynamic-scan-owasp-zap)), then record and justify each alert here.
 
-## Before any network or internet exposure
+## Go-live checklist
 
-None of this is needed while the app is reachable only from the PC it runs on. Do all of it before it's reachable from anywhere else:
+Before real data goes in:
 
-1. **Bind address:** change `Kestrel:Endpoints:Https:Url` from `localhost` to a specific interface or host name. Set `AllowedHosts` to that host name only.
-2. **Certificate:** use a certificate for the real host name from a trusted CA (an internal CA for the LAN, a public CA for the internet). Remove the self-signed `localhost` root from LocalMachine\Root on PCs that no longer need it.
-3. **Firewall:** open only the HTTPS port, and only to the networks that need it. Never expose SQL Server (1433) or RDP.
-4. **IIS / TLS** (if IIS is used): host through the ASP.NET Core Module using the prepared `web.config`.
-   - TLS 1.2 or 1.3 only, with a strong cipher order (for example IIS Crypto's "Best Practices" template).
-   - Turn HSTS preload on only once the host name is final.
-5. **Reverse proxy:** configure forwarded headers (`ForwardedHeadersOptions` with `KnownProxies`), so the per-IP login rate limit and the audit IP column see the real client.
-6. **Accounts:** confirm that two-factor sign-in is required for Managers too (Managers → Edit → Require two-factor), not only for Admins.
-7. **Dynamic scan:** run the OWASP ZAP baseline and authenticated scans (see [Dynamic scan](#dynamic-scan-owasp-zap)) against the exposed URL. Record and justify every alert here.
-8. **Monitoring:** watch `/health` from outside, and alert on the log file's security events (failed sign-ins, lockouts).
-9. **Backups off the machine:** make sure the encrypted second copy goes to storage the web server can't delete.
+1. Hosting Bundle installed after IIS; `setup.ps1` finished with `Healthy`.
+2. DNS points at the server, and win-acme has issued and bound the certificate: the browser shows a valid padlock, and `wacs.exe --list` shows the renewal.
+3. `tls-hardening.ps1` has been run and the server rebooted; SSL Labs gives grade A.
+4. The firewall allows inbound 443 and 80 only. SQL Server TCP is disabled or limited to known IPs. RDP isn't open to the internet.
+5. BitLocker is on for the data and backup disks, with the recovery keys stored off the server.
+6. The backup task is registered and has run once, `backup.ps1 -SecondCopyPath … -SetPassword` is done, and a restore drill into `HRPayroll_RestoreTest` succeeded.
+7. The Admin has changed the seed password and enrolled two-factor sign-in, with the recovery codes stored safely. Two-factor sign-in is required for every Manager (Managers → Edit).
+8. The ZAP baseline and authenticated scans have been run against the live URL, and each alert is recorded here.
+9. An uptime monitor watches `https://<host>/health`.

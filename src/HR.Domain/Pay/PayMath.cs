@@ -3,57 +3,40 @@ using HR.Domain.Payroll;
 namespace HR.Domain.Pay;
 
 /// <summary>Amounts for one FULL pay period (f = 1), rounded exactly as SPEC §5 does.</summary>
-/// <param name="PayUsd">Null when pay is in PKR and there is no exchange rate.</param>
-/// <param name="PayPkr">Null when pay is in USD and there is no exchange rate.</param>
-/// <param name="EarningUsd">BilledUsd − PayUsd (null when PayUsd is unknown); for an Owner the whole BilledUsd.</param>
+/// <param name="PayPkr">The salary in PKR at the given rate; null when there is no rate (an estimate before payroll).</param>
+/// <param name="EarningUsd">BilledUsd − SalaryUsd (the commission); for an Owner the whole BilledUsd.</param>
 public sealed record FullPeriodAmounts(
-    decimal SalaryPartUsd,
+    decimal SalaryUsd,
     decimal CommissionUsd,
     decimal BilledUsd,
-    decimal? PayUsd,
     decimal? PayPkr,
-    decimal? EarningUsd);
+    decimal EarningUsd);
 
 public static class PayMath
 {
     /// <summary>
-    /// SPEC §5 with f = 1: SalaryPart = round2(billed/2), Commission = round2(commission), BilledUsd = their sum;
-    /// USD pay: PayUsd = round2(pay/2), PayPkr = round0(PayUsd × rate); PKR pay: PayPkr = round0(pay/2), PayUsd = round2(PayPkr / rate).
+    /// SPEC §5 with f = 1: SalaryUsd = round2(salary/2), CommissionUsd = round2(commission/2), BilledUsd = their sum,
+    /// PayPkr = round0(SalaryUsd × rate).
     /// </summary>
     public static FullPeriodAmounts FullPeriod(PayTerms terms, decimal? usdToPkr, HR.Domain.People.HireSource? source = null)
     {
-        var salaryPart = Money.RoundUsd(terms.BilledMonthlyUsd / 2);
-        var commission = Money.RoundUsd(terms.CommissionPerPeriodUsd);
-        var billed = salaryPart + commission;
-        var rate = usdToPkr is > 0 ? usdToPkr : null;
-
-        decimal? payUsd;
-        decimal? payPkr;
-        if (terms.PayCurrency == PayCurrency.USD)
-        {
-            payUsd = Money.RoundUsd(terms.PayMonthlyAmount / 2);
-            payPkr = rate is { } r ? Money.RoundPkr(payUsd.Value * r) : null;
-        }
-        else
-        {
-            payPkr = Money.RoundPkr(terms.PayMonthlyAmount / 2);
-            payUsd = rate is { } r ? Money.RoundUsd(payPkr.Value / r) : null;
-        }
+        var salary = HalfMonth(terms.SalaryMonthlyUsd);
+        var commission = HalfMonth(terms.CommissionMonthlyUsd);
+        var billed = salary + commission;
+        decimal? payPkr = usdToPkr is { } rate && rate > 0 ? Money.RoundPkr(salary * rate) : null;
 
         // SPEC §5: the Owner's whole billed amount is his income.
-        decimal? earning = source == HR.Domain.People.HireSource.Owner ? billed : payUsd is { } p ? billed - p : null;
-        return new FullPeriodAmounts(salaryPart, commission, billed, payUsd, payPkr, earning);
+        var earning = source == HR.Domain.People.HireSource.Owner ? billed : billed - salary;
+        return new FullPeriodAmounts(salary, commission, billed, payPkr, earning);
     }
 
-    /// <summary>Pay per full period in its own currency: round2 (USD) or round0 (PKR) of half the monthly amount.</summary>
-    public static decimal PayPerFullPeriod(decimal monthly, PayCurrency currency) =>
-        currency == PayCurrency.USD ? Money.RoundUsd(monthly / 2) : Money.RoundPkr(monthly / 2);
+    /// <summary>A monthly USD amount for one full pay period: round2(monthly / 2).</summary>
+    public static decimal HalfMonth(decimal monthlyUsd) => Money.RoundUsd(monthlyUsd / 2);
 
-    /// <summary>The other-currency equivalent of a monthly amount at a rate (approximate, for display).</summary>
-    public static decimal Convert(decimal amount, PayCurrency from, decimal usdToPkr) =>
-        from == PayCurrency.USD ? Money.RoundPkr(amount * usdToPkr) : Money.RoundUsd(amount / usdToPkr);
+    /// <summary>A USD amount in PKR at a rate (an estimate for display): round0(amount × rate).</summary>
+    public static decimal ToPkr(decimal usd, decimal usdToPkr) => Money.RoundPkr(usd * usdToPkr);
 
-    /// <summary>Percentage change between two amounts in the same currency (null if not comparable).</summary>
+    /// <summary>Percentage change between two amounts (null if not comparable).</summary>
     public static decimal? PercentChange(decimal previous, decimal current) =>
         previous == 0 ? null : (current - previous) / previous * 100m;
 }

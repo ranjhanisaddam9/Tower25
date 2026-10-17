@@ -18,11 +18,10 @@ public sealed record AdminPayRow(
     int Id,
     DateOnly EffectiveFrom,
     RateChangeType ChangeType,
-    decimal PayMonthlyAmount,
-    PayCurrency PayCurrency,
+    decimal SalaryMonthlyUsd,
+    decimal CommissionMonthlyUsd,
     decimal BilledMonthlyUsd,
-    decimal CommissionPerPeriodUsd,
-    decimal? PayChangePercent,
+    decimal? SalaryChangePercent,
     string? Note,
     bool NeedsBillingReview,
     string? AddedBy);
@@ -37,7 +36,7 @@ public sealed record AdminPayTab(
     decimal? UsdToPkr,
     DateOnly EarliestEffectiveFrom,
     DateOnly DefaultEffectiveFrom,
-    decimal DefaultCommission);
+    decimal DefaultCommissionMonthly);
 
 public sealed record AdminPayRecord(int Id, int PersonId, PayTerms Terms, RateChangeType ChangeType, string? Note, bool NeedsBillingReview, byte[] RowVersion);
 
@@ -48,14 +47,13 @@ public sealed record ManagerPayRow(
     int Id,
     DateOnly EffectiveFrom,
     string ChangeLabel,
-    decimal PayMonthlyAmount,
-    PayCurrency PayCurrency,
-    decimal? PayChangePercent,
+    decimal SalaryMonthlyUsd,
+    decimal? SalaryChangePercent,
     string? Note,
     string? AddedBy,
     bool CreatedByMe);
 
-public sealed record ManagerPayCurrent(decimal PayMonthlyAmount, PayCurrency PayCurrency, DateOnly EffectiveFrom, decimal PayPerFullPeriod);
+public sealed record ManagerPayCurrent(decimal SalaryMonthlyUsd, DateOnly EffectiveFrom, decimal SalaryPerFullPeriodUsd);
 
 /// <param name="HasSetup">False when there is no hire source or no record yet: the Manager sees the neutral message.</param>
 public sealed record ManagerPayTab(
@@ -66,7 +64,7 @@ public sealed record ManagerPayTab(
     DateOnly EarliestEffectiveFrom,
     DateOnly DefaultEffectiveFrom);
 
-public sealed record ManagerPayRecord(int Id, int PersonId, DateOnly EffectiveFrom, decimal PayMonthlyAmount, PayCurrency PayCurrency, string? Note, byte[] RowVersion);
+public sealed record ManagerPayRecord(int Id, int PersonId, DateOnly EffectiveFrom, decimal SalaryMonthlyUsd, string? Note, byte[] RowVersion);
 
 // ---------- Commands ----------
 
@@ -82,7 +80,8 @@ public enum PayResultStatus
     NoSetup,
 }
 
-public sealed record PayResult(PayResultStatus Status, int? Id = null, IReadOnlyList<PayError>? Errors = null, decimal? LossPayUsd = null)
+/// <param name="LossCommissionUsd">Set with NeedsLossConfirmation: the (negative) monthly commission of a BudgetHire.</param>
+public sealed record PayResult(PayResultStatus Status, int? Id = null, IReadOnlyList<PayError>? Errors = null, decimal? LossCommissionUsd = null)
 {
     public bool Succeeded => Status == PayResultStatus.Success;
 
@@ -125,16 +124,14 @@ public sealed class PayRecordService(
                 orderby r.EffectiveFrom
                 select new
                 {
-                    r.Id, r.EffectiveFrom, r.ChangeType, r.PayMonthlyAmount, r.PayCurrency, r.BilledMonthlyUsd,
-                    r.CommissionPerPeriodUsd, r.Note, r.NeedsBillingReview, AddedBy = u == null ? null : u.FullName,
+                    r.Id, r.EffectiveFrom, r.ChangeType, r.SalaryMonthlyUsd, r.CommissionMonthlyUsd, r.BilledMonthlyUsd, r.Note, r.NeedsBillingReview, AddedBy = u == null ? null : u.FullName,
                 })
             .ToListAsync(cancellationToken);
 
         var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
         var list = rows
-            .Select((r, i) => new AdminPayRow(r.Id, r.EffectiveFrom, r.ChangeType, r.PayMonthlyAmount, r.PayCurrency, r.BilledMonthlyUsd,
-                r.CommissionPerPeriodUsd,
-                i > 0 && rows[i - 1].PayCurrency == r.PayCurrency ? PayMath.PercentChange(rows[i - 1].PayMonthlyAmount, r.PayMonthlyAmount) : null,
+            .Select((r, i) => new AdminPayRow(r.Id, r.EffectiveFrom, r.ChangeType, r.SalaryMonthlyUsd, r.CommissionMonthlyUsd, r.BilledMonthlyUsd,
+                i > 0 ? PayMath.PercentChange(rows[i - 1].SalaryMonthlyUsd, r.SalaryMonthlyUsd) : null,
                 r.Note, r.NeedsBillingReview, r.AddedBy))
             .Reverse()
             .ToList();
@@ -143,7 +140,7 @@ public sealed class PayRecordService(
         AdminPayCurrent? current = null;
         if (currentRow is not null)
         {
-            var terms = new PayTerms(currentRow.EffectiveFrom, currentRow.BilledMonthlyUsd, currentRow.CommissionPerPeriodUsd, currentRow.PayMonthlyAmount, currentRow.PayCurrency);
+            var terms = new PayTerms(currentRow.EffectiveFrom, currentRow.SalaryMonthlyUsd, currentRow.CommissionMonthlyUsd, currentRow.BilledMonthlyUsd);
             current = new AdminPayCurrent(terms, PayMath.FullPeriod(terms, rate, person.Source));
         }
 
@@ -155,14 +152,14 @@ public sealed class PayRecordService(
             rate,
             person.Earliest,
             DefaultEffectiveFrom(person, rows.Count == 0),
-            latest?.CommissionPerPeriodUsd is { } c && person.Source == HireSource.CompanyRecommended ? c : PayRules.DefaultCommission);
+            latest?.CommissionMonthlyUsd is { } c && person.Source == HireSource.CompanyRecommended ? c : PayRules.DefaultCommissionMonthly);
     }
 
     public Task<AdminPayRecord?> GetAdminRecordAsync(int personId, int recordId, CancellationToken cancellationToken = default) =>
         db.RateRecords.AsNoTracking()
             .Where(r => r.Id == recordId && r.PersonId == personId)
             .Select(r => new AdminPayRecord(r.Id, r.PersonId,
-                new PayTerms(r.EffectiveFrom, r.BilledMonthlyUsd, r.CommissionPerPeriodUsd, r.PayMonthlyAmount, r.PayCurrency),
+                new PayTerms(r.EffectiveFrom, r.SalaryMonthlyUsd, r.CommissionMonthlyUsd, r.BilledMonthlyUsd),
                 r.ChangeType, r.Note, r.NeedsBillingReview, r.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -195,15 +192,14 @@ public sealed class PayRecordService(
             return PayResult.Invalid(PayFields.EffectiveFrom, DuplicateMessage);
         }
 
-        var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
-        if (LossNeedsConfirmation(source, terms, rate, confirmLoss) is { } loss)
+        if (LossNeedsConfirmation(source, terms, confirmLoss) is { } loss)
         {
             return loss;
         }
 
         var record = RateRecord.Create(personId, terms, note, needsBillingReview: false, actorId, clock.UtcNow);
         db.RateRecords.Add(record);
-        await RederiveChangeTypesAsync(personId, record, markCorrection: false, rate, cancellationToken);
+        await RederiveChangeTypesAsync(personId, record, markCorrection: false, cancellationToken);
         db.Audit(AuditEvents.RateRecordCreated, actorId, "RateRecord", () => record.Id, $"Person {personId} ({record.ChangeType}): {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
@@ -211,7 +207,7 @@ public sealed class PayRecordService(
         }
 
         SecurityLog.RateRecordCreated(_log, actorId, record.Id, personId, record.ChangeType.ToString(), record.EffectiveFrom,
-            record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency.ToString());
+            record.SalaryMonthlyUsd, record.CommissionMonthlyUsd, record.BilledMonthlyUsd);
         return new PayResult(PayResultStatus.Success, record.Id);
     }
 
@@ -259,8 +255,7 @@ public sealed class PayRecordService(
             return PayResult.Invalid(PayFields.EffectiveFrom, DuplicateMessage);
         }
 
-        var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
-        if (LossNeedsConfirmation(source, terms, rate, confirmLoss) is { } loss)
+        if (LossNeedsConfirmation(source, terms, confirmLoss) is { } loss)
         {
             return loss;
         }
@@ -269,7 +264,7 @@ public sealed class PayRecordService(
         db.Entry(record).Property(r => r.RowVersion).OriginalValue = rowVersion;
         // An Admin edit settles any pending billing review for this record.
         record.Update(terms, note, needsBillingReview: false, actorId, clock.UtcNow);
-        await RederiveChangeTypesAsync(personId, record, markCorrection, rate, cancellationToken);
+        await RederiveChangeTypesAsync(personId, record, markCorrection, cancellationToken);
         db.Audit(AuditEvents.RateRecordEdited, actorId, "RateRecord", record.Id, $"Person {personId} ({record.ChangeType}): {Describe(old)} -> {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
@@ -312,12 +307,12 @@ public sealed class PayRecordService(
                 join u in db.Users on r.CreatedByUserId equals u.Id into users
                 from u in users.DefaultIfEmpty()
                 orderby r.EffectiveFrom
-                select new { r.Id, r.EffectiveFrom, r.ChangeType, r.PayMonthlyAmount, r.PayCurrency, r.Note, r.CreatedByUserId, AddedBy = u == null ? null : u.FullName })
+                select new { r.Id, r.EffectiveFrom, r.ChangeType, r.SalaryMonthlyUsd, r.Note, r.CreatedByUserId, AddedBy = u == null ? null : u.FullName })
             .ToListAsync(cancellationToken);
 
         var list = rows
-            .Select((r, i) => new ManagerPayRow(r.Id, r.EffectiveFrom, ManagerLabel(r.ChangeType), r.PayMonthlyAmount, r.PayCurrency,
-                i > 0 && rows[i - 1].PayCurrency == r.PayCurrency ? PayMath.PercentChange(rows[i - 1].PayMonthlyAmount, r.PayMonthlyAmount) : null,
+            .Select((r, i) => new ManagerPayRow(r.Id, r.EffectiveFrom, ManagerLabel(r.ChangeType), r.SalaryMonthlyUsd,
+                i > 0 ? PayMath.PercentChange(rows[i - 1].SalaryMonthlyUsd, r.SalaryMonthlyUsd) : null,
                 r.Note, r.AddedBy, string.Equals(r.CreatedByUserId, actorId, StringComparison.Ordinal)))
             .Reverse()
             .ToList();
@@ -325,8 +320,7 @@ public sealed class PayRecordService(
         var currentRow = rows.Where(r => r.EffectiveFrom <= clock.Today).MaxBy(r => r.EffectiveFrom);
         var current = currentRow is null
             ? null
-            : new ManagerPayCurrent(currentRow.PayMonthlyAmount, currentRow.PayCurrency, currentRow.EffectiveFrom,
-                PayMath.PayPerFullPeriod(currentRow.PayMonthlyAmount, currentRow.PayCurrency));
+            : new ManagerPayCurrent(currentRow.SalaryMonthlyUsd, currentRow.EffectiveFrom, PayMath.HalfMonth(currentRow.SalaryMonthlyUsd));
 
         return new ManagerPayTab(
             person.Source is not null && rows.Count > 0,
@@ -341,30 +335,21 @@ public sealed class PayRecordService(
     public Task<ManagerPayRecord?> GetOwnRecordAsync(int personId, int recordId, string actorId, CancellationToken cancellationToken = default) =>
         db.RateRecords.AsNoTracking()
             .Where(r => r.Id == recordId && r.PersonId == personId && r.CreatedByUserId == actorId)
-            .Select(r => new ManagerPayRecord(r.Id, r.PersonId, r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency, r.Note, r.RowVersion))
+            .Select(r => new ManagerPayRecord(r.Id, r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd, r.Note, r.RowVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
-    /// <summary>The pay currency shown read-only on the increment form (from the latest record), or null when there is no setup.</summary>
-    public async Task<PayCurrency?> GetIncrementCurrencyAsync(int personId, CancellationToken cancellationToken = default)
+    /// <summary>True when an increment can be added: the person has a hire source and at least one record.</summary>
+    public async Task<bool> CanAddIncrementAsync(int personId, CancellationToken cancellationToken = default)
     {
         var person = await PersonPayInfoAsync(personId, cancellationToken);
-        if (person?.Source is null)
-        {
-            return null;
-        }
-
-        return await db.RateRecords.AsNoTracking()
-            .Where(r => r.PersonId == personId)
-            .OrderByDescending(r => r.EffectiveFrom)
-            .Select(r => (PayCurrency?)r.PayCurrency)
-            .FirstOrDefaultAsync(cancellationToken);
+        return person?.Source is not null && await db.RateRecords.AnyAsync(r => r.PersonId == personId, cancellationToken);
     }
 
     /// <summary>
-    /// A Manager's increment: date, pay and note from the form; everything else derived from the record it follows
+    /// A Manager's increment: date, monthly salary (USD) and note from the form; everything else derived from the record it follows
     /// (SPEC §2). BudgetHire increments are flagged for the Admin's billing review.
     /// </summary>
-    public async Task<PayResult> CreateIncrementAsync(int personId, DateOnly? effectiveFrom, decimal? pay, string? note, string actorId, CancellationToken cancellationToken = default)
+    public async Task<PayResult> CreateIncrementAsync(int personId, DateOnly? effectiveFrom, decimal? salary, string? note, string actorId, CancellationToken cancellationToken = default)
     {
         var person = await PersonPayInfoAsync(personId, cancellationToken);
         if (person is null)
@@ -379,7 +364,7 @@ public sealed class PayRecordService(
         }
 
         var basis = (effectiveFrom is { } date ? records.Where(r => r.EffectiveFrom < date).MaxBy(r => r.EffectiveFrom) : null) ?? records[0];
-        var terms = PayRules.DeriveIncrement(source, basis.Terms, effectiveFrom, pay, person.Earliest, out var errors);
+        var terms = PayRules.DeriveIncrement(source, basis.Terms, effectiveFrom, salary, person.Earliest, out var errors);
         if (terms is null)
         {
             return new PayResult(PayResultStatus.Invalid, Errors: errors);
@@ -395,10 +380,9 @@ public sealed class PayRecordService(
             return PayResult.Invalid(PayFields.EffectiveFrom, DuplicateMessage);
         }
 
-        var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
         var record = RateRecord.Create(personId, terms, note, needsBillingReview: source == HireSource.BudgetHire, actorId, clock.UtcNow);
         db.RateRecords.Add(record);
-        await RederiveChangeTypesAsync(personId, record, markCorrection: false, rate, cancellationToken);
+        await RederiveChangeTypesAsync(personId, record, markCorrection: false, cancellationToken);
         db.Audit(AuditEvents.RateRecordCreated, actorId, "RateRecord", () => record.Id, $"Person {personId} ({record.ChangeType}): {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
@@ -406,16 +390,16 @@ public sealed class PayRecordService(
         }
 
         SecurityLog.RateRecordCreated(_log, actorId, record.Id, personId, record.ChangeType.ToString(), record.EffectiveFrom,
-            record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency.ToString());
+            record.SalaryMonthlyUsd, record.CommissionMonthlyUsd, record.BilledMonthlyUsd);
         return new PayResult(PayResultStatus.Success, record.Id);
     }
 
-    /// <summary>Edits a record the actor created: pay, date and note only; the same derivation rules as a new increment.</summary>
+    /// <summary>Edits a record the actor created: salary, date and note only; the same derivation rules as a new increment.</summary>
     public async Task<PayResult> UpdateIncrementAsync(
         int personId,
         int recordId,
         DateOnly? effectiveFrom,
-        decimal? pay,
+        decimal? salary,
         string? note,
         byte[] rowVersion,
         string actorId,
@@ -443,7 +427,7 @@ public sealed class PayRecordService(
             return new PayResult(PayResultStatus.Conflict, recordId);
         }
 
-        var terms = PayRules.DeriveIncrement(source, record.Terms, effectiveFrom, pay, person.Earliest, out var errors);
+        var terms = PayRules.DeriveIncrement(source, record.Terms, effectiveFrom, salary, person.Earliest, out var errors);
         if (terms is null)
         {
             return new PayResult(PayResultStatus.Invalid, Errors: errors);
@@ -462,7 +446,7 @@ public sealed class PayRecordService(
         var old = record.Terms;
         db.Entry(record).Property(r => r.RowVersion).OriginalValue = rowVersion;
         record.Update(terms, note, needsBillingReview: record.NeedsBillingReview || source == HireSource.BudgetHire, actorId, clock.UtcNow);
-        await RederiveChangeTypesAsync(personId, record, markCorrection: false, (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr, cancellationToken);
+        await RederiveChangeTypesAsync(personId, record, markCorrection: false, cancellationToken);
         db.Audit(AuditEvents.RateRecordEdited, actorId, "RateRecord", record.Id, $"Person {personId} ({record.ChangeType}): {Describe(old)} -> {Describe(record.Terms)}");
         if (await SaveAsync(cancellationToken) is { } failure)
         {
@@ -494,7 +478,7 @@ public sealed class PayRecordService(
 
         var old = record.Terms;
         db.RateRecords.Remove(record);
-        await RederiveChangeTypesAsync(personId, null, markCorrection: false, (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr, cancellationToken);
+        await RederiveChangeTypesAsync(personId, null, markCorrection: false, cancellationToken);
         db.Audit(AuditEvents.RateRecordDeleted, actorId, "RateRecord", recordId, $"Person {personId}: deleted {Describe(old)}");
         await db.SaveChangesAsync(cancellationToken);
         SecurityLog.RateRecordDeleted(_log, actorId, recordId, personId, Describe(old));
@@ -547,22 +531,16 @@ public sealed class PayRecordService(
     private Task<bool> IsLockedAsync(DateOnly effectiveFrom, CancellationToken cancellationToken) =>
         payrollLock.IsLockedAsync(PayPeriod.For(effectiveFrom).Start, cancellationToken);
 
-    private static PayResult? LossNeedsConfirmation(HireSource source, PayTerms terms, decimal? rate, bool confirmed)
-    {
-        if (source != HireSource.BudgetHire || confirmed || PayRules.LosesMoney(terms, rate) != true)
-        {
-            return null;
-        }
-
-        var payUsd = terms.PayCurrency == PayCurrency.USD ? terms.PayMonthlyAmount : Money.RoundUsd(terms.PayMonthlyAmount / rate!.Value);
-        return new PayResult(PayResultStatus.NeedsLossConfirmation, LossPayUsd: payUsd);
-    }
+    private static PayResult? LossNeedsConfirmation(HireSource source, PayTerms terms, bool confirmed) =>
+        source != HireSource.BudgetHire || confirmed || !PayRules.LosesMoney(terms)
+            ? null
+            : new PayResult(PayResultStatus.NeedsLossConfirmation, LossCommissionUsd: terms.CommissionMonthlyUsd);
 
     /// <summary>
     /// Re-derives ChangeType for every record of the person in date order (they depend on the record before them).
     /// Records already marked Correction keep it, except <paramref name="changed"/> unless <paramref name="markCorrection"/>.
     /// </summary>
-    private async Task RederiveChangeTypesAsync(int personId, RateRecord? changed, bool markCorrection, decimal? rate, CancellationToken cancellationToken)
+    private async Task RederiveChangeTypesAsync(int personId, RateRecord? changed, bool markCorrection, CancellationToken cancellationToken)
     {
         var tracked = await db.RateRecords.Where(r => r.PersonId == personId).ToListAsync(cancellationToken);
         var all = tracked
@@ -576,11 +554,11 @@ public sealed class PayRecordService(
         {
             if (record == changed)
             {
-                record.SetChangeType(markCorrection ? RateChangeType.Correction : PayRules.DeriveChangeType(previous, record.Terms, rate));
+                record.SetChangeType(markCorrection ? RateChangeType.Correction : PayRules.DeriveChangeType(previous, record.Terms));
             }
             else if (record.ChangeType != RateChangeType.Correction)
             {
-                record.SetChangeType(PayRules.DeriveChangeType(previous, record.Terms, rate));
+                record.SetChangeType(PayRules.DeriveChangeType(previous, record.Terms));
             }
 
             previous = record.Terms;
@@ -616,5 +594,5 @@ public sealed class PayRecordService(
     private static string ManagerLabel(RateChangeType type) => type == RateChangeType.BillingChange ? "Update" : type.ToString();
 
     private static string Describe(PayTerms t) => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"{t.EffectiveFrom:yyyy-MM-dd} billed {t.BilledMonthlyUsd:0.00} USD, commission {t.CommissionPerPeriodUsd:0.00} USD, pay {t.PayMonthlyAmount:0.00} {t.PayCurrency}");
+        $"{t.EffectiveFrom:yyyy-MM-dd} salary {t.SalaryMonthlyUsd:0.00} USD, commission {t.CommissionMonthlyUsd:0.00} USD, billed {t.BilledMonthlyUsd:0.00} USD a month");
 }

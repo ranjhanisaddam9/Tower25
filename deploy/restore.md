@@ -1,34 +1,37 @@
 # Restoring an HR Payroll backup
 
-Do this in **PowerShell opened as Administrator**. `restore.ps1` checks the backup before it changes anything.
+Do this on the server, in **PowerShell opened as Administrator**. `restore.ps1` checks the backup (`RESTORE VERIFYONLY ... WITH CHECKSUM`) before it changes anything.
 
 ## 1. Pick the backup
 - **Local backups:**
   - `C:\HRPayroll\backups\daily\HRPayroll_YYYYMMDD_HHMMSS.bak` (the last 14)
   - `C:\HRPayroll\backups\monthly\HRPayroll_YYYYMM.bak` (the last 12)
-- **Encrypted copies:** `HRPayroll_YYYYMMDD_HHMMSS.bak.7z` in your second location. These need 7-Zip and the backup password. On the PC that made them, the saved password is used automatically.
-- To see which backups succeeded and when, check `C:\HRPayroll\backups\backup.log`.
+- **Encrypted copies:** `HRPayroll_YYYYMMDD_HHMMSS.bak.7z` in the second location. These need 7-Zip and the backup password. On the server that made them, the saved password is used automatically.
+- Which backups succeeded, and when: `C:\HRPayroll\backups\backup.log`.
 
-## 2. (Recommended) Check the backup into a separate database first
+## 2. Drill, or check a backup: restore into a separate database
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\HRPayroll\tools\restore.ps1 -BackupFile "C:\HRPayroll\backups\daily\HRPayroll_20261011_230000.bak" -AsDatabase HRPayroll_Check
+powershell -ExecutionPolicy Bypass -File C:\HRPayroll\tools\restore.ps1 -BackupFile "C:\HRPayroll\backups\daily\HRPayroll_20261011_230000.bak" -AsDatabase HRPayroll_RestoreTest
 ```
-This leaves the live database untouched.
+The live database and the site are untouched.
 
-To look at the copy, open it in SQL Server Management Studio. Afterwards, delete it there (right-click the database → Delete), or run:
-```powershell
-sqlcmd -S .\SQLEXPRESS -E -Q "DROP DATABASE [HRPayroll_Check]"
-```
+1. Compare the row counts of the main tables with the live database:
+   - in SQL Server Management Studio, right-click the database → Reports → *Disk Usage by Table*;
+   - or run a `COUNT(*)` per table.
+2. Then drop the copy:
+   ```powershell
+   sqlcmd -S . -E -Q "DROP DATABASE [HRPayroll_RestoreTest]"
+   ```
 
 ## 3. Restore over the live database
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\HRPayroll\tools\restore.ps1 -BackupFile "C:\HRPayroll\backups\daily\HRPayroll_20261011_230000.bak" -Replace
 ```
 The script:
-1. verifies the backup (`RESTORE VERIFYONLY ... WITH CHECKSUM`);
-2. stops HR Payroll;
+1. verifies the backup;
+2. takes the site offline (`app_offline.htm`, so visitors see a maintenance page);
 3. replaces the database;
-4. starts HR Payroll again and checks that it's healthy.
+4. brings the site back online and waits for `/health` to answer `Healthy`.
 
 Everything entered after that backup was taken is lost. Write down anything you need to re-enter first.
 
@@ -41,11 +44,8 @@ Everything entered after that backup was taken is lost. Write down anything you 
    ```
 
 ## If the script can't be used
-These are the same steps by hand, for example in SQL Server Management Studio:
-1. Stop the service:
-   ```powershell
-   Stop-Service HRPayroll
-   ```
+These are the same steps by hand, in SQL Server Management Studio:
+1. Create `C:\HRPayroll\app\app_offline.htm`, containing any short text. This stops the site.
 2. If the backup is a `.7z` copy, open it with 7-Zip to get the `.bak` (it asks for the password).
 3. Run, as a SQL Server administrator:
    ```sql
@@ -53,8 +53,6 @@ These are the same steps by hand, for example in SQL Server Management Studio:
    RESTORE DATABASE [HRPayroll] FROM DISK = N'C:\path\to\backup.bak' WITH CHECKSUM, REPLACE, RECOVERY;
    ALTER DATABASE [HRPayroll] SET MULTI_USER;
    ```
-4. Start the service:
-   ```powershell
-   Start-Service HRPayroll
-   ```
-   Then open https://localhost:7443/health. It should say `Healthy`.
+4. Delete `app_offline.htm`, then open `https://<your host>/health`. It should say `Healthy`.
+
+The app's SQL login (`IIS APPPOOL\HRPayroll`) is stored inside the database, so a restore on the same server keeps it working. **On a new server:** run `setup.ps1` first, then restore with `restore.ps1 -Replace`, then run `setup.ps1` once more. The second run re-links the app's login and re-applies any newer migrations.

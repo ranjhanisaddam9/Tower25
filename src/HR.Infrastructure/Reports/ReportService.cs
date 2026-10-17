@@ -54,31 +54,31 @@ public sealed class ReportService(AppDbContext db, IClock clock)
             .ToList();
     }
 
-    /// <summary>Pay changes (increments and decrements) that took effect in the range. Pay columns only.</summary>
+    /// <summary>Salary changes (increments and decrements) that took effect in the range. Salary column only.</summary>
     public async Task<IReadOnlyList<SalaryChangeRow>> SalaryChangesAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         var records = await db.RateRecords.AsNoTracking()
-            .Select(r => new { r.PersonId, r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency })
+            .Select(r => new { r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd })
             .ToListAsync(cancellationToken);
         var changes = records
             .GroupBy(r => r.PersonId)
-            .SelectMany(g => SalaryChanges.Between(g.Select(r => new RatePoint(r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency)), from, to)
-                .Where(c => c.PayChanged)
+            .SelectMany(g => SalaryChanges.Between(g.Select(r => new RatePoint(r.EffectiveFrom, r.SalaryMonthlyUsd)), from, to)
+                .Where(c => c.SalaryChanged)
                 .Select(c => (PersonId: g.Key, Change: c)))
             .ToList();
         return await WithPeopleAsync(changes, cancellationToken);
     }
 
-    /// <summary>Admin only: pay and billing changes in the range.</summary>
+    /// <summary>Admin only: salary and billing changes in the range.</summary>
     public async Task<IReadOnlyList<SalaryChangeRow>> AdminSalaryChangesAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         var records = await db.RateRecords.AsNoTracking()
-            .Select(r => new { r.PersonId, r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency, r.BilledMonthlyUsd, r.CommissionPerPeriodUsd })
+            .Select(r => new { r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd, r.BilledMonthlyUsd, r.CommissionMonthlyUsd })
             .ToListAsync(cancellationToken);
         var changes = records
             .GroupBy(r => r.PersonId)
             .SelectMany(g => SalaryChanges.Between(
-                    g.Select(r => new RatePoint(r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency, r.BilledMonthlyUsd, r.CommissionPerPeriodUsd)), from, to)
+                    g.Select(r => new RatePoint(r.EffectiveFrom, r.SalaryMonthlyUsd, r.BilledMonthlyUsd, r.CommissionMonthlyUsd)), from, to)
                 .Select(c => (PersonId: g.Key, Change: c)))
             .ToList();
         return await WithPeopleAsync(changes, cancellationToken);

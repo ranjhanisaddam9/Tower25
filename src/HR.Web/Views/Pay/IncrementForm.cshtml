@@ -1,11 +1,9 @@
-@using HR.Domain.Pay
 @model IncrementFormPage
 @{
     var isEdit = Model.RecordId is not null;
     ViewData["Title"] = isEdit ? "Edit pay change" : "Record increment";
     ViewData["Section"] = "People";
     var form = Model.Form;
-    var currency = PayDisplay.CurrencyName(Model.Currency);
     var pickerData = new ViewDataDictionary(ViewData) { ["Earliest"] = Model.EarliestEffectiveFrom };
 }
 
@@ -13,7 +11,7 @@
     <h2 class="card-title" id="incrementHeading">@Model.PersonName <span class="text-muted-glass num">· @Model.PersonCode</span></h2>
     @if (Model.Current is { } current)
     {
-        <p class="text-muted-glass" data-testid="increment-current">Current pay: <strong class="num">@DisplayFormat.Money(current.PayMonthlyAmount, current.PayCurrency)</strong> a month, since @DisplayFormat.Date(current.EffectiveFrom).</p>
+        <p class="text-muted-glass" data-testid="increment-current">Current salary: <strong class="num">@DisplayFormat.Usd(current.SalaryMonthlyUsd)</strong> a month, since @DisplayFormat.Date(current.EffectiveFrom).</p>
     }
 
     <div asp-validation-summary="ModelOnly" class="glass-alert alert-danger-glass validation-summary-plain" role="alert" data-testid="increment-errors"></div>
@@ -27,23 +25,14 @@
         <partial name="_PeriodPicker" model="form" view-data="pickerData" />
 
         <fieldset class="form-section">
-            <legend class="form-section-title">New pay</legend>
-            <div class="row g-3">
-                <div class="col-8">
-                    <div class="form-floating">
-                        <input asp-for="Form.Pay" name="Pay" id="Pay" class="form-control num" type="number" step="@(Model.Currency == PayCurrency.PKR ? "1" : "0.01")" min="1"
-                               placeholder="Pay" aria-describedby="Pay-error" />
-                        <label for="Pay">New monthly pay (@currency)</label>
-                    </div>
-                    <span class="field-error" id="Pay-error">@ViewData.ModelState["Pay"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
-                </div>
-                <div class="col-4">
-                    <div class="form-floating">
-                        <input type="text" class="form-control" id="CurrencyShown" value="@currency" readonly aria-readonly="true" />
-                        <label for="CurrencyShown">Currency</label>
-                    </div>
-                </div>
+            <legend class="form-section-title">New salary</legend>
+            <div class="form-floating">
+                <input asp-for="Form.Salary" name="Salary" id="Salary" class="form-control num" type="number" step="0.01" min="1"
+                       placeholder="Salary" aria-describedby="Salary-error Salary-help" />
+                <label for="Salary">New monthly salary (USD)</label>
             </div>
+            <span class="field-error" id="Salary-error">@ViewData.ModelState["Salary"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+            <span class="field-help" id="Salary-help">@(Model.UsdToPkr is { } r ? $"Paid in PKR at each payroll's exchange rate (today Rs {HR.Domain.Rates.ExchangeRateRules.Format(r)} per USD)." : "Paid in PKR at each payroll's exchange rate.")</span>
             <div class="form-floating mt-3">
                 <input asp-for="Form.Note" name="Note" id="Note" class="form-control" maxlength="300" placeholder="Note" />
                 <label for="Note">Note (optional)</label>

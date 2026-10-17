@@ -368,6 +368,24 @@ public class PayrollController(PayrollService payroll, IExchangeRateService rate
         return await downloads.SendAsync(this, file, "Payroll", filters);
     }
 
+    /// <summary>Admin only: the T25 sheet, two columns (name, billed USD) and a total. The path ends in /export so the export rate limit applies.</summary>
+    [HttpGet("{id:int}/t25/export")]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> T25Export(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)
+    {
+        var run = await payroll.GetRunAsync(id, cancellationToken);
+        if (run is null)
+        {
+            return NotFound();
+        }
+
+        var lines = await payroll.LinesAsync(id, cancellationToken);
+        var filters = ExcelExports.RunFilters(run);
+        var file = ExcelExports.T25Billing(downloads.Context(User, "T25 billing", filters), run, lines,
+            await payroll.BillingAsync(id, cancellationToken: cancellationToken));
+        return await downloads.SendAsync(this, file, "T25 billing", filters);
+    }
+
     /// <summary>The bank-upload sheet: full IBANs and net pay (PKR), with a total.</summary>
     [HttpGet("{id:int}/register/export")]
     public async Task<IActionResult> RegisterExport(int id, [FromServices] Downloads downloads, CancellationToken cancellationToken)

@@ -35,24 +35,21 @@ public abstract class PayPeriodPickerForm
 }
 
 /// <summary>
-/// The Admin's pay form. Which amounts count depends on the hire source; the server derives billed, commission and
-/// currency itself and ignores fields that don't apply (SPEC §2).
+/// The Admin's pay form (monthly USD). Which amounts count depends on the hire source; the server derives the third
+/// figure itself and ignores fields that don't apply (SPEC §2). Derived figures are shown read-only and never posted.
 /// </summary>
 public sealed class AdminPayFormViewModel : PayPeriodPickerForm
 {
     [Range(typeof(decimal), "0", "100000000", ErrorMessage = "Enter a positive amount.")]
     public decimal? Salary { get; set; }
 
-    [Range(typeof(decimal), "0", "10000", ErrorMessage = "The commission must be between $0 and $10,000 per pay period.")]
+    /// <summary>CompanyRecommended only.</summary>
+    [Range(typeof(decimal), "0", "20000", ErrorMessage = "The commission must be between $0 and $20,000 a month.")]
     public decimal? Commission { get; set; }
 
+    /// <summary>BudgetHire only: the Company's monthly budget (billed).</summary>
     [Range(typeof(decimal), "0", "100000000", ErrorMessage = "Enter a positive amount.")]
     public decimal? Budget { get; set; }
-
-    [Range(typeof(decimal), "0", "100000000", ErrorMessage = "Enter a positive amount.")]
-    public decimal? Pay { get; set; }
-
-    public PayCurrency? Currency { get; set; }
 
     [StringLength(RateRecord.NoteMaxLength, ErrorMessage = "The note can be at most 300 characters.")]
     public string? Note { get; set; }
@@ -65,7 +62,7 @@ public sealed class AdminPayFormViewModel : PayPeriodPickerForm
 
     public string? RowVersion { get; set; }
 
-    public AdminPayInput ToInput() => new(EffectiveFrom(), Salary, Commission, Budget, Pay, Currency);
+    public AdminPayInput ToInput() => new(EffectiveFrom(), Salary, Commission, Budget);
 
     public static AdminPayFormViewModel From(AdminPayRecord record, HireSource source)
     {
@@ -74,25 +71,23 @@ public sealed class AdminPayFormViewModel : PayPeriodPickerForm
             Note = record.Note,
             MarkCorrection = record.ChangeType == RateChangeType.Correction,
             RowVersion = Convert.ToBase64String(record.RowVersion),
-            Currency = record.Terms.PayCurrency,
+            Salary = record.Terms.SalaryMonthlyUsd,
         };
         form.SetEffectiveFrom(record.Terms.EffectiveFrom);
         if (source == HireSource.BudgetHire)
         {
             form.Budget = record.Terms.BilledMonthlyUsd;
-            form.Pay = record.Terms.PayMonthlyAmount;
         }
-        else
+        else if (source == HireSource.CompanyRecommended)
         {
-            form.Salary = record.Terms.PayMonthlyAmount;
-            form.Commission = record.Terms.CommissionPerPeriodUsd;
+            form.Commission = record.Terms.CommissionMonthlyUsd;
         }
 
         return form;
     }
 }
 
-/// <param name="LossPayUsd">Set when the server found pay ≥ budget and needs the "loses money" confirmation.</param>
+/// <param name="LossCommissionUsd">Set when the server found salary above budget (negative commission) and needs the "loses money" confirmation.</param>
 public sealed record AdminPayFormPage(
     int PersonId,
     string PersonName,
@@ -101,16 +96,16 @@ public sealed record AdminPayFormPage(
     int? RecordId,
     AdminPayFormViewModel Form,
     decimal? UsdToPkr,
-    decimal? LossPayUsd,
+    decimal? LossCommissionUsd,
     DateOnly EarliestEffectiveFrom);
 
-/// <summary>The Manager's increment form: date, new monthly pay and a note. Nothing else is accepted.</summary>
+/// <summary>The Manager's increment form: date, new monthly salary (USD) and a note. Nothing else is accepted.</summary>
 public sealed class IncrementFormViewModel : PayPeriodPickerForm
 {
-    [Required(ErrorMessage = "Enter the new monthly pay.")]
+    [Required(ErrorMessage = "Enter the new monthly salary.")]
     [Range(typeof(decimal), "0", "100000000", ErrorMessage = "Enter a positive amount.")]
-    [Display(Name = "New monthly pay")]
-    public decimal? Pay { get; set; }
+    [Display(Name = "New monthly salary (USD)")]
+    public decimal? Salary { get; set; }
 
     [StringLength(RateRecord.NoteMaxLength, ErrorMessage = "The note can be at most 300 characters.")]
     [Display(Name = "Note (optional)")]
@@ -124,15 +119,15 @@ public sealed record IncrementFormPage(
     string PersonName,
     string PersonCode,
     int? RecordId,
-    PayCurrency Currency,
     ManagerPayCurrent? Current,
     IncrementFormViewModel Form,
+    decimal? UsdToPkr,
     DateOnly EarliestEffectiveFrom);
 
 /// <summary>Admin pay tab on person details.</summary>
 public sealed record AdminPayTabViewModel(int PersonId, AdminPayTab Tab, DateOnly Today);
 
-/// <summary>Manager pay tab on person details: pay side only.</summary>
+/// <summary>Manager pay tab on person details: salary only.</summary>
 public sealed record ManagerPayTabViewModel(int PersonId, ManagerPayTab Tab);
 
 public sealed record SalariesPageViewModel(

@@ -16,6 +16,7 @@ namespace HR.Infrastructure.Security;
 /// <item><c>HR.Web.exe audit-purge</c>: removes audit rows older than the configured retention (default: keep forever).</item>
 /// <item><c>HR.Web.exe seed-admin</c>: creates the roles and, when no Admin exists, the first Admin from <c>Seed:Admin:*</c>
 /// (used once by setup.ps1, which passes the password through the process environment only).</item>
+/// <item><c>HR.Web.exe recalculate-drafts</c>: recalculates every draft payroll (after a pay-model migration; run by migrate.ps1).</item>
 /// </list>
 /// </summary>
 public sealed class ServerCommands(
@@ -23,6 +24,7 @@ public sealed class ServerCommands(
     UserManager<ApplicationUser> userManager,
     ITemporaryPasswordGenerator passwordGenerator,
     AdminSeeder adminSeeder,
+    Payroll.PayrollService payroll,
     IConfiguration configuration,
     IClock clock,
     ILoggerFactory loggerFactory)
@@ -30,9 +32,13 @@ public sealed class ServerCommands(
     public const string AdminReset = "admin-reset";
     public const string AuditPurge = "audit-purge";
     public const string SeedAdmin = "seed-admin";
+    public const string RecalculateDrafts = "recalculate-drafts";
+
+    /// <summary>The actor recorded for changes made by a server command (no signed-in user).</summary>
+    public const string SystemActor = "system";
     public const string RetentionKey = "Audit:RetentionDays";
 
-    public static readonly IReadOnlySet<string> Names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { AdminReset, AuditPurge, SeedAdmin };
+    public static readonly IReadOnlySet<string> Names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { AdminReset, AuditPurge, SeedAdmin, RecalculateDrafts };
 
     private readonly ILogger _log = loggerFactory.CreateLogger(SecurityLog.Category);
 
@@ -60,6 +66,11 @@ public sealed class ServerCommands(
         if (string.Equals(name, SeedAdmin, StringComparison.OrdinalIgnoreCase))
         {
             return await SeedAdminAsync(output, cancellationToken);
+        }
+
+        if (string.Equals(name, RecalculateDrafts, StringComparison.OrdinalIgnoreCase))
+        {
+            return await RecalculateDraftsAsync(output, cancellationToken);
         }
 
         await output.WriteLineAsync($"Unknown command. Available: {string.Join(", ", Names)}");
@@ -102,6 +113,31 @@ public sealed class ServerCommands(
         await output.WriteLineAsync($"Temporary password (shown once, not stored anywhere): {password}");
         await output.WriteLineAsync("Sign in, change the password, then enrol a new authenticator app.");
         return 0;
+    }
+
+    /// <summary>
+    /// Recalculates every draft payroll from the current pay records (audited per run). Finalized payrolls are never
+    /// touched. Exit code 0 when every draft was recalculated.
+    /// </summary>
+    public async Task<int> RecalculateDraftsAsync(TextWriter output, CancellationToken cancellationToken = default)
+    {
+        var drafts = await db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Status == HR.Domain.Payroll.PayrollStatus.Draft)
+            .OrderBy(r => r.PeriodStart)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+        var failed = 0;
+        foreach (var id in drafts)
+        {
+            var result = await payroll.RegenerateAsync(id, SystemActor, cancellationToken);
+            if (result.Status != Payroll.PayrollResultStatus.Success)
+            {
+                failed++;
+            }
+        }
+
+        await output.WriteLineAsync($"Draft payrolls recalculated: {drafts.Count - failed} of {drafts.Count}.");
+        return failed == 0 ? 0 : 1;
     }
 
     /// <summary>

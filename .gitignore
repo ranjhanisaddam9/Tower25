@@ -490,3 +490,8 @@ appsettings.*.local.json
 
 # Release package output (build-package.ps1)
 dist/
+# The IIS publish profile holds no credentials (M10); keep it in the repo.
+!src/HR.Web/Properties/PublishProfiles/IIS-win-x64.pubxml
+
+# Private pay data (pay-model conversion tables); never committed to the public repo.
+docs/private/

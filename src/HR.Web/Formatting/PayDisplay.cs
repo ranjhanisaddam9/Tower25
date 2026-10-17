@@ -23,6 +23,4 @@ public static class PayDisplay
     };
 
     public static string PillClass(RateChangeType type) => PillClass(type == RateChangeType.BillingChange ? "Update" : type.ToString());
-
-    public static string CurrencyName(PayCurrency currency) => currency == PayCurrency.USD ? "USD" : "PKR";
 }

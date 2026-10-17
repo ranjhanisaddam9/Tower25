@@ -144,48 +144,63 @@
         });
     }
 
-    // ---------- Pay form: live margin preview and "loses money" warning (BudgetHire) ----------
-    // Mirrors the server (SPEC §5, f = 1): margin = round2(budget/2) − payUsd, where PKR pay is
-    // payPkr = round0(pay/2), payUsd = round2(payPkr / rate). The server re-checks everything on save.
-    document.querySelectorAll('[data-margin-preview]').forEach(function (box) {
+    // ---------- Pay form: live derived figure, per-period preview and "loses money" warning ----------
+    // Mirrors the server (SPEC §2/§5, f = 1): Billed = Salary + Commission (monthly USD); per period each figure is
+    // round2(monthly / 2), billed = salary + commission, PKR = round0(salary × rate). The server re-derives everything.
+    document.querySelectorAll('[data-pay-calc]').forEach(function (box) {
         var form = box.closest('form');
-        var budget = form.elements.namedItem('Budget');
-        var pay = form.elements.namedItem('Pay');
-        var currency = form.elements.namedItem('Currency');
-        var output = box.querySelector('[data-margin-value]');
-        var loss = form.querySelector('[data-loss-warning]');
+        var source = box.dataset.source;
         var rate = parseFloat(box.dataset.rate || '');
+        var field = function (name) { return form.elements.namedItem(name); };
+        var salary = field('Salary');
+        var commission = field('Commission');
+        var budget = field('Budget');
+        var derivedCommission = box.querySelector('[data-derived="Commission"]');
+        var derivedBilled = box.querySelector('[data-derived="Billed"]');
+        var period = function (name) { return box.querySelector('[data-period="' + name + '"]'); };
+        var loss = form.querySelector('[data-loss-warning]');
         var round2 = function (x) { return Math.sign(x) * Math.round((Math.abs(x) + Number.EPSILON) * 100) / 100; };
         var round0 = function (x) { return Math.sign(x) * Math.round(Math.abs(x)); };
-        var money = function (x) {
+        var number = function (input) { var v = input ? parseFloat(input.value) : NaN; return isNaN(v) ? null : v; };
+        var usd = function (x) {
             return (x < 0 ? '−$' : '$') + Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
+        var pkr = function (x) { return 'Rs ' + x.toLocaleString('en-PK', { maximumFractionDigits: 0 }); };
+        var setText = function (el, text) { if (el) { el.textContent = text; } };
 
         function update() {
-            var b = parseFloat(budget.value);
-            var p = parseFloat(pay.value);
-            var isPkr = currency.value === 'PKR';
-            var monthlyPayUsd = null;
-            var payUsd = null;
-            if (b > 0 && p > 0) {
-                if (!isPkr) {
-                    monthlyPayUsd = p;
-                    payUsd = round2(p / 2);
-                } else if (rate > 0) {
-                    monthlyPayUsd = p / rate;
-                    payUsd = round2(round0(p / 2) / rate);
-                }
+            var s = number(salary);
+            var c = null;
+            var b = null;
+            if (source === 'CompanyRecommended') {
+                c = number(commission);
+                b = s !== null && c !== null ? round2(s + c) : null;
+            } else if (source === 'BudgetHire') {
+                b = number(budget);
+                c = s !== null && b !== null ? round2(b - s) : null;
+            } else {
+                c = 0;
+                b = s;
             }
 
-            output.textContent = payUsd === null ? '—' : money(round2(round2(b / 2) - payUsd));
+            if (derivedCommission) { derivedCommission.value = c === null ? '' : c.toFixed(2); }
+            if (derivedBilled) { derivedBilled.value = b === null ? '' : b.toFixed(2); }
+
+            var ready = s !== null && c !== null;
+            var ps = ready ? round2(s / 2) : null;
+            var pc = ready ? round2(c / 2) : null;
+            setText(period('Salary'), ready ? usd(ps) : '—');
+            setText(period('Commission'), ready ? usd(pc) : '—');
+            setText(period('Billed'), ready ? usd(round2(ps + pc)) : '—');
+            setText(period('Pkr'), ready && rate > 0 ? '≈ ' + pkr(round0(ps * rate)) : '—');
+
             if (loss) {
-                var losing = monthlyPayUsd !== null && monthlyPayUsd >= b;
+                var losing = source === 'BudgetHire' && c !== null && c < 0;
                 loss.hidden = !(losing || loss.dataset.serverLoss === 'true');
             }
         }
 
-        [budget, pay].forEach(function (input) { input.addEventListener('input', update); });
-        currency.addEventListener('change', update);
+        [salary, commission, budget].forEach(function (input) { if (input) { input.addEventListener('input', update); } });
         update();
     });
 

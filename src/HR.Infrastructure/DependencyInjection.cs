@@ -19,6 +19,14 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName);
+            if (string.IsNullOrWhiteSpace(connectionString) && EF.IsDesignTime)
+            {
+                // The migration bundle (migrate.exe --connection ...) and the dotnet-ef tools set the connection
+                // string themselves after creating the context.
+                options.UseSqlServer(sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException(

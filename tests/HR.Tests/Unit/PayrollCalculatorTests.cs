@@ -5,7 +5,7 @@ using HR.Domain.People;
 
 namespace HR.Tests.Unit;
 
-/// <summary>SPEC §9 golden cases G1–G10, all at rate 280, with exactly the listed numbers.</summary>
+/// <summary>SPEC §9 golden cases G1–G10 (pay model v1.1.0: monthly USD salary, commission and billed), all at rate 280, with exactly the listed numbers.</summary>
 public class PayrollCalculatorTests
 {
     private const decimal Rate = 280m;
@@ -16,9 +16,10 @@ public class PayrollCalculatorTests
     private static readonly PayPeriod Second = PayPeriod.For(Oct(16));
     private static readonly EmploymentSpan[] Always = [new(new DateOnly(2025, 1, 6), null)];
 
-    private static readonly PayTerms G1Terms = new(Oct(1), 300m, 25m, 300m, PayCurrency.USD);
-    private static readonly PayTerms BudgetTerms = new(Oct(1), 1000m, 0m, 196_000m, PayCurrency.PKR);
-    private static readonly PayTerms OwnerTerms = new(Oct(1), 1200m, 0m, 1200m, PayCurrency.USD);
+    // Monthly USD: salary, commission, billed.
+    private static readonly PayTerms G1Terms = new(Oct(1), 300m, 50m, 350m); // CompanyRecommended
+    private static readonly PayTerms BudgetTerms = new(Oct(1), 700m, 300m, 1000m); // Bilal: BudgetHire, budget $1,000
+    private static readonly PayTerms OwnerTerms = new(Oct(1), 1200m, 0m, 1200m);
 
     private static readonly AbsenceDay[] BilalAbsences =
     [
@@ -78,8 +79,9 @@ public class PayrollCalculatorTests
     public void G5_budget_hire_second_period_two_unpaid_days()
     {
         var r = Calc(Second, BudgetTerms, HireSource.BudgetHire, absences: BilalAbsences);
-        AssertBase(r, 9m, 11, 409.09m, 286.36m, 80_182m, 122.73m, 34_363m);
+        AssertBase(r, 9m, 11, 409.09m, 286.36m, 80_181m, 122.73m, 34_364m);
         Assert.Equal((2m, 0m), (r.UnpaidDays, r.ExtraDays));
+        Assert.Equal((286.36m, 122.73m), (r.SalaryPartUsd, r.CommissionUsd));
     }
 
     [Fact]
@@ -105,13 +107,13 @@ public class PayrollCalculatorTests
         Assert.Equal(9m, r.PayableDays);
         Assert.Equal(409.09m, r.BilledUsd);
         Assert.Equal(443.38m, r.InvoiceUsd);
-        Assert.Equal(89_782m, r.NetPayPkr);
+        Assert.Equal(89_781m, r.NetPayPkr);
         Assert.Equal(320.65m, r.NetPayUsd);
         Assert.Equal(122.73m, r.OwnerEarningUsd);
-        Assert.Equal(34_364m, r.OwnerEarningPkr);
+        Assert.Equal(34_365m, r.OwnerEarningPkr);
 
         // Base pay is untouched; each adjustment converted at 280.
-        Assert.Equal((286.36m, 80_182m), (r.PayUsd, r.PayPkr));
+        Assert.Equal((286.36m, 80_181m), (r.PayUsd, r.PayPkr));
         Assert.Equal([(5_000m, 17.86m), (5_600m, 20m), (1_000m, 3.57m)], r.AdjustmentAmounts.Select(a => (a.AmountPkr!.Value, a.AmountUsd!.Value)).ToArray());
         Assert.Equal((9_600m, 34.29m), (r.AdjustmentsPkr, r.AdjustmentsUsd));
     }
@@ -156,7 +158,7 @@ public class PayrollCalculatorTests
 
         Assert.Equal(747.73m, OwnerIncome.Usd(lines));
         Assert.Equal(747.73m, lines.Sum(l => l.OwnerEarningUsd!.Value));
-        Assert.Equal(168_000m + 7_000m + 34_363m, OwnerIncome.Pkr(lines));
+        Assert.Equal(168_000m + 7_000m + 34_364m, OwnerIncome.Pkr(lines));
     }
 
     [Fact]
@@ -260,9 +262,9 @@ public class PayrollCalculatorTests
         Assert.Equal((44_800m, 48_000m), (at280.NetPayPkr, at300.NetPayPkr));
         Assert.Equal(round0(185m * 300m) - 48_000m, at300.OwnerEarningPkr);
 
-        // PKR pay: the USD side moves instead.
+        // Every salary is USD: only the PKR side moves with the rate.
         var budget = Calc(Second, BudgetTerms, HireSource.BudgetHire, absences: BilalAbsences, rate: 300m);
-        Assert.Equal((80_182m, 267.27m), (budget.PayPkr, budget.PayUsd));
+        Assert.Equal((85_908m, 286.36m), (budget.PayPkr, budget.PayUsd));
 
         static decimal round0(decimal x) => Money.RoundPkr(x);
     }
@@ -272,11 +274,30 @@ public class PayrollCalculatorTests
     {
         var r = Calc(Second, BudgetTerms, HireSource.BudgetHire, absences: BilalAbsences, adjustments: [new(AdjustmentType.Bonus, 20m, PayCurrency.USD)], rate: null);
 
-        Assert.Equal((409.09m, 80_182m), (r.BilledUsd, r.PayPkr));
-        Assert.Null(r.PayUsd);
+        Assert.Equal((409.09m, 286.36m), (r.BilledUsd, r.PayUsd)); // USD needs no rate
+        Assert.Null(r.PayPkr);
         Assert.Null(r.NetPayPkr);
         Assert.Equal(429.09m, r.InvoiceUsd); // a USD adjustment needs no rate: 409.09 + 20.00
+        Assert.Equal((306.36m, 122.73m), (r.NetPayUsd, r.OwnerEarningUsd));
         Assert.Null(r.OwnerEarningPkr);
         Assert.Null(r.Issue); // a missing rate blocks the whole run, not the line
+    }
+
+    // ---------- The owner's examples (pay model v1.1.0) ----------
+
+    [Fact]
+    public void Company_recommended_750_plus_50_full_period()
+    {
+        var r = Calc(First, new PayTerms(Oct(1), 750m, 50m, 800m), HireSource.CompanyRecommended);
+        Assert.Equal((375.00m, 25.00m, 400.00m, 105_000m), (r.SalaryPartUsd!.Value, r.CommissionUsd!.Value, r.BilledUsd!.Value, r.PayPkr!.Value));
+        Assert.Equal(375.00m, r.PayUsd);
+    }
+
+    [Fact]
+    public void Budget_hire_budget_1000_salary_800_full_period()
+    {
+        var r = Calc(First, new PayTerms(Oct(1), 800m, 200m, 1000m), HireSource.BudgetHire);
+        Assert.Equal((400.00m, 100.00m, 500.00m, 112_000m), (r.SalaryPartUsd!.Value, r.CommissionUsd!.Value, r.BilledUsd!.Value, r.PayPkr!.Value));
+        Assert.Equal(100.00m, r.OwnerEarningUsd);
     }
 }

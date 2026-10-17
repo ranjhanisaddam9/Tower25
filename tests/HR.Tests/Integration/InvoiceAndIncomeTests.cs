@@ -66,11 +66,11 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
         var rizwan = await App.CreatePersonAsync("Rizwan Golden", joined: LongAgo, source: HireSource.CompanyRecommended, left: Oct(21));
         foreach (var id in new[] { ayesha, nadia, kamran, rizwan })
         {
-            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
+            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
         }
 
-        await PayAsync(bilal, new AdminPayInput(Oct(1), null, null, 1000m, 196_000m, PayCurrency.PKR));
-        await PayAsync(imran, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(bilal, new AdminPayInput(Oct(1), 700m, null, 1000m));
+        await PayAsync(imran, new AdminPayInput(Oct(1), 1200m, null, null));
         await AbsentAsync(kamran, Oct(5), AbsencePortion.Half);
         await AbsentAsync(kamran, Oct(7));
         await AbsentAsync(bilal, Oct(6));
@@ -152,8 +152,8 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var owner = await App.CreatePersonAsync("Owner Person", joined: LongAgo, source: HireSource.Owner);
         var cr = await App.CreatePersonAsync("Recommended Person", joined: LongAgo, source: HireSource.CompanyRecommended);
-        await PayAsync(owner, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
-        await PayAsync(cr, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
+        await PayAsync(owner, new AdminPayInput(Oct(1), 1200m, null, null));
+        await PayAsync(cr, new AdminPayInput(Oct(1), 300m, 50m, null));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
         var run = await GenerateAsync(admin, Oct(1));
@@ -165,7 +165,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
 
         var linePage = WebUtility.HtmlDecode(await admin.GetStringAsync($"/payroll/{run}/lines/{ownerLine.Id}"));
         Assert.Contains("your whole invoiced amount", linePage);
-        Assert.Contains("Your whole billed amount", WebUtility.HtmlDecode(await admin.GetStringAsync($"/people/{owner}")));
+        Assert.Contains("your whole billed amount", WebUtility.HtmlDecode(await admin.GetStringAsync($"/people/{owner}")));
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Deducted Person", joined: LongAgo, source: HireSource.CompanyRecommended);
-        await PayAsync(id, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
         var run = await GenerateAsync(manager, Oct(1));
         var line = (await LinesAsync(run)).Single().Id;
@@ -198,7 +198,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var existing = await App.CreatePersonAsync("Existing Owner", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(existing, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(existing, new AdminPayInput(Oct(1), 1200m, null, null));
         var leaver = await App.CreatePersonAsync("Earlier Leaver", joined: LongAgo, left: new DateOnly(2026, 9, 25));
         var later = await App.CreatePersonAsync("Later Joiner", joined: Oct(19));
         var (admin, adminUser) = await App.SignInAsAsync(AppRoles.Admin);
@@ -362,7 +362,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Pending Person", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run = await GenerateAsync(admin, Oct(1));
         Assert.Equal("Payroll finalized. Its figures are now locked.", Toast(await admin.FollowAsync(await FinalizeAsync(admin, run))));
@@ -396,7 +396,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Reopen Person", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null));
         await CompleteSettingsAsync();
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run = await GenerateAsync(admin, Oct(1));
@@ -454,7 +454,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Overdue Person", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null));
         await CompleteSettingsAsync(terms: 7);
 
         int invoiceId;
@@ -563,7 +563,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Guarded Person", joined: LongAgo, source: HireSource.Owner);
-        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), 1200m, null, null));
         await CompleteSettingsAsync();
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run = await GenerateAsync(admin, Oct(1));

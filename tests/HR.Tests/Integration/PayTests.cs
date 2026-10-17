@@ -27,8 +27,6 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         string? salary = null,
         string? commission = null,
         string? budget = null,
-        string? pay = null,
-        string? currency = null,
         bool confirmLoss = false)
     {
         var form = new Dictionary<string, string>
@@ -40,6 +38,10 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
             ["CommissionPerPeriodUsd"] = "999",
             ["PayCurrency"] = "USD",
             ["PayMonthlyAmount"] = "5",
+            ["SalaryMonthlyUsd"] = "6",
+            ["CommissionMonthlyUsd"] = "7",
+            ["Pay"] = "4444",
+            ["Currency"] = "PKR",
             ["ChangeType"] = "Correction",
             ["NeedsBillingReview"] = "true",
             ["CreatedByUserId"] = "someone-else",
@@ -47,17 +49,15 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         if (salary is not null) form["Salary"] = salary;
         if (commission is not null) form["Commission"] = commission;
         if (budget is not null) form["Budget"] = budget;
-        if (pay is not null) form["Pay"] = pay;
-        if (currency is not null) form["Currency"] = currency;
         if (confirmLoss) form["ConfirmLoss"] = "true";
         return form;
     }
 
-    private static Dictionary<string, string> IncrementForm(string month, string half, string pay) => new()
+    private static Dictionary<string, string> IncrementForm(string month, string half, string salary) => new()
     {
         ["EffectiveMonth"] = month,
         ["EffectiveHalf"] = half,
-        ["Pay"] = pay,
+        ["Salary"] = salary,
         // Tampering from a Manager.
         ["BilledMonthlyUsd"] = "99999",
         ["CommissionPerPeriodUsd"] = "999",
@@ -65,7 +65,8 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         ["Currency"] = "USD",
         ["Budget"] = "1",
         ["Commission"] = "999",
-        ["Salary"] = "1",
+        ["Pay"] = "1",
+        ["CommissionMonthlyUsd"] = "999",
         ["NeedsBillingReview"] = "false",
     };
 
@@ -90,14 +91,14 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         return await db.RateRecords.AsNoTracking().Where(r => r.PersonId == personId).OrderBy(r => r.EffectiveFrom).ToListAsync();
     }
 
-    private static AdminPayInput Cr(string date, decimal salary, decimal commission = 25m) =>
-        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, commission, null, null, null);
+    private static AdminPayInput Cr(string date, decimal salary, decimal commission = 50m) =>
+        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, commission, null);
 
-    private static AdminPayInput Budget(string date, decimal budget, decimal pay, PayCurrency currency = PayCurrency.PKR) =>
-        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), null, null, budget, pay, currency);
+    private static AdminPayInput Budget(string date, decimal budget, decimal salary) =>
+        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, null, budget);
 
     private static AdminPayInput OwnerPay(string date, decimal salary) =>
-        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, null, null, null, null);
+        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, null, null);
 
     // ---------- Admin setup ----------
 
@@ -105,16 +106,17 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     [InlineData(HireSource.CompanyRecommended)]
     [InlineData(HireSource.BudgetHire)]
     [InlineData(HireSource.Owner)]
-    public async Task Admin_creates_the_Initial_record_and_the_invariants_hold_despite_tampered_fields(HireSource source)
+    public async Task Admin_creates_the_Initial_record_and_derives_the_third_figure_despite_tampered_fields(HireSource source)
     {
         var id = await App.CreatePersonAsync("Setup " + source, joined: new DateOnly(2026, 10, 8), source: source);
         var (admin, adminUser) = await App.SignInAsAsync(AppRoles.Admin);
 
+        // Fields that don't apply to the source are posted too (and the tampered derived fields): all ignored.
         var form = source switch
         {
-            HireSource.CompanyRecommended => AdminForm(salary: "300", commission: "25", budget: "9999", pay: "4444", currency: "PKR"),
-            HireSource.BudgetHire => AdminForm(budget: "1000", pay: "196000", currency: "PKR", salary: "1", commission: "77"),
-            _ => AdminForm(salary: "1200", commission: "50", budget: "9999", pay: "4444", currency: "PKR"),
+            HireSource.CompanyRecommended => AdminForm(salary: "300", commission: "50", budget: "9999"),
+            HireSource.BudgetHire => AdminForm(budget: "1000", salary: "700", commission: "77"),
+            _ => AdminForm(salary: "1200", commission: "50", budget: "9999"),
         };
         var response = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", form);
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -124,18 +126,24 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         Assert.Equal(RateChangeType.Initial, record.ChangeType);
         Assert.False(record.NeedsBillingReview);
         Assert.Equal(adminUser.Id, record.CreatedByUserId);
-        switch (source)
+        var expected = source switch
         {
-            case HireSource.CompanyRecommended:
-                Assert.Equal((300m, 25m, 300m, PayCurrency.USD), (record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency));
-                break;
-            case HireSource.BudgetHire:
-                Assert.Equal((1000m, 0m, 196_000m, PayCurrency.PKR), (record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency));
-                break;
-            default:
-                Assert.Equal((1200m, 0m, 1200m, PayCurrency.USD), (record.BilledMonthlyUsd, record.CommissionPerPeriodUsd, record.PayMonthlyAmount, record.PayCurrency));
-                break;
-        }
+            HireSource.CompanyRecommended => (300m, 50m, 350m),
+            HireSource.BudgetHire => (700m, 300m, 1000m),
+            _ => (1200m, 0m, 1200m),
+        };
+        Assert.Equal(expected, (record.SalaryMonthlyUsd, record.CommissionMonthlyUsd, record.BilledMonthlyUsd));
+    }
+
+    [Fact]
+    public async Task The_form_suggests_50_commission_for_the_first_record_and_the_previous_one_after_that()
+    {
+        var id = await App.CreatePersonAsync("Default Commission", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
+        var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
+
+        Assert.Matches("id=\"Commission\"[^>]*value=\"50(\\.00)?\"", await admin.GetStringAsync($"/people/{id}/pay/new"));
+        await SeedRecordAsync(id, Cr("2025-01-01", 300m, 75m));
+        Assert.Matches("id=\"Commission\"[^>]*value=\"75(\\.00)?\"", await admin.GetStringAsync($"/people/{id}/pay/new"));
     }
 
     [Fact]
@@ -154,74 +162,63 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     }
 
     [Fact]
-    public async Task Duplicate_EffectiveFrom_and_PKR_fractions_get_friendly_errors()
+    public async Task Duplicate_EffectiveFrom_and_sub_cent_amounts_get_friendly_errors()
     {
         var id = await App.CreatePersonAsync("Duplicate Date", source: HireSource.BudgetHire);
-        await SeedRecordAsync(id, Budget("2026-10-01", 1000m, 196_000m));
+        await SeedRecordAsync(id, Budget("2026-10-01", 1000m, 700m));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
-        var duplicate = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", pay: "200000", currency: "PKR"));
+        var duplicate = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", salary: "750"));
         Assert.Contains(WebUtility.HtmlEncode(PayRecordService.DuplicateMessage), await duplicate.Content.ReadAsStringAsync());
 
-        var fraction = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-11", budget: "1000", pay: "200000.50", currency: "PKR"));
-        Assert.Contains("PKR pay must be in whole rupees.", await fraction.Content.ReadAsStringAsync());
+        var fraction = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-11", budget: "1000", salary: "750.125"));
+        Assert.Contains("Use at most 2 decimal places for USD.", await fraction.Content.ReadAsStringAsync());
 
         Assert.Single(await RecordsAsync(id));
     }
 
     [Fact]
-    public async Task Pay_at_or_above_the_budget_needs_the_loses_money_checkbox()
+    public async Task A_salary_above_the_budget_needs_the_loses_money_checkbox_but_no_margin_does_not()
     {
-        await AddExchangeRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Losing Hire", source: HireSource.BudgetHire);
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
-        // PKR 280,000 at 280 = $1,000, equal to the budget.
-        var rejected = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", pay: "280000", currency: "PKR"));
-        var html = await rejected.Content.ReadAsStringAsync();
+        var rejected = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", salary: "1100"));
+        var html = WebUtility.HtmlDecode(await rejected.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
         Assert.Contains("This hire loses money", html);
-        Assert.Contains(WebUtility.HtmlEncode(PayController.LossConfirmMessage), html);
+        Assert.Contains("commission -$100.00 a month", html);
+        Assert.Contains(PayController.LossConfirmMessage, html);
         Assert.Empty(await RecordsAsync(id));
 
-        var saved = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", pay: "280000", currency: "PKR", confirmLoss: true));
+        var saved = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(budget: "1000", salary: "1100", confirmLoss: true));
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Single(await RecordsAsync(id));
-    }
+        Assert.Equal(-100m, Assert.Single(await RecordsAsync(id)).CommissionMonthlyUsd);
 
-    [Fact]
-    public async Task Admin_tab_shows_billing_and_earning_with_the_margin_math()
-    {
-        await AddExchangeRateAsync(new DateOnly(2026, 1, 1), 280m);
-        var id = await App.CreatePersonAsync("Margin Person", source: HireSource.BudgetHire, joined: new DateOnly(2025, 1, 6));
-        await SeedRecordAsync(id, Budget("2025-01-01", 1000m, 196_000m));
-        var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
-
-        var html = await admin.GetStringAsync($"/people/{id}");
-        Assert.Contains("data-testid=\"pay-earning\">$150.00<", html);
-        Assert.Contains("Billed to the Company", html);
-        Assert.Contains("$500.00 per full period", html);
-        Assert.Contains("Rs 196,000", html);
-        Assert.Contains("Rs 98,000 per full period", html);
+        // Salary equal to the budget: no margin, but no loss either.
+        var even = await App.CreatePersonAsync("Even Hire", source: HireSource.BudgetHire);
+        Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{even}/pay/new", $"/people/{even}/pay/new", AdminForm(budget: "1000", salary: "1000"))).StatusCode);
     }
 
     /// <summary>
-    /// The Admin "Current" card for the SPEC §9 setups (G1 CompanyRecommended, G4 BudgetHire, G6 Owner): billed per month,
-    /// billed per full period and the Company's earning per full period, exactly as rendered.
+    /// The Admin "Current" card for the SPEC §9 setups (G1 CompanyRecommended, G4 BudgetHire, G6 Owner): salary, commission,
+    /// billed and your earning, per month and per full period, exactly as rendered.
     /// </summary>
     [Theory]
-    [InlineData(HireSource.CompanyRecommended, "$300.00", "$175.00 per full period (incl. $25.00 commission)", "$25.00")]
-    [InlineData(HireSource.BudgetHire, "$1,000.00", "$500.00 per full period", "$150.00")]
-    [InlineData(HireSource.Owner, "$1,200.00", "$600.00 per full period", "$600.00")] // M8: the Owner earns his whole billed amount
-    public async Task Admin_current_card_renders_the_golden_billing_values(HireSource source, string billedMonthly, string billedPerPeriod, string earning)
+    [InlineData(HireSource.CompanyRecommended, "$300.00", "$150.00", "$50.00", "$25.00", "$350.00", "$175.00", "$50.00", "$25.00", "Rs 42,000")]
+    [InlineData(HireSource.BudgetHire, "$700.00", "$350.00", "$300.00", "$150.00", "$1,000.00", "$500.00", "$300.00", "$150.00", "Rs 98,000")]
+    [InlineData(HireSource.Owner, "$1,200.00", "$600.00", "$0.00", "$0.00", "$1,200.00", "$600.00", "$1,200.00", "$600.00", "Rs 168,000")] // the Owner earns his whole billed amount
+    public async Task Admin_current_card_renders_the_golden_values_per_month_and_per_full_period(HireSource source,
+        string salaryMonth, string salaryPeriod, string commissionMonth, string commissionPeriod, string billedMonth, string billedPeriod,
+        string earningMonth, string earningPeriod, string pkr)
     {
         await AddExchangeRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Golden " + source switch { HireSource.CompanyRecommended => "Alpha", HireSource.BudgetHire => "Delta", _ => "Foxtrot" },
             joined: new DateOnly(2026, 9, 1), source: source);
         await SeedRecordAsync(id, source switch
         {
-            HireSource.CompanyRecommended => Cr("2026-10-01", 300m, 25m),
-            HireSource.BudgetHire => Budget("2026-10-01", 1000m, 196_000m),
+            HireSource.CompanyRecommended => Cr("2026-10-01", 300m, 50m),
+            HireSource.BudgetHire => Budget("2026-10-01", 1000m, 700m),
             _ => OwnerPay("2026-10-01", 1200m),
         });
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
@@ -229,11 +226,13 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         var html = await admin.GetStringAsync($"/people/{id}");
         var start = html.IndexOf("data-testid=\"pay-current\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The current card is missing.");
-        var card = WebUtility.HtmlDecode(html[start..html.IndexOf("Your earning per full period", start, StringComparison.Ordinal)]);
-        Assert.Contains($"Billed to the Company</span>", card);
-        Assert.Contains($">{billedMonthly} <span class=\"pay-summary-unit\">/ month</span>", card);
-        Assert.Contains($">{billedPerPeriod}</span>", card);
-        Assert.Contains($"data-testid=\"pay-earning\">{earning}<", html);
+        var card = Regex.Replace(WebUtility.HtmlDecode(html[start..html.IndexOf("</table>", start, StringComparison.Ordinal)]), "<[^>]+>", "|");
+        card = Regex.Replace(card, "\\s*\\|[\\s|]*", "|");
+
+        Assert.Contains($"|Salary|{salaryMonth}|{salaryPeriod}|≈ {pkr} at today's rate|", card);
+        Assert.Contains($"|Commission|{commissionMonth}|{commissionPeriod}|", card);
+        Assert.Contains($"|Billed|{billedMonth}|{billedPeriod}|", card);
+        Assert.Contains($"|{earningMonth}|{earningPeriod}|", card[card.IndexOf("Your earning", StringComparison.Ordinal)..]);
     }
 
     // ---------- Manager increments ----------
@@ -242,19 +241,19 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     [InlineData(HireSource.CompanyRecommended)]
     [InlineData(HireSource.BudgetHire)]
     [InlineData(HireSource.Owner)]
-    public async Task Manager_increment_follows_the_source_rules_and_ignores_tampered_fields(HireSource source)
+    public async Task Manager_increment_enters_the_salary_only_and_follows_the_source_rules(HireSource source)
     {
         var id = await App.CreatePersonAsync("Increment " + source, joined: new DateOnly(2025, 1, 6), source: source);
         await SeedRecordAsync(id, source switch
         {
-            HireSource.CompanyRecommended => Cr("2025-01-01", 300m, 25m),
-            HireSource.BudgetHire => Budget("2025-01-01", 1000m, 196_000m),
+            HireSource.CompanyRecommended => Cr("2025-01-01", 300m, 50m),
+            HireSource.BudgetHire => Budget("2025-01-01", 1000m, 700m),
             _ => OwnerPay("2025-01-01", 1200m),
         });
         var (manager, managerUser) = await App.SignInAsAsync(AppRoles.Manager);
 
-        var newPay = source switch { HireSource.BudgetHire => "210000", HireSource.Owner => "1300", _ => "330" };
-        var response = await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-04", "16", newPay));
+        var newSalary = source switch { HireSource.BudgetHire => "800", HireSource.Owner => "1300", _ => "330" };
+        var response = await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-04", "16", newSalary));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
         var records = await RecordsAsync(id);
@@ -265,19 +264,34 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         Assert.Equal(managerUser.Id, increment.CreatedByUserId);
         switch (source)
         {
-            case HireSource.CompanyRecommended:
-                Assert.Equal((330m, 25m, 330m, PayCurrency.USD), (increment.BilledMonthlyUsd, increment.CommissionPerPeriodUsd, increment.PayMonthlyAmount, increment.PayCurrency));
+            case HireSource.CompanyRecommended: // commission carried, billed re-derived
+                Assert.Equal((330m, 50m, 380m), (increment.SalaryMonthlyUsd, increment.CommissionMonthlyUsd, increment.BilledMonthlyUsd));
                 Assert.False(increment.NeedsBillingReview);
                 break;
-            case HireSource.BudgetHire:
-                Assert.Equal((1000m, 0m, 210_000m, PayCurrency.PKR), (increment.BilledMonthlyUsd, increment.CommissionPerPeriodUsd, increment.PayMonthlyAmount, increment.PayCurrency));
+            case HireSource.BudgetHire: // budget carried, commission re-derived, flagged for the Admin
+                Assert.Equal((800m, 200m, 1000m), (increment.SalaryMonthlyUsd, increment.CommissionMonthlyUsd, increment.BilledMonthlyUsd));
                 Assert.True(increment.NeedsBillingReview);
                 break;
             default:
-                Assert.Equal((1300m, 0m, 1300m, PayCurrency.USD), (increment.BilledMonthlyUsd, increment.CommissionPerPeriodUsd, increment.PayMonthlyAmount, increment.PayCurrency));
+                Assert.Equal((1300m, 0m, 1300m), (increment.SalaryMonthlyUsd, increment.CommissionMonthlyUsd, increment.BilledMonthlyUsd));
                 Assert.False(increment.NeedsBillingReview);
                 break;
         }
+    }
+
+    [Fact]
+    public async Task A_Manager_increment_above_the_budget_is_saved_without_a_loss_warning_and_flagged_for_review()
+    {
+        var id = await App.CreatePersonAsync("Over Budget", joined: new DateOnly(2025, 1, 6), source: HireSource.BudgetHire);
+        await SeedRecordAsync(id, Budget("2025-01-01", 1000m, 700m));
+        var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
+
+        var response = await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-04", "1", "1050"));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.DoesNotContain("loses money", await manager.FollowAsync(response), StringComparison.OrdinalIgnoreCase);
+
+        var increment = (await RecordsAsync(id))[1];
+        Assert.Equal((1050m, -50m, true), (increment.SalaryMonthlyUsd, increment.CommissionMonthlyUsd, increment.NeedsBillingReview));
     }
 
     [Fact]
@@ -296,7 +310,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         Assert.True(editOther.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
         var deleteOther = await manager.PostFormAsync($"/people/{id}/pay/{adminRecord}/delete", tokenPage);
         Assert.Equal(HttpStatusCode.Forbidden, deleteOther.StatusCode);
-        Assert.Equal(300m, (await RecordsAsync(id)).Single(r => r.Id == adminRecord).PayMonthlyAmount);
+        Assert.Equal(300m, (await RecordsAsync(id)).Single(r => r.Id == adminRecord).SalaryMonthlyUsd);
 
         // Admin-only routes.
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"/people/{id}/pay/{adminRecord}/edit")).StatusCode);
@@ -308,7 +322,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         form["RowVersion"] = PeopleHelpers.RowVersion(editPage);
         Assert.Equal(HttpStatusCode.Redirect, (await manager.PostFormAsync(tokenPage, tokenPage, form)).StatusCode);
         var edited = (await RecordsAsync(id)).Single(r => r.Id == ownRecord);
-        Assert.Equal((325m, 325m, 25m, PayCurrency.USD), (edited.PayMonthlyAmount, edited.BilledMonthlyUsd, edited.CommissionPerPeriodUsd, edited.PayCurrency));
+        Assert.Equal((325m, 50m, 375m), (edited.SalaryMonthlyUsd, edited.CommissionMonthlyUsd, edited.BilledMonthlyUsd));
 
         Assert.Equal(HttpStatusCode.Redirect, (await manager.PostFormAsync($"/people/{id}/pay/{ownRecord}/delete", $"/people/{id}")).StatusCode);
         Assert.Single(await RecordsAsync(id));
@@ -323,7 +337,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     {
         // Distinctive amounts: billed $1,234.56 vs pay $777.00; commission $43.21.
         var budgetPerson = await App.CreatePersonAsync("Person Bravo", joined: new DateOnly(2025, 1, 6), source: HireSource.BudgetHire);
-        await SeedRecordAsync(budgetPerson, Budget("2025-01-01", 1234.56m, 777m, PayCurrency.USD));
+        await SeedRecordAsync(budgetPerson, Budget("2025-01-01", 1234.56m, 777m));
         var crPerson = await App.CreatePersonAsync("Person Charlie", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
         await SeedRecordAsync(crPerson, Cr("2025-01-01", 500m, 43.21m));
         await SeedRecordAsync(crPerson, Cr("2025-06-01", 500m, 50m)); // BillingChange
@@ -390,7 +404,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     public async Task Hire_source_is_locked_while_pay_records_exist()
     {
         var id = await App.CreatePersonAsync("Locked Source", source: HireSource.BudgetHire);
-        var recordId = await SeedRecordAsync(id, Budget("2026-10-01", 1000m, 196_000m));
+        var recordId = await SeedRecordAsync(id, Budget("2026-10-01", 1000m, 700m));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
         Assert.Contains("data-testid=\"hire-source-locked\"", await admin.GetStringAsync($"/people/{id}"));
@@ -411,9 +425,9 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     public async Task Mark_reviewed_clears_the_flag_and_is_Admin_only()
     {
         var id = await App.CreatePersonAsync("Flag Me", joined: new DateOnly(2025, 1, 6), source: HireSource.BudgetHire);
-        await SeedRecordAsync(id, Budget("2025-01-01", 1000m, 196_000m));
+        await SeedRecordAsync(id, Budget("2025-01-01", 1000m, 700m));
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
-        await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-01", "1", "200000"));
+        await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-01", "1", "750"));
         var flagged = (await RecordsAsync(id)).Single(r => r.NeedsBillingReview);
 
         var managerAttempt = await manager.PostFormAsync($"/people/{id}/pay/{flagged.Id}/reviewed", $"/people/{id}");
@@ -459,14 +473,14 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
 
         var records = await RecordsAsync(id);
         Assert.Equal(2, records.Count);
-        Assert.Equal(1200m, records[0].PayMonthlyAmount);
+        Assert.Equal(1200m, records[0].SalaryMonthlyUsd);
         Assert.Equal(new DateOnly(2026, 11, 1), records[1].EffectiveFrom);
 
         // An unlocked record can still be edited.
         var ok = AdminForm(month: "2026-11", half: "1", salary: "1350");
         ok["RowVersion"] = PeopleHelpers.RowVersion(await admin.GetStringAsync($"/people/{id}/pay/{nov1}/edit"));
         Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{id}/pay/{nov1}/edit", $"/people/{id}/pay/{nov1}/edit", ok)).StatusCode);
-        Assert.Equal(1350m, (await RecordsAsync(id))[1].PayMonthlyAmount);
+        Assert.Equal(1350m, (await RecordsAsync(id))[1].SalaryMonthlyUsd);
     }
 
     [Fact]
@@ -542,8 +556,8 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
 
         Assert.Contains(App.Logs.Entries, e => e.EventId.Id == 1300 && e.Values.Contains($"PersonId={id}") && e.Values.Contains($"ActorId={adminUser.Id}"));
         var edited = App.Logs.Entries.First(e => e.EventId.Id == 1301 && e.Values.Contains($"RecordId={second}"));
-        Assert.Contains("billed 300.00 USD, commission 30.00 USD, pay 300.00 USD", edited.AllText);  // old
-        Assert.Contains("billed 280.00 USD, commission 30.00 USD, pay 280.00 USD", edited.AllText);  // new
+        Assert.Contains("salary 300.00 USD, commission 30.00 USD, billed 330.00 USD a month", edited.AllText);  // old
+        Assert.Contains("salary 280.00 USD, commission 30.00 USD, billed 310.00 USD a month", edited.AllText);  // new
         Assert.Contains("->", edited.Message);
         Assert.Contains(App.Logs.Entries, e => e.EventId.Id == 1302 && e.Values.Contains($"RecordId={second}"));
     }
@@ -568,7 +582,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
             Assert.True(post.StatusCode == HttpStatusCode.BadRequest, $"POST {url} without a token → {(int)post.StatusCode}");
         }
 
-        Assert.Equal(1200m, Assert.Single(await RecordsAsync(id)).PayMonthlyAmount);
+        Assert.Equal(1200m, Assert.Single(await RecordsAsync(id)).SalaryMonthlyUsd);
     }
 
     // ---------- Salaries overview and dashboard ----------
@@ -578,9 +592,9 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     {
         await AddExchangeRateAsync(new DateOnly(2025, 1, 1), 280m);
         var cr = await App.CreatePersonAsync("Alpha CR", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
-        await SeedRecordAsync(cr, Cr("2025-01-01", 300m, 25m));
+        await SeedRecordAsync(cr, Cr("2025-01-01", 300m, 50m));
         var budget = await App.CreatePersonAsync("Bravo Budget", joined: new DateOnly(2025, 1, 6), source: HireSource.BudgetHire);
-        await SeedRecordAsync(budget, Budget("2025-01-01", 1000m, 196_000m));
+        await SeedRecordAsync(budget, Budget("2025-01-01", 1000m, 700m));
         var owner = await App.CreatePersonAsync("Charlie Owner", joined: new DateOnly(2025, 1, 6), source: HireSource.Owner);
         await SeedRecordAsync(owner, OwnerPay("2025-01-01", 1200m));
         await App.CreatePersonAsync("Delta Missing", source: HireSource.CompanyRecommended);
@@ -592,7 +606,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         var today = App.Services.GetRequiredService<HR.Domain.Time.IClock>().Today;
         var recent = HR.Domain.Payroll.PayPeriod.For(today).Start;
         await manager.PostFormAsync($"/people/{budget}/pay/increment", $"/people/{budget}/pay/increment",
-            IncrementForm(recent.ToString("yyyy-MM", CultureInfo.InvariantCulture), recent.Day == 16 ? "16" : "1", "210000"));
+            IncrementForm(recent.ToString("yyyy-MM", CultureInfo.InvariantCulture), recent.Day == 16 ? "16" : "1", "750"));
 
         var all = await manager.GetStringAsync("/salaries");
         Assert.Contains("5 people", all);
@@ -605,8 +619,11 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
 
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var adminAll = await admin.GetStringAsync("/salaries");
-        // Billed: 300 + 1000 + 1200 = $2,500.00. Earning per full period: CR 25.00 + Budget (500 − 375.00) 125.00 + Owner 600.00 (M8: his whole billed amount) = $750.00.
-        Assert.Contains("data-testid=\"total-billed\">$2,500.00<", adminAll);
+        // Monthly: salary 300 + 750 + 1200 = $2,250.00; commission 50 + 250 + 0 = $300.00; billed 350 + 1000 + 1200 = $2,550.00.
+        // Earning per full period: CR 25.00 + Budget 125.00 + Owner 600.00 (his whole billed amount) = $750.00.
+        Assert.Contains("data-testid=\"total-salary\">$2,250.00<", adminAll);
+        Assert.Contains("data-testid=\"total-commission\">$300.00<", adminAll);
+        Assert.Contains("data-testid=\"total-billed\">$2,550.00<", adminAll);
         Assert.Contains("data-testid=\"total-earning\">$750.00<", adminAll);
         Assert.Equal(["Bravo Budget"], Names(await admin.GetStringAsync("/salaries?filter=NeedsReview")));
         Assert.Matches("data-testid=\"review-tile\"[\\s\\S]*?stat-value\">1<", await admin.GetStringAsync("/"));

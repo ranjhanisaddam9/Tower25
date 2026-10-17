@@ -237,16 +237,27 @@ public sealed class PayrollLine
 
     public string? Iban { get; private set; }
 
-    // Rate record snapshot
+    // Rate record snapshot. Lines calculated since the pay-model change (v1.1.0) hold the three monthly USD figures;
+    // older finalized lines keep the legacy ones (commission per period, pay amount and currency) and are never rewritten.
     public int? RateRecordId { get; private set; }
+
+    public decimal? SalaryMonthlyUsd { get; private set; }
+
+    public decimal? CommissionMonthlyUsd { get; private set; }
 
     public decimal? BilledMonthlyUsd { get; private set; }
 
+    /// <summary>Legacy (before v1.1.0) only.</summary>
     public decimal? CommissionPerPeriodUsd { get; private set; }
 
+    /// <summary>Legacy (before v1.1.0) only.</summary>
     public decimal? PayMonthlyAmount { get; private set; }
 
+    /// <summary>Legacy (before v1.1.0) only.</summary>
     public PayCurrency? PayCurrency { get; private set; }
+
+    /// <summary>A line frozen before the pay-model change: its snapshot uses the legacy columns.</summary>
+    public bool IsLegacyPayModel => SalaryMonthlyUsd is null && PayMonthlyAmount is not null;
 
     // Entered on the draft
     public decimal ExtraDays { get; private set; }
@@ -310,10 +321,12 @@ public sealed class PayrollLine
         BankName = snapshot.BankName;
         Iban = snapshot.Iban;
         RateRecordId = snapshot.RateRecordId;
+        SalaryMonthlyUsd = snapshot.Terms?.SalaryMonthlyUsd;
+        CommissionMonthlyUsd = snapshot.Terms?.CommissionMonthlyUsd;
         BilledMonthlyUsd = snapshot.Terms?.BilledMonthlyUsd;
-        CommissionPerPeriodUsd = snapshot.Terms?.CommissionPerPeriodUsd;
-        PayMonthlyAmount = snapshot.Terms?.PayMonthlyAmount;
-        PayCurrency = snapshot.Terms?.PayCurrency;
+        CommissionPerPeriodUsd = null;
+        PayMonthlyAmount = null;
+        PayCurrency = null;
 
         WorkingDays = result.WorkingDays;
         EmployedWorkingDays = result.EmployedWorkingDays;

@@ -811,27 +811,52 @@
     gap: 4px 20px;
 }
 
-.margin-preview {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
+.derived-field[readonly] {
+    background: transparent;
+    border-style: dashed;
+    cursor: default;
+}
+
+.field-help {
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+}
+
+/* Pay form: the four figures for one full pay period, live from site.js. */
+.period-preview {
     margin-top: 16px;
     padding: 12px 14px;
     border: 1px dashed var(--input-border);
     border-radius: var(--radius-control);
 }
 
-.margin-label {
+.period-preview-title {
+    margin: 0 0 8px;
     font-weight: 600;
 }
 
-.margin-value {
-    font-size: 1.125rem;
+.period-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px 16px;
+    margin: 0;
 }
 
-.margin-note {
-    flex-basis: 100%;
+.period-preview-grid dt {
+    color: var(--text-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.period-preview-grid dd {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 600;
+}
+
+.period-preview-note {
+    margin: 8px 0 0;
     color: var(--text-muted);
     font-size: var(--fs-small);
 }

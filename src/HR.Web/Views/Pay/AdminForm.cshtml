@@ -10,7 +10,7 @@
     var source = Model.Source;
     var pickerData = new ViewDataDictionary(ViewData) { ["Earliest"] = Model.EarliestEffectiveFrom };
     var rate = Model.UsdToPkr?.ToString(CultureInfo.InvariantCulture) ?? "";
-    var lossShown = Model.LossPayUsd is not null || form.ConfirmLoss;
+    var lossShown = Model.LossCommissionUsd is not null || form.ConfirmLoss;
 }
 
 <section class="glass-card form-card form-card-wide" aria-labelledby="payFormHeading">
@@ -22,13 +22,13 @@
         @switch (source)
         {
             case HireSource.CompanyRecommended:
-                <text>Company recommended: the Company is billed the salary plus your commission, and the person is paid the same salary in USD.</text>
+                <text>Company recommended: you enter the salary and your commission; the Company is billed both. The person is paid the salary, in PKR at each payroll's rate.</text>
                 break;
             case HireSource.BudgetHire:
-                <text>Budget hire: the Company is billed its budget; you pay the person less. No commission.</text>
+                <text>Budget hire: you enter the Company's budget and the salary; your commission is the difference. The person is paid the salary, in PKR at each payroll's rate.</text>
                 break;
             default:
-                <text>Owner: your own salary, billed and paid in USD. No commission.</text>
+                <text>Owner: your own salary, billed as it is. No commission.</text>
                 break;
         }
     </p>
@@ -43,74 +43,84 @@
 
         <partial name="_PeriodPicker" model="form" view-data="pickerData" />
 
-        <fieldset class="form-section">
-            <legend class="form-section-title">Amounts</legend>
-            @if (source == HireSource.BudgetHire)
-            {
-                <div class="row g-3">
-                    <div class="col-md-6">
+        <fieldset class="form-section" data-pay-calc data-source="@source" data-rate="@rate">
+            <legend class="form-section-title">Amounts per month (USD)</legend>
+            <div class="row g-3">
+                @if (source == HireSource.BudgetHire)
+                {
+                    <div class="col-md-4">
                         <div class="form-floating">
                             <input asp-for="Form.Budget" name="Budget" id="Budget" class="form-control num" type="number" step="0.01" min="1" placeholder="1000" aria-describedby="Budget-error" />
-                            <label for="Budget">Company budget, monthly (USD)</label>
+                            <label for="Budget">Billed: the Company's budget</label>
                         </div>
                         <span class="field-error" id="Budget-error">@ViewData.ModelState["Budget"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                     </div>
-                    <div class="col-md-4 col-8">
-                        <div class="form-floating">
-                            <input asp-for="Form.Pay" name="Pay" id="Pay" class="form-control num" type="number" step="0.01" min="1" placeholder="196000" aria-describedby="Pay-error" />
-                            <label for="Pay">Monthly pay to person</label>
-                        </div>
-                        <span class="field-error" id="Pay-error">@ViewData.ModelState["Pay"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                }
+                <div class="col-md-4">
+                    <div class="form-floating">
+                        <input asp-for="Form.Salary" name="Salary" id="Salary" class="form-control num" type="number" step="0.01" min="1" placeholder="300" aria-describedby="Salary-error" />
+                        <label for="Salary">@(source == HireSource.Owner ? "Your salary" : "Salary paid to the person")</label>
                     </div>
-                    <div class="col-md-2 col-4">
+                    <span class="field-error" id="Salary-error">@ViewData.ModelState["Salary"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                </div>
+                @if (source == HireSource.CompanyRecommended)
+                {
+                    <div class="col-md-4">
                         <div class="form-floating">
-                            <select name="Currency" id="Currency" class="form-select">
-                                <option value="PKR" selected="@(form.Currency != PayCurrency.USD)">PKR</option>
-                                <option value="USD" selected="@(form.Currency == PayCurrency.USD)">USD</option>
-                            </select>
-                            <label for="Currency">Currency</label>
+                            <input asp-for="Form.Commission" name="Commission" id="Commission" class="form-control num" type="number" step="0.01" min="0" placeholder="50" aria-describedby="Commission-error" />
+                            <label for="Commission">Your commission</label>
                         </div>
+                        <span class="field-error" id="Commission-error">@ViewData.ModelState["Commission"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                     </div>
-                </div>
+                }
+                else
+                {
+                    @* Derived, read-only and never posted (no name): the server derives it again. *@
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <input id="CommissionDerived" class="form-control num derived-field" type="text" readonly data-derived="Commission"
+                                   value="@(source == HireSource.Owner ? "0.00" : form.Budget is { } b && form.Salary is { } s ? (b - s).ToString("0.00", CultureInfo.InvariantCulture) : "")" aria-describedby="CommissionDerived-help" />
+                            <label for="CommissionDerived">Your commission (budget − salary)</label>
+                        </div>
+                        <span class="field-help" id="CommissionDerived-help">@(source == HireSource.Owner ? "Always 0 for the owner." : "Calculated: you can't type here.")</span>
+                    </div>
+                }
+                @if (source != HireSource.BudgetHire)
+                {
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <input id="BilledDerived" class="form-control num derived-field" type="text" readonly data-derived="Billed"
+                                   value="@(form.Salary is { } s2 ? (s2 + (source == HireSource.CompanyRecommended ? form.Commission ?? 0m : 0m)).ToString("0.00", CultureInfo.InvariantCulture) : "")" aria-describedby="BilledDerived-help" />
+                            <label for="BilledDerived">Billed to the Company (salary + commission)</label>
+                        </div>
+                        <span class="field-help" id="BilledDerived-help">Calculated: you can't type here.</span>
+                    </div>
+                }
+            </div>
 
-                <div class="margin-preview" data-margin-preview data-rate="@rate" aria-live="polite">
-                    <span class="margin-label">Your margin per full pay period</span>
-                    <strong class="margin-value num" data-margin-value>—</strong>
-                    <span class="margin-note" data-margin-note>@(Model.UsdToPkr is { } r ? $"PKR pay is an estimate at today's rate (Rs {HR.Domain.Rates.ExchangeRateRules.Format(r)} per USD)." : "No exchange rate yet: PKR pay can't be converted, so the margin isn't shown.")</span>
-                </div>
+            <div class="period-preview" aria-live="polite">
+                <p class="period-preview-title">Per pay period (half a month, full period)</p>
+                <dl class="period-preview-grid">
+                    <div><dt>Salary</dt><dd class="num" data-period="Salary">—</dd></div>
+                    <div><dt>Commission</dt><dd class="num" data-period="Commission">—</dd></div>
+                    <div><dt>Billed</dt><dd class="num" data-period="Billed">—</dd></div>
+                    <div><dt>Salary in PKR <span class="text-muted-glass">(estimate)</span></dt><dd class="num" data-period="Pkr">—</dd></div>
+                </dl>
+                <p class="period-preview-note">@(Model.UsdToPkr is { } r ? $"PKR is an estimate at today's rate (Rs {HR.Domain.Rates.ExchangeRateRules.Format(r)} per USD); each payroll uses its own rate." : "No exchange rate yet: the PKR estimate isn't shown.")</p>
+            </div>
 
+            @if (source == HireSource.BudgetHire)
+            {
                 <div class="glass-alert alert-warning-glass loss-warning" data-loss-warning data-server-loss="@(lossShown ? "true" : null)" hidden="@(!lossShown)" role="alert">
                     <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
                     <div>
-                        <p class="mb-2"><strong>This hire loses money:</strong> the pay is at or above the Company's budget@(Model.LossPayUsd is { } lp ? $" (pay ≈ {DisplayFormat.Usd(lp)} a month)" : "").</p>
+                        <p class="mb-2"><strong>This hire loses money:</strong> the salary is above the Company's budget@(Model.LossCommissionUsd is { } lc ? $" (commission {DisplayFormat.Usd(lc)} a month)" : "").</p>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="ConfirmLoss" id="ConfirmLoss" value="true" checked="@form.ConfirmLoss" aria-describedby="ConfirmLoss-error" />
                             <label class="form-check-label" for="ConfirmLoss">I understand this hire loses money</label>
                         </div>
                         <span class="field-error" id="ConfirmLoss-error">@ViewData.ModelState["ConfirmLoss"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                     </div>
-                </div>
-            }
-            else
-            {
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="form-floating">
-                            <input asp-for="Form.Salary" name="Salary" id="Salary" class="form-control num" type="number" step="0.01" min="1" placeholder="300" aria-describedby="Salary-error" />
-                            <label for="Salary">@(source == HireSource.Owner ? "Your monthly salary (USD)" : "Monthly salary (USD) — billed and paid")</label>
-                        </div>
-                        <span class="field-error" id="Salary-error">@ViewData.ModelState["Salary"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
-                    </div>
-                    @if (source == HireSource.CompanyRecommended)
-                    {
-                        <div class="col-md-6">
-                            <div class="form-floating">
-                                <input asp-for="Form.Commission" name="Commission" id="Commission" class="form-control num" type="number" step="0.01" min="0" placeholder="25" aria-describedby="Commission-error" />
-                                <label for="Commission">Your commission per pay period (USD)</label>
-                            </div>
-                            <span class="field-error" id="Commission-error">@ViewData.ModelState["Commission"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
-                        </div>
-                    }
                 </div>
             }
         </fieldset>

@@ -2,7 +2,7 @@
 
 | Component | Licence |
 |---|---|
-| .NET runtime and ASP.NET Core (self-contained in `app\`) | MIT |
+| .NET runtime inside `migrate.exe` (the web app itself uses the server's ASP.NET Core 10 Hosting Bundle) | MIT |
 | Entity Framework Core, ASP.NET Core Identity, Microsoft.Data.SqlClient | MIT |
 | ClosedXML (Excel exports) | MIT |
 | QuestPDF (PDF exports) | QuestPDF Community licence: free for organisations with less than USD 1M annual gross revenue; see questpdf.com |

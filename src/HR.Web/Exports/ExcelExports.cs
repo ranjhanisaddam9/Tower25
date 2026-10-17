@@ -75,8 +75,7 @@ public static class ExcelExports
         new("Code", CellKind.Text, r => r.Code),
         new("Name", CellKind.Text, r => r.FullName),
         new("Designation", CellKind.Text, r => r.Designation),
-        new("Monthly pay (USD)", CellKind.Usd, r => Usd(r.PayMonthlyAmount, r.PayCurrency)),
-        new("Monthly pay (PKR)", CellKind.Pkr, r => Pkr(r.PayMonthlyAmount, r.PayCurrency)),
+        new("Monthly salary (USD)", CellKind.Usd, r => r.SalaryMonthlyUsd),
         new("Since", CellKind.Date, r => r.Since),
         new("Starts on", CellKind.Date, r => r.StartsOn),
         new("Last change", CellKind.Date, r => r.LastChangeDate),
@@ -93,15 +92,17 @@ public static class ExcelExports
             .Select(c => new ExportColumn<AdminSalaryRow>(c.Header, c.Kind, r => c.Value(r.Row)))
             .Concat(
             [
-                new("Billed monthly (USD)", CellKind.Usd, r => r.BilledMonthlyUsd),
-                new("Commission per period (USD)", CellKind.Usd, r => r.CommissionPerPeriodUsd),
+                new("Monthly commission (USD)", CellKind.Usd, r => r.CommissionMonthlyUsd),
+                new("Monthly billed (USD)", CellKind.Usd, r => r.BilledMonthlyUsd),
                 new("Earning per full period (USD)", CellKind.Usd, r => r.EarningPerFullPeriodUsd),
                 new("Needs billing review", CellKind.Text, r => r.NeedsReview ? "Yes" : "No"),
             ])
             .ToList();
         var totalsRow = new object?[columns.Count];
         totalsRow[0] = "Total";
-        totalsRow[^4] = totals.BilledMonthlyUsd;
+        totalsRow[3] = totals.SalaryMonthlyUsd;
+        totalsRow[^4] = totals.CommissionMonthlyUsd;
+        totalsRow[^3] = totals.BilledMonthlyUsd;
         totalsRow[^2] = totals.EarningPerFullPeriodUsd;
         return Xlsx(new SpreadsheetBuilder(context).AddSheet("Salaries", columns, rows, totalsRow), "salaries", Iso(today));
     }
@@ -244,6 +245,22 @@ public static class ExcelExports
         return Xlsx(new SpreadsheetBuilder(context).AddSheet("Payroll", columns, lines, totals), "payroll", Iso(run.Period.Start), run.IsDraft ? "draft" : null);
     }
 
+    /// <summary>
+    /// Admin only: the T25 sheet, each person's name and billed amount for the period (USD), nothing else, plus a total.
+    /// Lines of people no longer in the run are left out, as in the run's totals.
+    /// </summary>
+    public static ExportFile T25Billing(ExportContext context, PayrollRunHeader run, IReadOnlyList<PayrollLineRow> lines, IReadOnlyDictionary<int, PayrollLineBilling> billing)
+    {
+        var rows = lines.Where(l => !l.IsOrphaned).ToList();
+        var columns = new List<ExportColumn<PayrollLineRow>>
+        {
+            new("Name", CellKind.Text, l => l.PersonName),
+            new("Billed (USD)", CellKind.Usd, l => billing.GetValueOrDefault(l.Id)?.BilledUsd),
+        };
+        var total = rows.Sum(l => billing.GetValueOrDefault(l.Id)?.BilledUsd ?? 0m);
+        return Xlsx(new SpreadsheetBuilder(context).AddSheet("T25", columns, rows, ["Total", total]), "t25", Iso(run.Period.Start), run.IsDraft ? "draft" : null);
+    }
+
     // ===================== Register (bank upload: full IBAN) =====================
 
     public static ExportFile Register(ExportContext context, PayrollRunHeader run, IReadOnlyList<RegisterRow> rows)
@@ -371,11 +388,9 @@ public static class ExcelExports
         new("Code", CellKind.Text, c => c.Code),
         new("Name", CellKind.Text, c => c.FullName),
         new("Designation", CellKind.Text, c => c.Designation),
-        new("Old pay (USD)", CellKind.Usd, c => Usd(c.Change.Previous.PayMonthlyAmount, c.Change.Previous.PayCurrency)),
-        new("Old pay (PKR)", CellKind.Pkr, c => Pkr(c.Change.Previous.PayMonthlyAmount, c.Change.Previous.PayCurrency)),
-        new("New pay (USD)", CellKind.Usd, c => Usd(c.Change.Current.PayMonthlyAmount, c.Change.Current.PayCurrency)),
-        new("New pay (PKR)", CellKind.Pkr, c => Pkr(c.Change.Current.PayMonthlyAmount, c.Change.Current.PayCurrency)),
-        new("Change %", CellKind.Percent, c => c.Change.PayChangePercent),
+        new("Old monthly salary (USD)", CellKind.Usd, c => c.Change.Previous.SalaryMonthlyUsd),
+        new("New monthly salary (USD)", CellKind.Usd, c => c.Change.Current.SalaryMonthlyUsd),
+        new("Change %", CellKind.Percent, c => c.Change.SalaryChangePercent),
     ];
 
     public static ExportFile SalaryChanges(ExportContext context, IReadOnlyList<SalaryChangeRow> rows, DateOnly from, DateOnly to) =>
@@ -386,11 +401,11 @@ public static class ExcelExports
         var columns = ChangeColumns()
             .Concat(
             [
-                new("Old billed monthly (USD)", CellKind.Usd, c => c.Change.Previous.BilledMonthlyUsd),
-                new("New billed monthly (USD)", CellKind.Usd, c => c.Change.Current.BilledMonthlyUsd),
-                new("Old commission (USD)", CellKind.Usd, c => c.Change.Previous.CommissionPerPeriodUsd),
-                new("New commission (USD)", CellKind.Usd, c => c.Change.Current.CommissionPerPeriodUsd),
-                new("Changed", CellKind.Text, c => c.Change.PayChanged && c.Change.BillingChanged ? "Pay and billing" : c.Change.PayChanged ? "Pay" : "Billing"),
+                new("Old monthly commission (USD)", CellKind.Usd, c => c.Change.Previous.CommissionMonthlyUsd),
+                new("New monthly commission (USD)", CellKind.Usd, c => c.Change.Current.CommissionMonthlyUsd),
+                new("Old monthly billed (USD)", CellKind.Usd, c => c.Change.Previous.BilledMonthlyUsd),
+                new("New monthly billed (USD)", CellKind.Usd, c => c.Change.Current.BilledMonthlyUsd),
+                new("Changed", CellKind.Text, c => c.Change.SalaryChanged && c.Change.BillingChanged ? "Salary and billing" : c.Change.SalaryChanged ? "Salary" : "Billing"),
             ])
             .ToList();
         return Xlsx(new SpreadsheetBuilder(context).AddSheet("Salary changes", columns, rows), "salary-changes", Iso(from), Iso(to));

@@ -13,13 +13,26 @@
         <span class="pill @HireSourceDisplay.PillClass(b.HireSource)">@HireSourceDisplay.Label(b.HireSource)</span>
     </div>
     <ul class="breakdown-steps num">
-        @if (b.BilledMonthlyUsd is { } monthly)
+        @if (b.CommissionMonthlyUsd is { } commissionMonthly)
         {
-            <li>Salary part: @DisplayFormat.Usd(monthly) ÷ 2 × @fraction = @PayrollDisplay.Usd(b.SalaryPartUsd)</li>
+            @* Since v1.1.0: salary and commission, each half a month × f; the salary is what the person is paid. *@
+            if (l.PayMonthlyAmount is { } salaryMonthly)
+            {
+                <li>Salary: @DisplayFormat.Usd(salaryMonthly) ÷ 2 × @fraction = @PayrollDisplay.Usd(b.SalaryPartUsd)</li>
+            }
+            <li>Commission: @DisplayFormat.Usd(commissionMonthly) ÷ 2 × @fraction = @PayrollDisplay.Usd(b.CommissionUsd)</li>
         }
-        @if (b.CommissionPerPeriodUsd is > 0m and { } commission)
+        else
         {
-            <li>Commission: @DisplayFormat.Usd(commission) × @fraction = @PayrollDisplay.Usd(b.CommissionUsd)</li>
+            @* Lines frozen before v1.1.0: billed salary part from the monthly billing, commission per period. *@
+            if (b.BilledMonthlyUsd is { } monthly)
+            {
+                <li>Salary part: @DisplayFormat.Usd(monthly) ÷ 2 × @fraction = @PayrollDisplay.Usd(b.SalaryPartUsd)</li>
+            }
+            if (b.CommissionPerPeriodUsd is > 0m and { } commission)
+            {
+                <li>Commission: @DisplayFormat.Usd(commission) × @fraction = @PayrollDisplay.Usd(b.CommissionUsd)</li>
+            }
         }
         <li>Billed: @PayrollDisplay.Usd(b.SalaryPartUsd) + @PayrollDisplay.Usd(b.CommissionUsd) = <strong>@PayrollDisplay.Usd(b.BilledUsd)</strong></li>
         <li>Adjustments pass through at cost: @PayrollDisplay.Usd(b.AdjustmentsUsd)</li>

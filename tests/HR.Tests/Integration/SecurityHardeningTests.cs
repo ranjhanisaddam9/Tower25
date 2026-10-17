@@ -104,6 +104,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         ["GET /payroll/{id:int}/payslips/pdf"] = Access.ManagerOrAdmin,
         ["GET /payroll/{id:int}/register"] = Access.ManagerOrAdmin,
         ["GET /payroll/{id:int}/register/export"] = Access.ManagerOrAdmin,
+        ["GET /payroll/{id:int}/t25/export"] = Access.AdminOnly,
         ["GET /payroll/{id:int}/register/pdf"] = Access.ManagerOrAdmin,
         ["GET /people"] = Access.ManagerOrAdmin,
         ["GET /people/{id:int}"] = Access.ManagerOrAdmin,
@@ -331,8 +332,8 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var a = await App.CreatePersonAsync("Parent A", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
         var b = await App.CreatePersonAsync("Parent B", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
-        await PayAsync(a, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
-        var recordB = await PayAsync(b, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
+        await PayAsync(a, new AdminPayInput(Oct(1), 300m, 50m, null));
+        var recordB = await PayAsync(b, new AdminPayInput(Oct(1), 300m, 50m, null));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run1 = await GenerateAsync(admin, Oct(1));
         var run2 = await GenerateAsync(admin, Oct(16));
@@ -354,7 +355,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         // Manager 1 records an increment for A; Manager 2 may neither edit nor delete it.
         var (manager1, _) = await App.SignInAsAsync(AppRoles.Manager);
         var increment = await manager1.PostFormAsync($"/people/{a}/pay/increment", $"/people/{a}/pay/increment",
-            new Dictionary<string, string> { ["EffectiveMonth"] = "2026-11", ["EffectiveHalf"] = "1", ["Pay"] = "321" });
+            new Dictionary<string, string> { ["EffectiveMonth"] = "2026-11", ["EffectiveHalf"] = "1", ["Salary"] = "321" });
         Assert.Equal(HttpStatusCode.Redirect, increment.StatusCode);
         int incrementId;
         await using (var db = TestDatabaseFixture.CreateDbContext())
@@ -365,11 +366,11 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         var (manager2, _) = await App.SignInAsAsync(AppRoles.Manager);
         // Refused as "not found": another Manager's record is not even confirmed to exist.
         Assert.Equal(HttpStatusCode.NotFound, (await manager2.PostFormAsync($"/people/{a}/pay/{incrementId}/increment-edit", "/",
-            new Dictionary<string, string> { ["EffectiveMonth"] = "2026-11", ["EffectiveHalf"] = "1", ["Pay"] = "999", ["RowVersion"] = "AAAAAAAAAAA=" })).StatusCode);
+            new Dictionary<string, string> { ["EffectiveMonth"] = "2026-11", ["EffectiveHalf"] = "1", ["Salary"] = "999", ["RowVersion"] = "AAAAAAAAAAA=" })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await manager2.PostFormAsync($"/people/{a}/pay/{incrementId}/delete", "/")).StatusCode);
         await using (var db = TestDatabaseFixture.CreateDbContext())
         {
-            Assert.Equal(321m, await db.RateRecords.Where(r => r.Id == incrementId).Select(r => r.PayMonthlyAmount).SingleAsync());
+            Assert.Equal(321m, await db.RateRecords.Where(r => r.Id == incrementId).Select(r => r.SalaryMonthlyUsd).SingleAsync());
         }
     }
 
@@ -427,8 +428,8 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
             await db.SaveChangesAsync();
         }
 
-        var record = await PayAsync(person, new AdminPayInput(Oct(1), 300m, 25m, null, null, null), Payloads[1]);
-        await PayAsync(other, new AdminPayInput(Oct(1), null, null, 1000m, 196_000m, PayCurrency.PKR), Payloads[4]);
+        var record = await PayAsync(person, new AdminPayInput(Oct(1), 300m, 50m, null), Payloads[1]);
+        await PayAsync(other, new AdminPayInput(Oct(1), 700m, null, 1000m), Payloads[4]);
         int absence;
         await using (var db = TestDatabaseFixture.CreateDbContext())
         {
@@ -844,7 +845,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         var (admin, adminUser) = await App.SignInAsAsync(AppRoles.Admin);
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var person = await App.CreatePersonAsync("Audit Person", phone: phone, cnic: cnic, iban: iban, joined: new DateOnly(2025, 1, 6), source: HireSource.Owner);
-        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null, null, null), note);
+        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null), note);
         Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync("/absences/new", "/absences/new", new Dictionary<string, string>
         {
             ["PersonId"] = person.ToString(CultureInfo.InvariantCulture), ["Date"] = "2026-10-05", ["Portion"] = "Full", ["Note"] = note,
@@ -1002,7 +1003,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var person = await App.CreatePersonAsync("Rollback Person", joined: new DateOnly(2025, 1, 6), source: HireSource.Owner);
-        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null));
         await using (var scope = App.Services.CreateAsyncScope())
         {
             var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
@@ -1033,7 +1034,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var person = await App.CreatePersonAsync("Double Person", joined: new DateOnly(2025, 1, 6), source: HireSource.Owner);
-        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(person, new AdminPayInput(Oct(1), 1200m, null, null));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run = await GenerateAsync(admin, Oct(1));
         var token = await admin.GetAntiforgeryTokenAsync($"/payroll/{run}");

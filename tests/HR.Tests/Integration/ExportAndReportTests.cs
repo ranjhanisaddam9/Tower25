@@ -115,11 +115,11 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
         var evil = await App.CreatePersonAsync(Hyperlink, joined: LongAgo, source: HireSource.CompanyRecommended);
         foreach (var id in new[] { ayesha, nadia, kamran, rizwan, evil })
         {
-            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 25m, null, null, null));
+            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
         }
 
-        await PayAsync(bilal, new AdminPayInput(Oct(1), null, null, 1000m, 196_000m, PayCurrency.PKR));
-        await PayAsync(imran, new AdminPayInput(Oct(1), 1200m, null, null, null, null));
+        await PayAsync(bilal, new AdminPayInput(Oct(1), 700m, null, 1000m));
+        await PayAsync(imran, new AdminPayInput(Oct(1), 1200m, null, null));
         await AbsentAsync(kamran, Oct(5), AbsencePortion.Half);
         await AbsentAsync(kamran, Oct(7));
         await AbsentAsync(bilal, Oct(6));
@@ -411,6 +411,40 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
     }
 
     [Fact]
+    public async Task T25_export_has_only_name_and_billed_usd_with_a_total_and_is_Admin_only()
+    {
+        var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
+        var s = await SeedAsync(admin);
+
+        var (bytes, fileName) = await DownloadAsync(admin, $"/payroll/{s.Run1}/t25/export", Xlsx);
+        Assert.Equal("t25-2026-10-01.xlsx", fileName);
+        var sheets = Open(bytes);
+        Assert.Equal("T25", sheets[0].Name);
+        Assert.Equal(["Name", "Billed (USD)"], sheets[0].Headers);
+
+        await using var scope = App.Services.CreateAsyncScope();
+        var payroll = scope.ServiceProvider.GetRequiredService<PayrollService>();
+        var lines = (await payroll.LinesAsync(s.Run1)).Where(l => !l.IsOrphaned).ToList();
+        var billing = await payroll.BillingAsync(s.Run1);
+        var rows = DataRows(sheets);
+        Assert.Equal(lines.Select(l => l.PersonName).Order(), rows.Select(r => r[0].GetString()).Order());
+        foreach (var line in lines)
+        {
+            var row = rows.Single(r => r[0].GetString() == line.PersonName);
+            Assert.Equal(billing[line.Id].BilledUsd, (decimal)row[1].GetDouble());
+        }
+
+        var total = sheets[0].Rows[^1];
+        Assert.Equal("Total", total[0].GetString());
+        Assert.Equal(lines.Sum(l => billing[l.Id].BilledUsd ?? 0m), (decimal)total[1].GetDouble());
+
+        Assert.Contains("data-testid=\"t25-export-link\"", await admin.GetStringAsync($"/payroll/{s.Run1}"));
+        var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync($"/payroll/{s.Run1}/t25/export")).StatusCode);
+        Assert.DoesNotContain("t25-export-link", await manager.GetStringAsync($"/payroll/{s.Run1}"));
+    }
+
+    [Fact]
     public async Task Manager_exports_never_contain_billing_data()
     {
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
@@ -607,7 +641,7 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
     {
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var s = await SeedAsync(admin, finalizeSecond: false);
-        await PayAsync(s.Nadia, new AdminPayInput(Oct(16), 321m, 25m, null, null, null));
+        await PayAsync(s.Nadia, new AdminPayInput(Oct(16), 321m, 50m, null));
 
         var page = WebUtility.HtmlDecode(await admin.GetStringAsync("/reports/absences?from=2026-10-01&to=2026-10-31"));
         Assert.Contains("data-testid=\"absence-summary-table\"", page);
@@ -625,10 +659,10 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
         var changes = Open((await DownloadAsync(admin, "/reports/salary-changes/export?from=2026-10-01&to=2026-10-31", Xlsx)).Bytes);
         var change = Assert.Single(DataRows(changes));
         Assert.Equal("Nadia Golden", Col(changes[0], change, "Name").GetString());
-        Assert.Equal(300.0, Col(changes[0], change, "Old pay (USD)").GetDouble());
-        Assert.Equal(321.0, Col(changes[0], change, "New pay (USD)").GetDouble());
+        Assert.Equal(300.0, Col(changes[0], change, "Old monthly salary (USD)").GetDouble());
+        Assert.Equal(321.0, Col(changes[0], change, "New monthly salary (USD)").GetDouble());
         Assert.Equal(7.0, Col(changes[0], change, "Change %").GetDouble());
-        Assert.Equal(321.0, Col(changes[0], change, "New billed monthly (USD)").GetDouble());
+        Assert.Equal(371.0, Col(changes[0], change, "New monthly billed (USD)").GetDouble());
         Assert.Contains("+7.00%", WebUtility.HtmlDecode(await admin.GetStringAsync("/reports/salary-changes?from=2026-10-01&to=2026-10-31")));
     }
 

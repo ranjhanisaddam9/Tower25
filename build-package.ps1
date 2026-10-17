@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    Builds the portable release package: dist\HRPayroll-v<Version>-win-x64.zip.
+    Builds the server deployment package: dist\HRPayroll-v<Version>-win-x64.zip.
 
 .DESCRIPTION
-    Self-contained win-x64 Release publish of HR.Web, a self-contained EF Core migration bundle (migrate.exe), the
-    deploy\ scripts and documents, and the licences. The target PC needs no .NET SDK or runtime.
-    Needs the .NET SDK pinned in global.json and the dotnet-ef tool (see README).
+    Framework-dependent win-x64 Release publish of HR.Web for IIS (publish profile IIS-win-x64), a self-contained EF
+    Core migration bundle (migrate.exe), the deploy\ scripts, DEPLOYMENT.md, restore.md and the licences.
+    The server needs IIS and the ASP.NET Core 10 Hosting Bundle (see docs\DEPLOYMENT.md).
+    Building needs the .NET SDK pinned in global.json and the dotnet-ef tool (see README).
 #>
 [CmdletBinding()]
-param([string]$Version = '1.0.0')
+param([string]$Version = '1.1.0')
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -29,12 +30,18 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 if (Test-Path $zip) { Remove-Item $zip -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 
-Invoke-Checked 'Publishing HR.Web (self-contained, win-x64, Release)' {
-    dotnet publish (Join-Path $repo 'src\HR.Web\HR.Web.csproj') -c Release -r win-x64 --self-contained true `
-        -p:DebugType=none -p:EnvironmentName=Production -o (Join-Path $stage 'app') -warnaserror
+Invoke-Checked 'Publishing HR.Web for IIS (framework-dependent, win-x64, Release)' {
+    dotnet publish (Join-Path $repo 'src\HR.Web\HR.Web.csproj') -p:PublishProfile=IIS-win-x64 -o (Join-Path $stage 'app') -warnaserror
 }
 
-Invoke-Checked 'Building the migration bundle (migrate.exe)' {
+# Browsers get the precompressed .br/.gz copies of static files. An interrupted earlier build can leave empty ones in
+# obj\, which then ship and break every page's CSS: refuse to package them.
+$empty = @(Get-ChildItem (Join-Path $stage 'app\wwwroot') -Recurse -File -Include '*.br', '*.gz' | Where-Object Length -eq 0)
+if ($empty.Count -gt 0) {
+    throw "$($empty.Count) precompressed static files are empty (e.g. $($empty[0].Name)). Delete src\HR.Web\obj and build again."
+}
+
+Invoke-Checked 'Building the migration bundle (migrate.exe, self-contained)' {
     dotnet ef migrations bundle --self-contained -r win-x64 --configuration Release `
         --project (Join-Path $repo 'src\HR.Infrastructure') --startup-project (Join-Path $repo 'src\HR.Web') `
         -o (Join-Path $stage 'migrate.exe') --force
@@ -44,7 +51,7 @@ Write-Host '==> Adding scripts, documents and licences' -ForegroundColor Cyan
 # Development settings never ship.
 Get-ChildItem (Join-Path $stage 'app') -Filter 'appsettings.Development*.json' | Remove-Item -Force
 Copy-Item (Join-Path $repo 'deploy\*.ps1') $stage
-Copy-Item (Join-Path $repo 'deploy\INSTALL.md'), (Join-Path $repo 'deploy\restore.md') $stage
+Copy-Item (Join-Path $repo 'docs\DEPLOYMENT.md'), (Join-Path $repo 'deploy\restore.md') $stage
 $licences = New-Item -ItemType Directory -Path (Join-Path $stage 'licences')
 Copy-Item (Join-Path $repo 'deploy\THIRD-PARTY-NOTICES.md') $licences
 Copy-Item (Join-Path $repo 'src\HR.Infrastructure\Fonts\OFL.txt') $licences

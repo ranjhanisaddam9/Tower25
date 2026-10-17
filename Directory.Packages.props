@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets a PackageVersion below also pin a transitive dependency (security patches). -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <EfCoreVersion>10.0.12</EfCoreVersion>
     <AspNetCoreVersion>10.0.12</AspNetCoreVersion>
   </PropertyGroup>
@@ -10,8 +12,9 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(AspNetCoreVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreVersion)" />
+    <!-- Security pin (transitive via Microsoft.Data.SqlClient): CVE-2026-84008 (high) and CVE-2026-70162, fixed in 10.0.13. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <!-- Exports (M9): .xlsx and PDF. QuestPDF runs under its Community licence (see README). -->
     <PackageVersion Include="ClosedXML" Version="0.105.1" />
     <PackageVersion Include="QuestPDF" Version="2026.9.1" />

@@ -49,8 +49,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
 
         var form = new AdminPayFormViewModel
         {
-            Commission = source == HireSource.CompanyRecommended ? tab.DefaultCommission : null,
-            Currency = source == HireSource.BudgetHire ? PayCurrency.PKR : PayCurrency.USD,
+            Commission = source == HireSource.CompanyRecommended ? tab.DefaultCommissionMonthly : null,
         };
         form.SetEffectiveFrom(tab.DefaultEffectiveFrom);
         return View("AdminForm", new AdminPayFormPage(personId, person.FullName, person.Code, source, null, form, tab.UsdToPkr, null, tab.EarliestEffectiveFrom));
@@ -205,7 +204,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             return View("IncrementForm", p);
         }
 
-        var result = await pay.CreateIncrementAsync(personId, form.EffectiveFrom(), form.Pay, form.Note, ActorId, cancellationToken);
+        var result = await pay.CreateIncrementAsync(personId, form.EffectiveFrom(), form.Salary, form.Note, ActorId, cancellationToken);
         if (result.Succeeded)
         {
             TempData.ToastSuccess("Pay change recorded.");
@@ -230,10 +229,10 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             return NotFound(); // missing, or created by someone else
         }
 
-        var form = new IncrementFormViewModel { Pay = record.PayMonthlyAmount, Note = record.Note, RowVersion = Convert.ToBase64String(record.RowVersion) };
+        var form = new IncrementFormViewModel { Salary = record.SalaryMonthlyUsd, Note = record.Note, RowVersion = Convert.ToBase64String(record.RowVersion) };
         form.SetEffectiveFrom(record.EffectiveFrom);
         var page = await IncrementPageAsync(personId, recordId, form, cancellationToken);
-        return page?.Page is { } p ? View("IncrementForm", p with { Currency = record.PayCurrency }) : NotFound();
+        return page?.Page is { } p ? View("IncrementForm", p) : NotFound();
     }
 
     [HttpPost("{recordId:int}/increment-edit")]
@@ -251,7 +250,6 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             return NotFound();
         }
 
-        p = p with { Currency = record.PayCurrency };
         if (!ModelState.IsValid)
         {
             return View("IncrementForm", p);
@@ -262,7 +260,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             return BadRequest();
         }
 
-        var result = await pay.UpdateIncrementAsync(personId, recordId, form.EffectiveFrom(), form.Pay, form.Note, rowVersion, ActorId, cancellationToken);
+        var result = await pay.UpdateIncrementAsync(personId, recordId, form.EffectiveFrom(), form.Salary, form.Note, rowVersion, ActorId, cancellationToken);
         switch (result.Status)
         {
             case PayResultStatus.Success:
@@ -295,8 +293,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             return null;
         }
 
-        var currency = await pay.GetIncrementCurrencyAsync(personId, cancellationToken);
-        if (!tab.HasSetup || currency is null)
+        if (!tab.HasSetup || !await pay.CanAddIncrementAsync(personId, cancellationToken))
         {
             return (null, true);
         }
@@ -307,7 +304,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
             form.SetEffectiveFrom(tab.DefaultEffectiveFrom);
         }
 
-        return (new IncrementFormPage(personId, person.FullName, person.Code, recordId, currency.Value, tab.Current, form, tab.EarliestEffectiveFrom), true);
+        return (new IncrementFormPage(personId, person.FullName, person.Code, recordId, tab.Current, form, tab.UsdToPkr, tab.EarliestEffectiveFrom), true);
     }
 
     private AdminPayFormPage Failed(AdminPayFormPage page, PayResult result)
@@ -318,7 +315,7 @@ public class PayController(PayRecordService pay, PersonService people) : Control
                 page.Form.ConfirmLoss = false;
                 ModelState.Remove(nameof(AdminPayFormViewModel.ConfirmLoss));
                 ModelState.AddModelError(nameof(AdminPayFormViewModel.ConfirmLoss), LossConfirmMessage);
-                return page with { LossPayUsd = result.LossPayUsd };
+                return page with { LossCommissionUsd = result.LossCommissionUsd };
             case PayResultStatus.Conflict:
                 ModelState.AddModelError(string.Empty, ConflictMessage);
                 return page;

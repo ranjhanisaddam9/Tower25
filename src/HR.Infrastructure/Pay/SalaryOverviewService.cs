@@ -2,7 +2,6 @@ using HR.Domain.People;
 using HR.Domain.Pay;
 using HR.Domain.Time;
 using HR.Infrastructure.Data;
-using HR.Infrastructure.Rates;
 using Microsoft.EntityFrameworkCore;
 
 namespace HR.Infrastructure.Pay;
@@ -26,15 +25,14 @@ public enum SalarySort
 
 public sealed record SalaryQuery(string? Search, SalaryFilter Filter, SalarySort Sort, bool Descending, int Page, int PageSize = SalaryOverviewService.DefaultPageSize);
 
-/// <summary>A salaries row as Managers see it: pay side only.</summary>
+/// <summary>A salaries row as Managers see it: the salary (monthly USD) only.</summary>
 /// <param name="StartsOn">When the person has records but none in effect yet: the first EffectiveFrom.</param>
 public sealed record SalaryRow(
     int PersonId,
     string Code,
     string FullName,
     string Designation,
-    decimal? PayMonthlyAmount,
-    PayCurrency? PayCurrency,
+    decimal? SalaryMonthlyUsd,
     DateOnly? Since,
     DateOnly? LastChangeDate,
     decimal? LastChangePercent,
@@ -42,16 +40,15 @@ public sealed record SalaryRow(
     DateOnly? StartsOn);
 
 /// <summary>Admin row: the shared row plus billing, commission, estimated earning and the review flag.</summary>
-public sealed record AdminSalaryRow(SalaryRow Row, decimal? BilledMonthlyUsd, decimal? CommissionPerPeriodUsd, decimal? EarningPerFullPeriodUsd, bool NeedsReview);
+public sealed record AdminSalaryRow(SalaryRow Row, decimal? BilledMonthlyUsd, decimal? CommissionMonthlyUsd, decimal? EarningPerFullPeriodUsd, bool NeedsReview);
 
-/// <param name="EarningIsEstimate">True when any PKR-paid person was converted at today's rate.</param>
-public sealed record AdminSalaryTotals(decimal BilledMonthlyUsd, decimal EarningPerFullPeriodUsd, bool EarningIsEstimate, int PeopleWithoutRate);
+public sealed record AdminSalaryTotals(decimal SalaryMonthlyUsd, decimal CommissionMonthlyUsd, decimal BilledMonthlyUsd, decimal EarningPerFullPeriodUsd);
 
 /// <summary>
 /// The /salaries overview for active people. Rows are computed in memory from each person's records (the number of
 /// people is small), so filters, sorting and totals use exactly the same rules as the person's pay tab.
 /// </summary>
-public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchangeRateService rates)
+public sealed class SalaryOverviewService(AppDbContext db, IClock clock)
 {
     public const int DefaultPageSize = 20;
     public const int RecentDays = 90;
@@ -64,10 +61,10 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
         // Pay-side columns only.
         var records = (await db.RateRecords.AsNoTracking()
                 .Where(r => ids.Contains(r.PersonId))
-                .Select(r => new { r.PersonId, r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency })
+                .Select(r => new { r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd })
                 .ToListAsync(cancellationToken))
             .GroupBy(r => r.PersonId)
-            .ToDictionary(g => g.Key, g => g.Select(r => new PayPoint(r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency)).OrderBy(r => r.EffectiveFrom).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(r => new PayPoint(r.EffectiveFrom, r.SalaryMonthlyUsd)).OrderBy(r => r.EffectiveFrom).ToList());
 
         var rows = people.Select(p => BuildRow(p, records.GetValueOrDefault(p.Id) ?? [])).ToList();
         var filter = query.Filter == SalaryFilter.NeedsReview ? SalaryFilter.All : query.Filter; // Admin-only filter ignored
@@ -80,12 +77,11 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
         var ids0 = people.Select(p => p.Id).ToList();
         var sources = await db.People.AsNoTracking().Where(p => ids0.Contains(p.Id)).Select(p => new { p.Id, p.HireSource }).ToDictionaryAsync(p => p.Id, p => p.HireSource, cancellationToken); // Admin only
         var ids = people.Select(p => p.Id).ToList();
-        var rate = (await rates.GetCurrentAsync(cancellationToken))?.UsdToPkr;
         var today = clock.Today;
 
         var all = (await db.RateRecords.AsNoTracking()
                 .Where(r => ids.Contains(r.PersonId))
-                .Select(r => new { r.PersonId, r.EffectiveFrom, r.BilledMonthlyUsd, r.CommissionPerPeriodUsd, r.PayMonthlyAmount, r.PayCurrency, r.NeedsBillingReview })
+                .Select(r => new { r.PersonId, r.EffectiveFrom, r.SalaryMonthlyUsd, r.CommissionMonthlyUsd, r.BilledMonthlyUsd, r.NeedsBillingReview })
                 .ToListAsync(cancellationToken))
             .GroupBy(r => r.PersonId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.EffectiveFrom).ToList());
@@ -94,12 +90,12 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
         foreach (var person in people)
         {
             var records = all.GetValueOrDefault(person.Id) ?? [];
-            var row = BuildRow(person, records.Select(r => new PayPoint(r.EffectiveFrom, r.PayMonthlyAmount, r.PayCurrency)).ToList());
+            var row = BuildRow(person, records.Select(r => new PayPoint(r.EffectiveFrom, r.SalaryMonthlyUsd)).ToList());
             var current = records.Where(r => r.EffectiveFrom <= today).MaxBy(r => r.EffectiveFrom);
             FullPeriodAmounts? amounts = current is null
                 ? null
-                : PayMath.FullPeriod(new PayTerms(current.EffectiveFrom, current.BilledMonthlyUsd, current.CommissionPerPeriodUsd, current.PayMonthlyAmount, current.PayCurrency), rate, sources.GetValueOrDefault(person.Id));
-            rows.Add(new AdminSalaryRow(row, current?.BilledMonthlyUsd, current?.CommissionPerPeriodUsd, amounts?.EarningUsd, records.Any(r => r.NeedsBillingReview)));
+                : PayMath.FullPeriod(new PayTerms(current.EffectiveFrom, current.SalaryMonthlyUsd, current.CommissionMonthlyUsd, current.BilledMonthlyUsd), null, sources.GetValueOrDefault(person.Id));
+            rows.Add(new AdminSalaryRow(row, current?.BilledMonthlyUsd, current?.CommissionMonthlyUsd, amounts?.EarningUsd, records.Any(r => r.NeedsBillingReview)));
         }
 
         var filtered = query.Filter == SalaryFilter.NeedsReview
@@ -107,17 +103,17 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
             : Filter(rows, query.Filter, r => r.Row);
 
         var totals = new AdminSalaryTotals(
+            filtered.Sum(r => r.Row.SalaryMonthlyUsd ?? 0m),
+            filtered.Sum(r => r.CommissionMonthlyUsd ?? 0m),
             filtered.Sum(r => r.BilledMonthlyUsd ?? 0m),
-            filtered.Sum(r => r.EarningPerFullPeriodUsd ?? 0m),
-            filtered.Any(r => r.Row.PayCurrency == PayCurrency.PKR && r.EarningPerFullPeriodUsd is not null),
-            filtered.Count(r => r.Row.HasSetup && r.Row.PayMonthlyAmount is not null && r.EarningPerFullPeriodUsd is null));
+            filtered.Sum(r => r.EarningPerFullPeriodUsd ?? 0m));
 
         return (Page(Sort(filtered, query, r => r.Row), query), totals);
     }
 
     private sealed record PersonInfo(int Id, string Code, int CodeNumber, string FullName, string Designation);
 
-    private sealed record PayPoint(DateOnly EffectiveFrom, decimal Pay, PayCurrency Currency);
+    private sealed record PayPoint(DateOnly EffectiveFrom, decimal Salary);
 
     private async Task<List<PersonInfo>> ActivePeopleAsync(string? search, CancellationToken cancellationToken)
     {
@@ -138,21 +134,21 @@ public sealed class SalaryOverviewService(AppDbContext db, IClock clock, IExchan
         var today = clock.Today;
         var current = records.Where(r => r.EffectiveFrom <= today).MaxBy(r => r.EffectiveFrom);
 
-        // The latest pay change (up or down) on or before today, compared with the record before it in the same currency.
+        // The latest salary change (up or down) on or before today, compared with the record before it.
         DateOnly? lastChange = null;
         decimal? lastPercent = null;
         var effective = records.Where(r => r.EffectiveFrom <= today).ToList();
         for (var i = effective.Count - 1; i > 0; i--)
         {
-            if (effective[i].Pay != effective[i - 1].Pay || effective[i].Currency != effective[i - 1].Currency)
+            if (effective[i].Salary != effective[i - 1].Salary)
             {
                 lastChange = effective[i].EffectiveFrom;
-                lastPercent = effective[i].Currency == effective[i - 1].Currency ? PayMath.PercentChange(effective[i - 1].Pay, effective[i].Pay) : null;
+                lastPercent = PayMath.PercentChange(effective[i - 1].Salary, effective[i].Salary);
                 break;
             }
         }
 
-        return new SalaryRow(person.Id, person.Code, person.FullName, person.Designation, current?.Pay, current?.Currency, current?.EffectiveFrom,
+        return new SalaryRow(person.Id, person.Code, person.FullName, person.Designation, current?.Salary, current?.EffectiveFrom,
             lastChange, lastPercent, records.Count > 0, current is null && records.Count > 0 ? records[0].EffectiveFrom : null);
     }
 

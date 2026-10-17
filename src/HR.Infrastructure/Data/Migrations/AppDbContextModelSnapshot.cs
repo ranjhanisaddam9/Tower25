@@ -342,7 +342,7 @@ namespace HR.Infrastructure.Data.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(16)");
 
-                    b.Property<decimal>("CommissionPerPeriodUsd")
+                    b.Property<decimal>("CommissionMonthlyUsd")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -364,16 +364,6 @@ namespace HR.Infrastructure.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
-                    b.Property<string>("PayCurrency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(3)");
-
-                    b.Property<decimal>("PayMonthlyAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("PersonId")
                         .HasColumnType("int");
 
@@ -382,6 +372,10 @@ namespace HR.Infrastructure.Data.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<decimal>("SalaryMonthlyUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -402,11 +396,11 @@ namespace HR.Infrastructure.Data.Migrations
 
                     b.ToTable("RateRecords", null, t =>
                         {
-                            t.HasCheckConstraint("CK_RateRecords_Amounts", "[BilledMonthlyUsd] > 0 AND [PayMonthlyAmount] > 0 AND [CommissionPerPeriodUsd] >= 0");
+                            t.HasCheckConstraint("CK_RateRecords_BilledIsSalaryPlusCommission", "[BilledMonthlyUsd] = [SalaryMonthlyUsd] + [CommissionMonthlyUsd]");
 
                             t.HasCheckConstraint("CK_RateRecords_EffectiveFromPeriodStart", "DAY([EffectiveFrom]) IN (1, 16)");
 
-                            t.HasCheckConstraint("CK_RateRecords_PkrWholeRupees", "[PayCurrency] <> 'PKR' OR [PayMonthlyAmount] = ROUND([PayMonthlyAmount], 0)");
+                            t.HasCheckConstraint("CK_RateRecords_SalaryPositive", "[SalaryMonthlyUsd] > 0 AND [BilledMonthlyUsd] > 0");
                         });
                 });
 
@@ -510,6 +504,10 @@ namespace HR.Infrastructure.Data.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("BilledUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CommissionMonthlyUsd")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -627,6 +625,10 @@ namespace HR.Infrastructure.Data.Migrations
 
                     b.Property<int>("RunId")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("SalaryMonthlyUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("SalaryPartUsd")
                         .HasPrecision(18, 2)

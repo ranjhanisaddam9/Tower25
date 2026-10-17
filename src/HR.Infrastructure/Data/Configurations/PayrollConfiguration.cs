@@ -68,6 +68,7 @@ internal sealed class PayrollLineConfiguration : IEntityTypeConfiguration<Payrol
 
         builder.HasKey(l => l.Id);
         builder.Ignore(l => l.HasEntries);
+        builder.Ignore(l => l.IsLegacyPayModel);
         builder.HasIndex(l => new { l.RunId, l.PersonId }).IsUnique().HasDatabaseName(PersonIndex);
         builder.HasOne<Person>().WithMany().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Restrict);
 
@@ -89,6 +90,7 @@ internal sealed class PayrollLineConfiguration : IEntityTypeConfiguration<Payrol
 
         foreach (var money in new[]
                  {
+                     nameof(PayrollLine.SalaryMonthlyUsd), nameof(PayrollLine.CommissionMonthlyUsd),
                      nameof(PayrollLine.BilledMonthlyUsd), nameof(PayrollLine.CommissionPerPeriodUsd), nameof(PayrollLine.PayMonthlyAmount),
                      nameof(PayrollLine.SalaryPartUsd), nameof(PayrollLine.CommissionUsd), nameof(PayrollLine.BilledUsd),
                      nameof(PayrollLine.PayUsd), nameof(PayrollLine.PayPkr), nameof(PayrollLine.AdjustmentsPkr), nameof(PayrollLine.AdjustmentsUsd),

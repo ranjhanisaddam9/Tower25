@@ -85,8 +85,8 @@ public static partial class SecurityLog
 
     // ---- Rate records (audit; server-side logs only) ----
 
-    [LoggerMessage(EventId = 1300, Level = LogLevel.Information, Message = "Audit: {ActorId} added rate record {RecordId} for person {PersonId} ({ChangeType}): {EffectiveFrom} billed {BilledMonthlyUsd} USD, commission {CommissionPerPeriodUsd} USD, pay {PayMonthlyAmount} {PayCurrency}")]
-    public static partial void RateRecordCreated(ILogger logger, string actorId, int recordId, int personId, string changeType, DateOnly effectiveFrom, decimal billedMonthlyUsd, decimal commissionPerPeriodUsd, decimal payMonthlyAmount, string payCurrency);
+    [LoggerMessage(EventId = 1300, Level = LogLevel.Information, Message = "Audit: {ActorId} added rate record {RecordId} for person {PersonId} ({ChangeType}): {EffectiveFrom} salary {SalaryMonthlyUsd} USD + commission {CommissionMonthlyUsd} USD = billed {BilledMonthlyUsd} USD a month")]
+    public static partial void RateRecordCreated(ILogger logger, string actorId, int recordId, int personId, string changeType, DateOnly effectiveFrom, decimal salaryMonthlyUsd, decimal commissionMonthlyUsd, decimal billedMonthlyUsd);
 
     [LoggerMessage(EventId = 1301, Level = LogLevel.Information, Message = "Audit: {ActorId} edited rate record {RecordId} for person {PersonId}: {OldValues} -> {NewValues} ({ChangeType})")]
     public static partial void RateRecordEdited(ILogger logger, string actorId, int recordId, int personId, string oldValues, string newValues, string changeType);
