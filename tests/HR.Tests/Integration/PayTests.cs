@@ -92,7 +92,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
     }
 
     private static AdminPayInput Cr(string date, decimal salary, decimal commission = 50m) =>
-        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, commission, null);
+        new(DateOnly.Parse(date, CultureInfo.InvariantCulture), null, commission, salary + commission); // billed and commission are entered
 
     private static AdminPayInput Budget(string date, decimal budget, decimal salary) =>
         new(DateOnly.Parse(date, CultureInfo.InvariantCulture), salary, null, budget);
@@ -114,7 +114,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         // Fields that don't apply to the source are posted too (and the tampered derived fields): all ignored.
         var form = source switch
         {
-            HireSource.CompanyRecommended => AdminForm(salary: "300", commission: "50", budget: "9999"),
+            HireSource.CompanyRecommended => AdminForm(budget: "350", commission: "50", salary: "9999"),
             HireSource.BudgetHire => AdminForm(budget: "1000", salary: "700", commission: "77"),
             _ => AdminForm(salary: "1200", commission: "50", budget: "9999"),
         };
@@ -502,7 +502,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         await manager.PostLoginAsync(managerUser.Email, managerUser.Password);
         var locked = PayRecordService.LockedMessage.Replace("'", "&#x27;", StringComparison.Ordinal);
 
-        var adminNew = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-10", half: "16", salary: "320", commission: "25"));
+        var adminNew = await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-10", half: "16", budget: "345", commission: "25"));
         Assert.Equal(HttpStatusCode.OK, adminNew.StatusCode);
         Assert.Contains(locked, await adminNew.Content.ReadAsStringAsync());
 
@@ -513,7 +513,7 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         Assert.Single(await RecordsAsync(id));
 
         // The first unlocked period is fine for both.
-        Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-11", half: "1", salary: "320", commission: "25"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2026-11", half: "1", budget: "345", commission: "25"))).StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, (await manager.PostFormAsync($"/people/{id}/pay/increment", $"/people/{id}/pay/increment", IncrementForm("2026-11", "16", "330"))).StatusCode);
         Assert.Equal(3, (await RecordsAsync(id)).Count);
     }
@@ -535,13 +535,13 @@ public partial class PayTests(TestDatabaseFixture fixture) : IntegrationTest(fix
         var id = await App.CreatePersonAsync("Audited", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
         var (admin, adminUser) = await App.SignInAsAsync(AppRoles.Admin);
 
-        await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2025-01", salary: "300", commission: "25"));
-        await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2025-07", salary: "300", commission: "30"));
+        await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2025-01", budget: "325", commission: "25"));
+        await admin.PostFormAsync($"/people/{id}/pay/new", $"/people/{id}/pay/new", AdminForm(month: "2025-07", budget: "330", commission: "30"));
         var records = await RecordsAsync(id);
         Assert.Equal([RateChangeType.Initial, RateChangeType.BillingChange], records.Select(r => r.ChangeType).ToArray());
 
         var second = records[1].Id;
-        var form = AdminForm(month: "2025-07", salary: "280", commission: "30");
+        var form = AdminForm(month: "2025-07", budget: "310", commission: "30");
         form["RowVersion"] = PeopleHelpers.RowVersion(await admin.GetStringAsync($"/people/{id}/pay/{second}/edit"));
         await admin.PostFormAsync($"/people/{id}/pay/{second}/edit", $"/people/{id}/pay/{second}/edit", form);
         Assert.Equal(RateChangeType.Decrement, (await RecordsAsync(id))[1].ChangeType);

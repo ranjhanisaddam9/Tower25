@@ -24,7 +24,7 @@ The visibility rule is enforced on the server (queries, view models, authorizati
 
 | Source | Meaning | Admin enters (monthly USD) | Derived | Owner earns |
 |---|---|---|---|---|
-| `CompanyRecommended` | Company found the person and set the salary | Salary + Commission (default commission $50 for the first record, else the previous one) | Billed = Salary + Commission | The commission |
+| `CompanyRecommended` | Company found the person and set the salary | Billed + Commission (default commission $50 for the first record, else the previous one); the commission must be below the billed amount | Salary = Billed − Commission | The commission |
 | `BudgetHire` | Company gave a budget; owner hired someone for less | Billed (the budget) + Salary | Commission = Billed − Salary (below 0 needs the "I understand this hire loses money" confirmation) | The commission (the margin) |
 | `Owner` | The owner himself | Salary | Commission = 0, Billed = Salary | His whole billed amount |
 
@@ -183,3 +183,4 @@ Each milestone follows the Milestone protocol in `CLAUDE.md` and ends with a com
 - 2026-10-10 (M10): the reopen reason lives in the payroll history, not the audit log (§6); two-factor sign-in required for Admins; durable append-only audit log.
 - 2026-10-10 (M9): short and over payments on paid invoices; outstanding includes shortfalls, overpayments shown as "received in excess" (§7).
 - 2026-10-17 (v1.1.0, owner-approved pay model): every salary is agreed in USD per month; everything is billed in USD and paid in PKR at the payroll's rate, and `PayCurrency` is removed. A rate record holds `SalaryMonthlyUsd`, `CommissionMonthlyUsd` and `BilledMonthlyUsd` with Billed = Salary + Commission; the Admin enters two figures per hire source and the third is derived (§2). Line formulas SalaryUsd / CommissionUsd / BilledUsd / PayPkr (§5). Golden table replaced (§9): Bilal is now Salary $700, Billed $1,000, Commission $300; CompanyRecommended is Salary $300 + Commission $50/month. Existing records converted by migration `MonthlyUsdPayModel` (PKR pay at the exchange rate in effect, flagged for billing review); finalized payrolls and invoices are unchanged.
+- 2026-10-18 (owner request): for `CompanyRecommended` the Admin enters the amount billed to the Company and the commission; the salary paid to the person is derived as Billed − Commission (§2). Manager increments are unchanged (new salary; commission carried over, billed re-derived).

@@ -115,7 +115,7 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
         var evil = await App.CreatePersonAsync(Hyperlink, joined: LongAgo, source: HireSource.CompanyRecommended);
         foreach (var id in new[] { ayesha, nadia, kamran, rizwan, evil })
         {
-            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
+            await PayAsync(id, new AdminPayInput(Oct(1), null, 50m, 350m));
         }
 
         await PayAsync(bilal, new AdminPayInput(Oct(1), 700m, null, 1000m));
@@ -411,16 +411,16 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
     }
 
     [Fact]
-    public async Task T25_export_has_only_name_and_billed_usd_with_a_total_and_is_Admin_only()
+    public async Task T25_export_has_name_billed_and_extras_with_totals_and_is_Admin_only()
     {
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
-        var s = await SeedAsync(admin);
+        var s = await SeedAsync(admin, finalizeSecond: false);
 
         var (bytes, fileName) = await DownloadAsync(admin, $"/payroll/{s.Run1}/t25/export", Xlsx);
         Assert.Equal("t25-2026-10-01.xlsx", fileName);
         var sheets = Open(bytes);
         Assert.Equal("T25", sheets[0].Name);
-        Assert.Equal(["Name", "Billed (USD)"], sheets[0].Headers);
+        Assert.Equal(["Name", "Billed (USD)", "Extras (USD)"], sheets[0].Headers);
 
         await using var scope = App.Services.CreateAsyncScope();
         var payroll = scope.ServiceProvider.GetRequiredService<PayrollService>();
@@ -432,11 +432,20 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
         {
             var row = rows.Single(r => r[0].GetString() == line.PersonName);
             Assert.Equal(billing[line.Id].BilledUsd, (decimal)row[1].GetDouble());
+            Assert.Equal(billing[line.Id].AdjustmentsUsd ?? 0m, (decimal)row[2].GetDouble());
         }
 
         var total = sheets[0].Rows[^1];
         Assert.Equal("Total", total[0].GetString());
         Assert.Equal(lines.Sum(l => billing[l.Id].BilledUsd ?? 0m), (decimal)total[1].GetDouble());
+        Assert.Equal(lines.Sum(l => billing[l.Id].AdjustmentsUsd ?? 0m), (decimal)total[2].GetDouble());
+
+        // A USD bonus billed to the Company shows in Extras, on the person's row and in the total.
+        var bonusLine = (await payroll.LinesAsync(s.Run2)).First(l => !l.IsOrphaned);
+        Assert.True((await payroll.AddAdjustmentAsync(s.Run2, bonusLine.Id, HR.Domain.Payroll.AdjustmentType.Bonus, 20m, HR.Domain.Pay.PayCurrency.USD, "Bonus", "test")).Succeeded);
+        var withBonus = Open((await DownloadAsync(admin, $"/payroll/{s.Run2}/t25/export", Xlsx)).Bytes);
+        Assert.Equal(20.0, DataRows(withBonus).Single(r => r[0].GetString() == bonusLine.PersonName)[2].GetDouble());
+        Assert.Equal(20.0, withBonus[0].Rows[^1][2].GetDouble());
 
         Assert.Contains("data-testid=\"t25-export-link\"", await admin.GetStringAsync($"/payroll/{s.Run1}"));
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
@@ -641,7 +650,7 @@ public partial class ExportAndReportTests(TestDatabaseFixture fixture) : Integra
     {
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var s = await SeedAsync(admin, finalizeSecond: false);
-        await PayAsync(s.Nadia, new AdminPayInput(Oct(16), 321m, 50m, null));
+        await PayAsync(s.Nadia, new AdminPayInput(Oct(16), null, 50m, 371m));
 
         var page = WebUtility.HtmlDecode(await admin.GetStringAsync("/reports/absences?from=2026-10-01&to=2026-10-31"));
         Assert.Contains("data-testid=\"absence-summary-table\"", page);

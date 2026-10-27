@@ -47,7 +47,7 @@ public sealed class AdminPayFormViewModel : PayPeriodPickerForm
     [Range(typeof(decimal), "0", "20000", ErrorMessage = "The commission must be between $0 and $20,000 a month.")]
     public decimal? Commission { get; set; }
 
-    /// <summary>BudgetHire only: the Company's monthly budget (billed).</summary>
+    /// <summary>CompanyRecommended and BudgetHire: the monthly amount billed to the Company (the budget for a BudgetHire).</summary>
     [Range(typeof(decimal), "0", "100000000", ErrorMessage = "Enter a positive amount.")]
     public decimal? Budget { get; set; }
 
@@ -74,11 +74,12 @@ public sealed class AdminPayFormViewModel : PayPeriodPickerForm
             Salary = record.Terms.SalaryMonthlyUsd,
         };
         form.SetEffectiveFrom(record.Terms.EffectiveFrom);
-        if (source == HireSource.BudgetHire)
+        if (source != HireSource.Owner)
         {
             form.Budget = record.Terms.BilledMonthlyUsd;
         }
-        else if (source == HireSource.CompanyRecommended)
+
+        if (source == HireSource.CompanyRecommended)
         {
             form.Commission = record.Terms.CommissionMonthlyUsd;
         }

@@ -9,7 +9,7 @@ public sealed record PayError(string Field, string Message);
 /// What an Admin posts for a rate record (all monthly USD). Which fields count depends on the hire source; the rest,
 /// including any posted derived value, are ignored (SPEC §2).
 /// <list type="bullet">
-/// <item>CompanyRecommended: <see cref="Salary"/> and <see cref="Commission"/>; billed = salary + commission.</item>
+/// <item>CompanyRecommended: <see cref="Budget"/> (billed) and <see cref="Commission"/>; salary = billed − commission.</item>
 /// <item>BudgetHire: <see cref="Budget"/> (billed) and <see cref="Salary"/>; commission = budget − salary.</item>
 /// <item>Owner: <see cref="Salary"/>; commission 0, billed = salary.</item>
 /// </list>
@@ -56,14 +56,20 @@ public static class PayRules
         switch (source)
         {
             case HireSource.CompanyRecommended:
-                salary = Required(input.Salary, PayFields.Salary, "Enter the monthly salary.", list);
+                // Owner request (18 Oct 2026): the Admin enters what the Company is billed and the commission; the
+                // salary paid to the person is the difference.
+                billed = Required(input.Budget, PayFields.Budget, "Enter the monthly amount billed to the Company.", list);
                 commission = Required(input.Commission, PayFields.Commission, "Enter the monthly commission (0 for none).", list);
                 if (input.Commission is < 0m || input.Commission > MaxCommissionMonthly)
                 {
                     list.Add(new PayError(PayFields.Commission, "The commission must be between $0 and $20,000 a month."));
                 }
+                else if (input.Budget is { } b && input.Commission is { } c && c >= b)
+                {
+                    list.Add(new PayError(PayFields.Commission, "The commission must be less than the billed amount, so the person is paid something."));
+                }
 
-                billed = salary + commission;
+                salary = billed - commission;
                 break;
             case HireSource.BudgetHire:
                 billed = Required(input.Budget, PayFields.Budget, "Enter the Company's monthly budget.", list);
@@ -87,7 +93,10 @@ public static class PayRules
         }
 
         var terms = new PayTerms(input.EffectiveFrom!.Value, salary, commission, billed);
-        list.AddRange(TermErrors(terms, source == HireSource.BudgetHire ? PayFields.Budget : PayFields.Salary));
+        // A CompanyRecommended salary is derived, so its limits are reported on the billed field the Admin typed.
+        list.AddRange(TermErrors(terms, source == HireSource.Owner ? PayFields.Salary : PayFields.Budget)
+            .Select(e => source == HireSource.CompanyRecommended && e.Field == PayFields.Salary ? e with { Field = PayFields.Budget } : e)
+            .Distinct());
         errors = list;
         return list.Count > 0 ? null : terms;
     }

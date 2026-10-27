@@ -43,12 +43,22 @@ public class PayDerivationTests
         new(Oct1, salary, commission, budget);
 
     [Fact]
-    public void CompanyRecommended_enters_salary_and_commission_and_billed_is_their_sum()
+    public void CompanyRecommended_enters_billed_and_commission_and_the_salary_is_the_difference()
     {
-        var terms = PayRules.DeriveAdmin(HireSource.CompanyRecommended, Tampered(), Earliest, out var errors)!;
+        var terms = PayRules.DeriveAdmin(HireSource.CompanyRecommended, Tampered(salary: 9_999m, commission: 50m, budget: 350m), Earliest, out var errors)!;
 
         Assert.Empty(errors);
-        Assert.Equal(new PayTerms(Oct1, 300m, 50m, 350m), terms); // the posted budget is ignored
+        Assert.Equal(new PayTerms(Oct1, 300m, 50m, 350m), terms); // the posted salary is ignored
+    }
+
+    [Theory]
+    [InlineData("350", "350")] // nothing left for the person
+    [InlineData("350", "400")]
+    public void A_CompanyRecommended_commission_must_be_below_the_billed_amount(string billed, string commission)
+    {
+        var input = new AdminPayInput(Oct1, null, decimal.Parse(commission, CultureInfo.InvariantCulture), decimal.Parse(billed, CultureInfo.InvariantCulture));
+        Assert.Null(PayRules.DeriveAdmin(HireSource.CompanyRecommended, input, Earliest, out var errors));
+        Assert.Contains(errors, e => e.Field == PayFields.Commission);
     }
 
     [Fact]
@@ -78,7 +88,7 @@ public class PayDerivationTests
     }
 
     [Theory]
-    [InlineData(HireSource.CompanyRecommended, "Salary")]
+    [InlineData(HireSource.CompanyRecommended, "Budget")]
     [InlineData(HireSource.CompanyRecommended, "Commission")]
     [InlineData(HireSource.BudgetHire, "Budget")]
     [InlineData(HireSource.BudgetHire, "Salary")]
@@ -205,7 +215,7 @@ public class PayValidationTests
     public void CompanyRecommended_commission_limits(string commission, bool valid)
     {
         var terms = PayRules.DeriveAdmin(HireSource.CompanyRecommended,
-            new AdminPayInput(new DateOnly(2026, 10, 1), 300m, decimal.Parse(commission, CultureInfo.InvariantCulture), null), Earliest, out _);
+            new AdminPayInput(new DateOnly(2026, 10, 1), null, decimal.Parse(commission, CultureInfo.InvariantCulture), 30_000m), Earliest, out _);
         Assert.Equal(valid, terms is not null);
     }
 

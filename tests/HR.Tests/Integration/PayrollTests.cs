@@ -43,7 +43,7 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         Assert.True(result.Succeeded, string.Join("; ", result.Errors?.Select(e => e.Message) ?? [result.Status.ToString()]));
     }
 
-    private static AdminPayInput Cr(decimal salary = 300m, decimal commission = 50m) => new(Oct(1), salary, commission, null);
+    private static AdminPayInput Cr(decimal salary = 300m, decimal commission = 50m) => new(Oct(1), null, commission, salary + commission);
 
     private static AdminPayInput Budget(decimal budget = 1000m, decimal salary = 700m) => new(Oct(1), salary, null, budget);
 
@@ -603,11 +603,11 @@ public partial class PayrollTests(TestDatabaseFixture fixture) : IntegrationTest
         Assert.True((await absences.CreateAsync(id, Oct(19), AbsencePortion.Full, null, "t")).Succeeded);
 
         // Pay records: create, edit, delete in the locked period refused.
-        Assert.Equal(PayResultStatus.Locked, (await pay.CreateAdminAsync(id, new AdminPayInput(Oct(1), 400m, 50m, null), null, true, "t")).Status);
+        Assert.Equal(PayResultStatus.Locked, (await pay.CreateAdminAsync(id, new AdminPayInput(Oct(1), null, 50m, 450m), null, true, "t")).Status);
         var record = await db.RateRecords.AsNoTracking().SingleAsync(r => r.PersonId == id);
-        Assert.Equal(PayResultStatus.Locked, (await pay.UpdateAdminAsync(id, record.Id, new AdminPayInput(Oct(1), 400m, 50m, null), null, false, true, record.RowVersion, "t")).Status);
+        Assert.Equal(PayResultStatus.Locked, (await pay.UpdateAdminAsync(id, record.Id, new AdminPayInput(Oct(1), null, 50m, 450m), null, false, true, record.RowVersion, "t")).Status);
         Assert.Equal(PayResultStatus.Locked, (await pay.DeleteAsync(id, record.Id, "t", true)).Status);
-        Assert.True((await pay.CreateAdminAsync(id, new AdminPayInput(Oct(16), 400m, 50m, null), null, true, "t")).Succeeded);
+        Assert.True((await pay.CreateAdminAsync(id, new AdminPayInput(Oct(16), null, 50m, 450m), null, true, "t")).Succeeded);
 
         // Employment: a leaving date inside (or before) the locked period, or a joining date moved across it, is refused.
         var inside = await people.DeactivateAsync(id, Oct(10), "t");

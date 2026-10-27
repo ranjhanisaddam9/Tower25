@@ -51,6 +51,8 @@ public sealed class HrWebApplicationFactory(string environment) : WebApplication
                 [AdminSeeder.PasswordKey] = string.Empty,
                 // Test keys never mix with a developer's real key ring.
                 ["DataProtection:KeysPath"] = KeysPath,
+                // The dev PC may turn two-factor off (appsettings.Development.json); tests always run with it on.
+                [TwoFactorSwitch.SettingKey] = "false",
             });
         });
 

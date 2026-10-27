@@ -85,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<ISecurityStampValidator, ActiveUserSecurityStampValidator>();
 
         services.AddSingleton<ITemporaryPasswordGenerator, TemporaryPasswordGenerator>();
+        services.AddSingleton<TwoFactorSwitch>();
         services.AddScoped<AdminSeeder>();
         services.AddScoped<ManagerService>();
         services.AddScoped<AccountService>();

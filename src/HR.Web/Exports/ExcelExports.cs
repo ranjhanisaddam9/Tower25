@@ -246,7 +246,8 @@ public static class ExcelExports
     }
 
     /// <summary>
-    /// Admin only: the T25 sheet, each person's name and billed amount for the period (USD), nothing else, plus a total.
+    /// Admin only: the T25 sheet, each person's name, billed amount and extras (adjustments passed through: bonuses and
+    /// reimbursements minus deductions) for the period in USD, plus totals.
     /// Lines of people no longer in the run are left out, as in the run's totals.
     /// </summary>
     public static ExportFile T25Billing(ExportContext context, PayrollRunHeader run, IReadOnlyList<PayrollLineRow> lines, IReadOnlyDictionary<int, PayrollLineBilling> billing)
@@ -256,9 +257,11 @@ public static class ExcelExports
         {
             new("Name", CellKind.Text, l => l.PersonName),
             new("Billed (USD)", CellKind.Usd, l => billing.GetValueOrDefault(l.Id)?.BilledUsd),
+            new("Extras (USD)", CellKind.Usd, l => billing.GetValueOrDefault(l.Id)?.AdjustmentsUsd),
         };
         var total = rows.Sum(l => billing.GetValueOrDefault(l.Id)?.BilledUsd ?? 0m);
-        return Xlsx(new SpreadsheetBuilder(context).AddSheet("T25", columns, rows, ["Total", total]), "t25", Iso(run.Period.Start), run.IsDraft ? "draft" : null);
+        var extras = rows.Sum(l => billing.GetValueOrDefault(l.Id)?.AdjustmentsUsd ?? 0m);
+        return Xlsx(new SpreadsheetBuilder(context).AddSheet("T25", columns, rows, ["Total", total, extras]), "t25", Iso(run.Period.Start), run.IsDraft ? "draft" : null);
     }
 
     // ===================== Register (bank upload: full IBAN) =====================

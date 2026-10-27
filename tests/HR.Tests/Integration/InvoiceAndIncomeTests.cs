@@ -66,7 +66,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
         var rizwan = await App.CreatePersonAsync("Rizwan Golden", joined: LongAgo, source: HireSource.CompanyRecommended, left: Oct(21));
         foreach (var id in new[] { ayesha, nadia, kamran, rizwan })
         {
-            await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
+            await PayAsync(id, new AdminPayInput(Oct(1), null, 50m, 350m));
         }
 
         await PayAsync(bilal, new AdminPayInput(Oct(1), 700m, null, 1000m));
@@ -153,7 +153,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
         var owner = await App.CreatePersonAsync("Owner Person", joined: LongAgo, source: HireSource.Owner);
         var cr = await App.CreatePersonAsync("Recommended Person", joined: LongAgo, source: HireSource.CompanyRecommended);
         await PayAsync(owner, new AdminPayInput(Oct(1), 1200m, null, null));
-        await PayAsync(cr, new AdminPayInput(Oct(1), 300m, 50m, null));
+        await PayAsync(cr, new AdminPayInput(Oct(1), null, 50m, 350m));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
 
         var run = await GenerateAsync(admin, Oct(1));
@@ -173,7 +173,7 @@ public partial class InvoiceAndIncomeTests(TestDatabaseFixture fixture) : Integr
     {
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var id = await App.CreatePersonAsync("Deducted Person", joined: LongAgo, source: HireSource.CompanyRecommended);
-        await PayAsync(id, new AdminPayInput(Oct(1), 300m, 50m, null));
+        await PayAsync(id, new AdminPayInput(Oct(1), null, 50m, 350m));
         var (manager, _) = await App.SignInAsAsync(AppRoles.Manager);
         var run = await GenerateAsync(manager, Oct(1));
         var line = (await LinesAsync(run)).Single().Id;

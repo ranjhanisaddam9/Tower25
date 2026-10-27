@@ -145,7 +145,8 @@
     }
 
     // ---------- Pay form: live derived figure, per-period preview and "loses money" warning ----------
-    // Mirrors the server (SPEC §2/§5, f = 1): Billed = Salary + Commission (monthly USD); per period each figure is
+    // Mirrors the server (SPEC §2/§5, f = 1): Billed = Salary + Commission (monthly USD; CompanyRecommended enters billed and
+    // commission, BudgetHire budget and salary, Owner salary); per period each figure is
     // round2(monthly / 2), billed = salary + commission, PKR = round0(salary × rate). The server re-derives everything.
     document.querySelectorAll('[data-pay-calc]').forEach(function (box) {
         var form = box.closest('form');
@@ -155,6 +156,7 @@
         var salary = field('Salary');
         var commission = field('Commission');
         var budget = field('Budget');
+        var derivedSalary = box.querySelector('[data-derived="Salary"]');
         var derivedCommission = box.querySelector('[data-derived="Commission"]');
         var derivedBilled = box.querySelector('[data-derived="Billed"]');
         var period = function (name) { return box.querySelector('[data-period="' + name + '"]'); };
@@ -173,8 +175,10 @@
             var c = null;
             var b = null;
             if (source === 'CompanyRecommended') {
+                // The Admin enters billed and commission; the salary is the difference.
+                b = number(budget);
                 c = number(commission);
-                b = s !== null && c !== null ? round2(s + c) : null;
+                s = b !== null && c !== null ? round2(b - c) : null;
             } else if (source === 'BudgetHire') {
                 b = number(budget);
                 c = s !== null && b !== null ? round2(b - s) : null;
@@ -183,6 +187,7 @@
                 b = s;
             }
 
+            if (derivedSalary) { derivedSalary.value = s === null ? '' : s.toFixed(2); }
             if (derivedCommission) { derivedCommission.value = c === null ? '' : c.toFixed(2); }
             if (derivedBilled) { derivedBilled.value = b === null ? '' : b.toFixed(2); }
 

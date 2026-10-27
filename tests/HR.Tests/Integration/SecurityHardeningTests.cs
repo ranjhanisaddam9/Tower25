@@ -332,8 +332,8 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
         await AddRateAsync(new DateOnly(2026, 1, 1), 280m);
         var a = await App.CreatePersonAsync("Parent A", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
         var b = await App.CreatePersonAsync("Parent B", joined: new DateOnly(2025, 1, 6), source: HireSource.CompanyRecommended);
-        await PayAsync(a, new AdminPayInput(Oct(1), 300m, 50m, null));
-        var recordB = await PayAsync(b, new AdminPayInput(Oct(1), 300m, 50m, null));
+        await PayAsync(a, new AdminPayInput(Oct(1), null, 50m, 350m));
+        var recordB = await PayAsync(b, new AdminPayInput(Oct(1), null, 50m, 350m));
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
         var run1 = await GenerateAsync(admin, Oct(1));
         var run2 = await GenerateAsync(admin, Oct(16));
@@ -428,7 +428,7 @@ public partial class SecurityHardeningTests(TestDatabaseFixture fixture) : Integ
             await db.SaveChangesAsync();
         }
 
-        var record = await PayAsync(person, new AdminPayInput(Oct(1), 300m, 50m, null), Payloads[1]);
+        var record = await PayAsync(person, new AdminPayInput(Oct(1), null, 50m, 350m), Payloads[1]);
         await PayAsync(other, new AdminPayInput(Oct(1), 700m, null, 1000m), Payloads[4]);
         int absence;
         await using (var db = TestDatabaseFixture.CreateDbContext())

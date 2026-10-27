@@ -77,6 +77,11 @@ if (args.Length > 0 && ServerCommands.Names.Contains(args[0]))
 
 await StartupTasks.RunAsync(app);
 
+if (app.Services.GetRequiredService<TwoFactorSwitch>().Disabled)
+{
+    app.Logger.LogWarning("Two-factor sign-in is OFF ({Setting} = true, Development only). Set it to false to turn it back on.", TwoFactorSwitch.SettingKey);
+}
+
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 // Development keeps the framework's developer exception page (added automatically); never anywhere else.

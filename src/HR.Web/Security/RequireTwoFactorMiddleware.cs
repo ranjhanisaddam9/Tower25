@@ -20,9 +20,10 @@ public sealed class RequireTwoFactorMiddleware(RequestDelegate next)
         ("Account", nameof(AccountController.ChangePassword)),
     ];
 
-    public Task InvokeAsync(HttpContext context)
+    public Task InvokeAsync(HttpContext context, TwoFactorSwitch twoFactor)
     {
-        if (context.User.Identity?.IsAuthenticated == true
+        if (!twoFactor.Disabled // Development-only owner switch
+            && context.User.Identity?.IsAuthenticated == true
             && context.User.HasClaim(AppClaimTypes.TwoFactorRequired, "true")
             && !context.User.HasClaim(AppClaimTypes.TwoFactorEnabled, "true")
             && context.GetEndpoint()?.Metadata.GetMetadata<ControllerActionDescriptor>() is { } action
