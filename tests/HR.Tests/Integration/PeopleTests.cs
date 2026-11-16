@@ -1,18 +1,28 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using HR.Domain.People;
+using HR.Domain.Time;
 using HR.Infrastructure.Identity;
 using HR.Infrastructure.People;
 using HR.Tests.Integration.Infrastructure;
 using HR.Web.Controllers;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace HR.Tests.Integration;
 
 public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(fixture)
 {
     private HrWebApplicationFactory App => Fixture.Development;
+
+    private sealed class FixedClock(DateOnly today) : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = new(today.ToDateTime(new TimeOnly(5, 0)), TimeSpan.Zero);
+
+        public DateOnly Today { get; } = today;
+    }
 
     // ---------- Access ----------
 
@@ -245,7 +255,16 @@ public partial class PeopleTests(TestDatabaseFixture fixture) : IntegrationTest(
         }
 
         // The Manager's hire-source query parameter is ignored: the active list is complete.
-        Assert.Contains("24 people", await manager.GetStringAsync("/people?hireSource=Owner")); // Rizwan leaves 21 Oct 2026: still active
+        // The demo data has fixed dates (Rizwan leaves 21 Oct 2026), so the count is checked on a fixed day.
+        await using var onOct9 = App.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IClock>();
+            services.AddSingleton<IClock>(new FixedClock(new DateOnly(2026, 10, 9)));
+        }));
+        var datedUser = await App.CreateUserAsync(AppRoles.Manager);
+        var datedManager = onOct9.CreateHttpsClient();
+        Assert.Equal(HttpStatusCode.Redirect, (await datedManager.PostLoginAsync(datedUser.Email, datedUser.Password)).StatusCode);
+        Assert.Contains("24 people", await datedManager.GetStringAsync("/people?hireSource=Owner")); // Rizwan: still active on 9 Oct
 
         // The same pages do show it to an Admin.
         var (admin, _) = await App.SignInAsAsync(AppRoles.Admin);
